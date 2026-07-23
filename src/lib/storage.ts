@@ -7,7 +7,7 @@
  */
 import type { AppData, Card } from './types';
 import { toPlainText } from './reading';
-import { DEFAULT_EASE, newCard } from './review';
+import { DEFAULT_EASE, isDateKey, newCard } from './review';
 
 export const STORAGE_KEY = 'va-practice:data';
 export const DATA_VERSION = 1;
@@ -129,13 +129,19 @@ function parseCard(raw: unknown, index: number): Card {
   for (const field of ['id', 'text', 'meaning'] as const) {
     if (typeof source[field] !== 'string') throw new Error(`第 ${index + 1} 張卡缺少 ${field} 欄位`);
   }
+  // 有值但格式不合的到期日一律當成沒有，這張卡退回新卡。
+  // 新卡的定義是「尚無間隔與到期日」，故間隔也要一併清掉，
+  // 否則列表顯示新卡、評分時卻仍沿用舊間隔。成長倍數不受影響。
+  const due = typeof source.due === 'string' && isDateKey(source.due) ? source.due : null;
+  const dueWasInvalid = source.due !== undefined && source.due !== null && due === null;
+  const interval = typeof source.interval === 'number' ? source.interval : null;
   return {
     id: source.id as string,
     text: source.text as string,
     meaning: source.meaning as string,
-    interval: typeof source.interval === 'number' ? source.interval : null,
+    interval: dueWasInvalid ? null : interval,
     ease: typeof source.ease === 'number' ? source.ease : DEFAULT_EASE,
-    due: typeof source.due === 'string' ? source.due : null,
+    due,
   };
 }
 

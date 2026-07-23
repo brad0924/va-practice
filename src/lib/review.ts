@@ -39,6 +39,14 @@ export function toDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * 是否為 `toDateKey()` 產生的格式。只驗格式、不驗日期是否真的存在：
+ * `2026-02-30` 不會讓 `overdueDays()` 算出 NaN，`sortByDue()` 也仍然排得對。
+ */
+export function isDateKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 function addDays(date: Date, days: number): string {
   return toDateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() + days));
 }

@@ -218,6 +218,54 @@ describe('匯出與匯入', () => {
     expect(() => store.importJson('{"version":1,"cards":[{"id":"x"}]}')).toThrow();
   });
 
+  it('匯入的 due 格式不合就當成新卡，其餘卡片照常匯入', () => {
+    const store = createStore(fakeStorage(), BUILTIN);
+    const data = store.importJson(
+      JSON.stringify({
+        version: 1,
+        knownBuiltinIds: ['焦がす', '拝む'],
+        cards: [
+          { id: '焦がす', text: '焦がす', meaning: '燒焦', interval: 3, ease: 2.15, due: '2026-7-3' },
+          { id: '拝む', text: '拝む', meaning: '拜', interval: 5, ease: 2.5, due: '2026-08-01' },
+        ],
+      }),
+    );
+
+    expect(data.cards[0]).toEqual({
+      id: '焦がす',
+      text: '焦がす',
+      meaning: '燒焦',
+      interval: null,
+      ease: 2.15,
+      due: null,
+    });
+    expect(data.cards[1]!.due).toBe('2026-08-01');
+    expect(data.cards[1]!.interval).toBe(5);
+  });
+
+  // 匯入的卡固定帶 interval: 3。到期日不合法者連間隔一起清掉，才是真正的新卡；
+  // 到期日本來就沒有的（欄位不存在）不在此列，間隔照舊。
+  it.each<[string, unknown, string | null, number | null]>([
+    ['看不懂的字串', 'tomorrow', null, null],
+    ['空字串', '', null, null],
+    ['帶時刻的 ISO 格式', '2026-08-01T00:00:00Z', null, null],
+    ['型別不對', 42, null, null],
+    ['格式正確但日期不存在', '2026-02-30', '2026-02-30', 3],
+    ['沒有 due 欄位', undefined, null, 3],
+    ['合法的到期日', '2026-08-01', '2026-08-01', 3],
+  ])('匯入 %s 的 due', (_label, due, expectedDue, expectedInterval) => {
+    const store = createStore(fakeStorage(), BUILTIN);
+    const data = store.importJson(
+      JSON.stringify({
+        version: 1,
+        knownBuiltinIds: ['焦がす'],
+        cards: [{ id: '焦がす', text: '焦がす', meaning: '燒焦', interval: 3, ease: 2.5, due }],
+      }),
+    );
+    expect(data.cards[0]!.due).toBe(expectedDue);
+    expect(data.cards[0]!.interval).toBe(expectedInterval);
+  });
+
   it('匯入舊備份缺少內建卡名單時，不會把整副內建牌組重灌回去', () => {
     const storage = fakeStorage();
     const store = createStore(storage, BUILTIN);

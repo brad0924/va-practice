@@ -1,6 +1,6 @@
 # 匯入的 due 欄位缺少格式驗證
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 ## 問題
@@ -31,3 +31,7 @@ Type: bug
 - 測試寫在 `src/lib/storage.test.ts`，沿用該檔既有的假 storage 寫法。
 
 ## Comments
+
+- 實作時把決定 2 限縮為「`due` 有值但格式不合法」才一併清 `interval`。若 `due` 本來就是 `null` 或欄位不存在，`interval` 維持原樣——否則 `storage.test.ts` 既有的兩個測試（直接改 `interval`、`due` 仍為 `null`）會被打壞，那不屬於本次範圍。此限縮經確認採用。
+- 已知殘留：`due` 欄位不存在但有 `interval` 的手改備份，仍會留下「列表顯示新卡、評分卻用舊間隔」的狀態。本次不處理。
+- 格式判斷放在 `review.ts` 的 `isDateKey()`，與產生該格式的 `toDateKey()` 相鄰，避免格式知識散在兩個模組。
