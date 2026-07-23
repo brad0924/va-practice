@@ -120,7 +120,10 @@ export function rate(
     ...target,
     interval: days,
     ease: Math.max(MIN_EASE, target.ease + easeDelta),
-    due: addDays(now, days),
+    // 「再次」到期日設為當天而非 now + interval：重排回佇列只存在記憶體裡，
+    // 到期日排到明天會讓這張卡在重整後被 buildQueue() 濾掉。間隔不受影響，
+    // 仍是下次正式評分的長期排程基準。
+    due: rating === 'again' ? toDateKey(now) : addDays(now, days),
   };
 
   const rest = queue.slice(1);

@@ -92,11 +92,16 @@ describe('評分後的間隔與到期日', () => {
     expect(updated.ease).toBeCloseTo(2.35);
   });
 
-  it('再次：間隔重設為 1 天，成長倍數 −0.20', () => {
+  it('再次：間隔重設為 1 天，成長倍數 −0.20，到期日為複習當天', () => {
     const { card: updated } = rate([reviewCard], 'again', NOW, noFuzz);
     expect(updated.interval).toBe(1);
     expect(updated.ease).toBeCloseTo(2.3);
-    expect(updated.due).toBe('2026-07-24');
+    expect(updated.due).toBe('2026-07-23');
+  });
+
+  it('再次的卡當天重建佇列仍撈得到，重整頁面不會消失', () => {
+    const { card: updated } = rate([reviewCard], 'again', NOW, noFuzz);
+    expect(buildQueue([updated], NOW, noFuzz).map((c) => c.id)).toEqual(['x']);
   });
 
   it('新卡的間隔以 1 天起算', () => {
