@@ -1,6 +1,6 @@
 # 備份按鈕搬到獨立的「資料」畫面
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 問題
@@ -34,3 +34,5 @@ Type: enhancement
 
 - 本張 issue 由 `/grill-with-docs` 訪談產出，六項決定皆經逐題確認。
 - 同一次訪談在 `CONTEXT.md` 的「資料」章節補上了「備份（Backup）」詞條，先前詞彙表缺這個詞。
+- 實作時連帶刪掉 `.section-title` 這條 CSS：`<h2>` 依決定 6 拿掉後，全 repo 已無人使用。
+- 卡片頁四格 header 的標題會偏離視覺中心約 30px（`.bar-title` 是 `flex: 1` 撐滿剩餘空間再置中，右側從一顆按鈕變兩顆）。驗收的「不擠壓、不換行、不溢出」在 320／360／480px 三個寬度實測皆過，此偏移經確認維持現狀，不動 CSS。

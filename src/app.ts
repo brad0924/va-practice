@@ -5,6 +5,7 @@ import type { AppData, Card } from './lib/types';
 import { initSpeech } from './ui/speech';
 import { reviewView } from './ui/review-view';
 import { listView } from './ui/list-view';
+import { dataView } from './ui/data-view';
 import { editorView } from './ui/editor-view';
 
 /**
@@ -29,6 +30,8 @@ export interface App {
   reload(): void;
   showReview(): void;
   showList(): void;
+  /** 只有卡片頁能進來，回去的目的地固定，不必傳 back。 */
+  showData(): void;
   showEditor(card: Card | null, back: () => void): void;
   /** 目前畫面的鍵盤處理器，離開畫面時自動解除。 */
   keyHandler: ((event: KeyboardEvent) => void) | null;
@@ -101,6 +104,10 @@ export function start(root: HTMLElement): void {
     },
     showList() {
       render = () => mount(() => listView(app));
+      render();
+    },
+    showData() {
+      render = () => mount(() => dataView(app));
       render();
     },
     showEditor(card, back) {

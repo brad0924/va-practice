@@ -1,7 +1,6 @@
 import type { App } from '../app';
 import { toPlainText, toReadingText } from '../lib/reading';
-import { overdueDays, sortByDue, toDateKey } from '../lib/review';
-import { toMessage } from '../lib/storage';
+import { overdueDays, sortByDue } from '../lib/review';
 import type { Card } from '../lib/types';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
@@ -13,6 +12,7 @@ export function listView(app: App): HTMLElement {
   header.append(
     button('bar-action', '複習', () => app.showReview()),
     el('span', 'bar-title', '卡片'),
+    button('bar-action', '資料', () => app.showData()),
     button('bar-action', '新增', () => app.showEditor(null, () => app.showList())),
   );
 
@@ -23,7 +23,6 @@ export function listView(app: App): HTMLElement {
 
   const count = el('p', 'count');
   const rows = el('div', 'rows');
-  const status = el('p', 'status');
 
   const now = app.now();
   const refresh = () => {
@@ -37,7 +36,7 @@ export function listView(app: App): HTMLElement {
   refresh();
 
   const main = el('main', 'panel');
-  main.append(search, count, rows, dataSection(app, status), status);
+  main.append(search, count, rows);
 
   screen.append(header, main);
   return screen;
@@ -78,48 +77,4 @@ function filter(cards: readonly Card[], query: string): Card[] {
       field.toLowerCase().includes(needle),
     ),
   );
-}
-
-function dataSection(app: App, status: HTMLElement): HTMLElement {
-  const file = el('input', 'file-input');
-  file.type = 'file';
-  file.accept = 'application/json,.json';
-  file.addEventListener('change', async () => {
-    const chosen = file.files?.[0];
-    file.value = '';
-    if (!chosen) return;
-    if (!confirm('匯入會整份覆蓋目前的卡片與進度，且無法復原。確定要繼續？')) return;
-    try {
-      app.store.importJson(await chosen.text());
-      app.reload();
-      app.showList();
-    } catch (error) {
-      status.textContent = `匯入失敗：${toMessage(error)}`;
-      status.classList.add('error');
-    }
-  });
-
-  const section = el('section', 'data-section');
-  section.append(
-    el('h2', 'section-title', '資料'),
-    el('p', 'hint', '匯出後可在另一台裝置匯入，用來備份或搬家。'),
-    el(
-      'div',
-      'data-actions',
-      button('secondary', '匯出備份', () => download(app)),
-      button('secondary', '匯入備份', () => file.click()),
-    ),
-    file,
-  );
-  return section;
-}
-
-function download(app: App): void {
-  const blob = new Blob([app.store.exportJson()], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = el('a');
-  link.href = url;
-  link.download = `jlpt-cards-${toDateKey(app.now())}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
 }
