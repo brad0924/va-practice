@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { buildQueue, currentCard, isComplete, rate, newCard, DEFAULT_EASE, MIN_EASE } from './review';
+import {
+  buildQueue,
+  currentCard,
+  isComplete,
+  rate,
+  newCard,
+  overdueDays,
+  sortByDue,
+  DEFAULT_EASE,
+  MIN_EASE,
+} from './review';
 import type { Card } from './types';
 
 const NOW = new Date('2026-07-23T09:00:00');
@@ -190,6 +200,76 @@ describe('評分後的佇列', () => {
     rate(input, 'good', NOW, noFuzz);
     expect(input).toEqual([{ ...original }]);
     expect(original.interval).toBe(10);
+  });
+});
+
+describe('依到期排序', () => {
+  it('最急的排最前：逾期最久、今日到期、未來、新卡', () => {
+    const cards = [
+      card('未來', { interval: 5, due: '2026-07-28' }),
+      card('新卡'),
+      card('今日', { interval: 3, due: '2026-07-23' }),
+      card('逾期久', { interval: 3, due: '2026-07-20' }),
+      card('更遠', { interval: 90, due: '2027-02-14' }),
+      card('逾期短', { interval: 3, due: '2026-07-22' }),
+    ];
+    expect(sortByDue(cards).map((c) => c.id)).toEqual([
+      '逾期久',
+      '逾期短',
+      '今日',
+      '未來',
+      '更遠',
+      '新卡',
+    ]);
+  });
+
+  it('到期日相同的卡維持原本順序', () => {
+    const cards = [
+      card('丙', { interval: 3, due: '2026-07-25' }),
+      card('甲', { interval: 3, due: '2026-07-25' }),
+      card('乙', { interval: 3, due: '2026-07-25' }),
+    ];
+    expect(sortByDue(cards).map((c) => c.id)).toEqual(['丙', '甲', '乙']);
+  });
+
+  it('新卡一律墊底，彼此之間維持原本順序', () => {
+    const cards = [card('新二'), card('新一'), card('舊', { interval: 3, due: '2026-07-25' })];
+    expect(sortByDue(cards).map((c) => c.id)).toEqual(['舊', '新二', '新一']);
+  });
+
+  it('不會改動傳入的陣列', () => {
+    const cards = [card('b', { interval: 3, due: '2026-07-25' }), card('a', { interval: 3, due: '2026-07-20' })];
+    sortByDue(cards);
+    expect(cards.map((c) => c.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('逾期天數', () => {
+  it('到期日在過去，回傳已經拖了幾天', () => {
+    expect(overdueDays(card('x', { interval: 3, due: '2026-07-20' }), NOW)).toBe(3);
+  });
+
+  it('今日到期回傳 0', () => {
+    expect(overdueDays(card('x', { interval: 3, due: '2026-07-23' }), NOW)).toBe(0);
+  });
+
+  it('尚未到期回傳負數', () => {
+    expect(overdueDays(card('x', { interval: 3, due: '2026-07-26' }), NOW)).toBe(-3);
+  });
+
+  it('跨月與跨年都算得出來', () => {
+    expect(overdueDays(card('x', { interval: 3, due: '2026-06-30' }), NOW)).toBe(23);
+    expect(overdueDays(card('x', { interval: 3, due: '2025-12-31' }), NOW)).toBe(204);
+  });
+
+  it('新卡沒有到期日，回傳 null', () => {
+    expect(overdueDays(card('新'), NOW)).toBeNull();
+  });
+
+  it('不受當下時刻影響，同一天的深夜與清晨結果相同', () => {
+    const target = card('x', { interval: 3, due: '2026-07-20' });
+    expect(overdueDays(target, new Date('2026-07-23T00:01:00'))).toBe(3);
+    expect(overdueDays(target, new Date('2026-07-23T23:59:00'))).toBe(3);
   });
 });
 

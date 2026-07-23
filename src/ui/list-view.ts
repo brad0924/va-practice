@@ -1,6 +1,6 @@
 import type { App } from '../app';
 import { toPlainText, toReadingText } from '../lib/reading';
-import { isDue, toDateKey } from '../lib/review';
+import { overdueDays, sortByDue, toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
 import type { Card } from '../lib/types';
 import { el, button } from './dom';
@@ -27,7 +27,7 @@ export function listView(app: App): HTMLElement {
 
   const now = app.now();
   const refresh = () => {
-    const matches = filter(app.data.cards, search.value);
+    const matches = sortByDue(filter(app.data.cards, search.value));
     count.textContent = search.value.trim()
       ? `符合 ${matches.length} 張，共 ${app.data.cards.length} 張`
       : `共 ${app.data.cards.length} 張`;
@@ -45,7 +45,7 @@ export function listView(app: App): HTMLElement {
 
 function row(app: App, card: Card, now: Date): HTMLElement {
   const open = () => app.showEditor(card, () => app.showList());
-  const dueToday = card.due !== null && isDue(card, now);
+  const days = overdueDays(card, now);
 
   const entry = el('button', 'row');
   entry.type = 'button';
@@ -53,14 +53,21 @@ function row(app: App, card: Card, now: Date): HTMLElement {
   entry.append(
     el('span', 'row-term', renderTerm(card.text, true)),
     el('span', 'row-meaning', card.meaning),
-    el('span', `row-state${dueToday ? ' due' : ''}`, describeSchedule(card, dueToday)),
+    el('span', `row-state${stateModifier(days)}`, describeSchedule(card, days)),
   );
   return entry;
 }
 
-function describeSchedule(card: Card, dueToday: boolean): string {
-  if (card.due === null) return '新卡';
-  return dueToday ? '今日到期' : `${card.due} 到期`;
+function describeSchedule(card: Card, days: number | null): string {
+  if (days === null) return '新卡';
+  if (days > 0) return `逾期 ${days} 天`;
+  if (days === 0) return '今日到期';
+  return `${card.due} 到期`;
+}
+
+function stateModifier(days: number | null): string {
+  if (days === null || days < 0) return '';
+  return days > 0 ? ' overdue' : ' due';
 }
 
 function filter(cards: readonly Card[], query: string): Card[] {

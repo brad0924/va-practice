@@ -44,8 +44,34 @@ function addDays(date: Date, days: number): string {
 }
 
 /** 新卡（尚無到期日）視為已到期。 */
-export function isDue(card: Card, now: Date): boolean {
+function isDue(card: Card, now: Date): boolean {
   return card.due === null || card.due <= toDateKey(now);
+}
+
+/**
+ * 一張卡拖了幾天：正數為逾期天數，0 為今日到期，負數為尚未到期。
+ * 新卡沒有到期日，回傳 null。
+ */
+export function overdueDays(card: Card, now: Date): number | null {
+  if (card.due === null) return null;
+  const [year, month, day] = card.due.split('-').map(Number);
+  const due = new Date(year!, month! - 1, day!);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today.getTime() - due.getTime()) / 86_400_000);
+}
+
+/**
+ * 依到期日由舊到新排序，最急的在最前面，新卡墊底。
+ * `YYYY-MM-DD` 的字典序即日期序，故不需要注入時間。
+ * 排序是穩定的，同一天到期的卡維持原本順序。
+ */
+export function sortByDue(cards: readonly Card[]): Card[] {
+  return [...cards].sort((a, b) => {
+    if (a.due === b.due) return 0;
+    if (a.due === null) return 1;
+    if (b.due === null) return -1;
+    return a.due < b.due ? -1 : 1;
+  });
 }
 
 /** 取出當日已到期的卡片，以隨機順序排列。 */
