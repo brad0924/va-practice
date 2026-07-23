@@ -8,6 +8,8 @@
 - Spec 放在 `.scratch/<feature-slug>/spec.md`
 - 實作用的 issue 一張一個檔案，位於 `.scratch/<feature-slug>/issues/<NN>-<slug>.md`，編號從 `01` 起算——絕不合併成單一檔案
 - Triage 狀態以檔案上方的 `Status:` 一行記錄（角色字串見 `triage-labels.md`）
+- 類別以緊接其後的 `Type:` 一行記錄，值為 `bug` 或 `enhancement`
+- 實作完成後把 `Status:` 改成 `done`，檔案保留不刪——決策紀錄與 commit 訊息互為對照
 - 留言與討論紀錄追加在檔案底部的 `## Comments` 標題之下
 
 ## 當某個 skill 說「發佈到 issue tracker」
