@@ -3,6 +3,12 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # 純文件的 push 不觸發部署；只要有一個檔案不在清單內就照常跑
+    paths-ignore:
+      - '**.md'
+      - '.scratch/**'
+      - 'docs/**'
+      - '.claude/**'
   workflow_dispatch:
 
 permissions:
