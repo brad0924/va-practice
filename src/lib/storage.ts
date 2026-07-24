@@ -10,7 +10,7 @@ import { toPlainText } from './reading';
 import { DEFAULT_EASE, isDateKey, newCard } from './review';
 
 export const STORAGE_KEY = 'va-practice:data';
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
 /** localStorage 的最小介面，測試時可換成假的實作。 */
 export interface StorageLike {
@@ -54,6 +54,7 @@ export function createStore(storage: StorageLike, builtin: BuiltinDeck): Store {
         version: DATA_VERSION,
         cards: builtin.cards.map((entry) => newCard(entry.id, entry.text, entry.meaning)),
         knownBuiltinIds: builtinIds,
+        updatedAt: 0,
       };
       write(initial);
       return initial;
@@ -74,6 +75,8 @@ export function createStore(storage: StorageLike, builtin: BuiltinDeck): Store {
       version: DATA_VERSION,
       cards: [...stored.cards, ...added],
       knownBuiltinIds: [...new Set([...stored.knownBuiltinIds, ...builtinIds])],
+      // 補內建卡不算「這份資料被推上雲端過」，時間戳原封不動。
+      updatedAt: stored.updatedAt,
     };
     // 一律寫回，讓儲存的內容永遠是正規化後的形式。
     // 否則舊格式的資料會一直缺少內建卡名單，下次發佈追加卡片時就補不進來。
@@ -120,6 +123,8 @@ function parseAppData(raw: unknown, builtinIds: string[]): AppData {
     knownBuiltinIds: Array.isArray(source.knownBuiltinIds)
       ? source.knownBuiltinIds.filter((id): id is string => typeof id === 'string')
       : builtinIds,
+    // version 1 的資料沒有這個欄位，視為最舊，開 app 時會被雲端那份蓋掉。
+    updatedAt: typeof source.updatedAt === 'number' ? source.updatedAt : 0,
   };
 }
 

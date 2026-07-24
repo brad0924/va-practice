@@ -1,8 +1,10 @@
 import builtin from './data/cards.json';
 import { createStore, type Store } from './lib/storage';
+import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { buildQueue, type Queue } from './lib/review';
 import type { AppData, Card } from './lib/types';
 import { initSpeech } from './ui/speech';
+import { createSyncStatus } from './ui/sync-status';
 import { reviewView } from './ui/review-view';
 import { listView } from './ui/list-view';
 import { dataView } from './ui/data-view';
@@ -16,6 +18,8 @@ export interface App {
   readonly data: AppData;
   readonly queue: Queue;
   readonly store: Store;
+  /** 雲端備份。未登入時所有操作都是靜默的，一個網路請求都不發。 */
+  readonly cloud: CloudBackup;
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
@@ -47,6 +51,21 @@ export function start(root: HTMLElement): void {
   let revealed = false;
   let render: () => void = () => {};
 
+  const cloud = createCloudBackup({
+    storage: localStorage,
+    onPulled(json, updatedAt) {
+      // 走一次匯入的驗證路徑，壞掉的雲端資料不會弄壞本機這份。
+      store.save({ ...store.importJson(json), updatedAt });
+      app.reload();
+      render();
+    },
+    onPushed(updatedAt) {
+      data.updatedAt = updatedAt;
+      store.save(data);
+    },
+    onStatus: createSyncStatus(document.body),
+  });
+
   const app: App = {
     get data() {
       return data;
@@ -58,6 +77,7 @@ export function start(root: HTMLElement): void {
       return revealed;
     },
     store,
+    cloud,
     now,
     random,
 
@@ -69,7 +89,7 @@ export function start(root: HTMLElement): void {
       queue = nextQueue;
       revealed = false;
       replaceInData(card);
-      store.save(data);
+      persist();
     },
 
     upsert(card) {
@@ -81,7 +101,7 @@ export function start(root: HTMLElement): void {
         replaceInData(card);
         queue = queue.map((queued) => (queued.id === card.id ? card : queued));
       }
-      store.save(data);
+      persist();
     },
 
     remove(id) {
@@ -89,7 +109,7 @@ export function start(root: HTMLElement): void {
       queue = queue.filter((card) => card.id !== id);
       // 刪掉的若是目前這張，下一張會遞補上來，不能沿用已掀開的狀態。
       revealed = false;
-      store.save(data);
+      persist();
     },
 
     reload() {
@@ -122,6 +142,12 @@ export function start(root: HTMLElement): void {
     data.cards = data.cards.map((existing) => (existing.id === card.id ? card : existing));
   }
 
+  // 本機仍然是唯一的資料來源，先存好；雲端那一步失敗與否都不影響這裡。
+  function persist(): void {
+    store.save(data);
+    cloud.push(data);
+  }
+
   // 先解除上一個畫面的鍵盤處理器，再建立新畫面——順序反過來的話，
   // 新畫面剛註冊的處理器會立刻被清掉。
   function mount(build: () => HTMLElement): void {
@@ -138,6 +164,9 @@ export function start(root: HTMLElement): void {
   initSpeech(() => render());
 
   app.showReview();
+
+  // 畫面先出來，雲端在背後追。沒登入的話這一步什麼都不做。
+  cloud.begin(data);
 }
 
 function isTyping(target: EventTarget | null): boolean {

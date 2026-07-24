@@ -1,0 +1,36 @@
+{
+  "rules": {
+    "backups": {
+      "$key": {
+        ".write": "!data.exists() || newData.child('prev').val() === data.child('fingerprint').val()",
+        ".validate": "newData.hasChildren(['fingerprint', 'prev', 'open'])",
+        "fingerprint": {
+          ".validate": "newData.isString() && newData.val().length === 64"
+        },
+        "prev": {
+          ".validate": "newData.isString() && newData.val().length === 64"
+        },
+        "open": {
+          ".read": true,
+          ".validate": "newData.hasChildren(['payload', 'updatedAt'])",
+          "payload": {
+            ".validate": "newData.isString() && newData.val().length <= 2000000"
+          },
+          "updatedAt": {
+            ".validate": "newData.val() === now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

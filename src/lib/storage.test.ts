@@ -149,6 +149,37 @@ describe('儲存', () => {
     expect(reloaded.cards.map((c) => c.id)).toEqual(['焦がす', '崖']);
   });
 
+  it('首次啟動的資料還沒推上雲端，時間戳是最舊的 0', () => {
+    expect(createStore(fakeStorage(), BUILTIN).load().updatedAt).toBe(0);
+  });
+
+  it('推上雲端後記下的時間戳讀得回來', () => {
+    const storage = fakeStorage();
+    const store = createStore(storage, BUILTIN);
+    store.save({ ...store.load(), updatedAt: 1784852211282 });
+    expect(createStore(storage, BUILTIN).load().updatedAt).toBe(1784852211282);
+  });
+
+  it('補內建卡不算推上雲端，時間戳不動', () => {
+    const storage = fakeStorage();
+    const store = createStore(storage, BUILTIN);
+    store.save({ ...store.load(), updatedAt: 1784852211282 });
+
+    const enlarged = deck(['焦がす', '燒焦'], ['拝む', '拜'], ['崖', '懸崖']);
+    expect(createStore(storage, enlarged).load().updatedAt).toBe(1784852211282);
+  });
+
+  it('version 1 的舊資料沒有時間戳，視為最舊', () => {
+    const storage = fakeStorage(
+      JSON.stringify({
+        version: 1,
+        knownBuiltinIds: ['焦がす', '拝む'],
+        cards: [{ id: '焦がす', text: '焦がす', meaning: '燒焦', interval: 3, ease: 2.5, due: '2026-08-01' }],
+      }),
+    );
+    expect(createStore(storage, BUILTIN).load().updatedAt).toBe(0);
+  });
+
   it('儲存內容毀損時拋出明確錯誤，而不是靜靜清空資料', () => {
     const store = createStore(fakeStorage('{ 這不是 JSON'), BUILTIN);
     expect(() => store.load()).toThrow(/毀損/);
@@ -160,7 +191,7 @@ describe('匯出與匯入', () => {
     const store = createStore(fakeStorage(), BUILTIN);
     store.load();
     const parsed = JSON.parse(store.exportJson());
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(parsed.cards).toHaveLength(2);
   });
 

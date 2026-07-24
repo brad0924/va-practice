@@ -416,3 +416,41 @@ button {
 .file-input {
   display: none;
 }
+
+/* ---------- 資料畫面的分區 ---------- */
+
+.section + .section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+/* ---------- 雲端備份的狀態字 ---------- */
+
+/* 平常不出現，只在推不上雲端時露臉。不擋任何按鈕，不打斷複習。 */
+.sync-status:empty {
+  display: none;
+}
+
+.sync-status {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* 抬到底部那排按鈕上方，才不會蓋住「顯示答案」與四個評分鍵。 */
+  bottom: calc(env(safe-area-inset-bottom) + var(--tap) + 1.25rem);
+  margin: 0 auto;
+  width: fit-content;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
