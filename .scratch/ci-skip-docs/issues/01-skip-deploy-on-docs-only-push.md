@@ -34,3 +34,5 @@ Type: enhancement
 
 - 已推上 `main`（`8f65d57`）。該 commit 動到 `deploy.yml`，Actions 照常觸發了一次部署，符合驗收條件第一項——設定生效與否要看下一筆純文件的 push。
 - 本則留言即是驗收條件第二項的測試：這次 commit 只動到本檔案（`.scratch/**`），推上去後 Actions 若沒有出現新的執行紀錄，即代表 `paths-ignore` 生效。
+- 驗證結果：`8f65d57` 的部署跑完是綠的，`5b89712` 推上後 Actions 未出現新的執行紀錄。驗收條件前兩項通過，`paths-ignore` 確認生效。
+- 驗收條件第三、四項（混合 push、`workflow_dispatch` 手動觸發）未實測。前者是 GitHub 明文定義的行為，下次任何功能 commit 自然會驗到；後者那一行從頭到尾未改動。兩者皆依既定行為判斷，非實測結論。
