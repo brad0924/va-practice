@@ -68,17 +68,24 @@ export function overdueDays(card: Card, now: Date): number | null {
   return Math.round((today.getTime() - due.getTime()) / 86_400_000);
 }
 
+/** 到期排序的方向：`asc` 由舊到新，`desc` 由新到舊。 */
+export type SortDirection = 'asc' | 'desc';
+
 /**
- * 依到期日由舊到新排序，最急的在最前面，新卡墊底。
+ * 依到期日排序。`asc` 是最急的在最前面，`desc` 整個反過來。
+ * 新卡沒有到期日，一律視為最早到期，因此 `asc` 排最前、`desc` 沉到最底。
  * `YYYY-MM-DD` 的字典序即日期序，故不需要注入時間。
- * 排序是穩定的，同一天到期的卡維持原本順序。
+ *
+ * 只有日期的比較被反轉，同一組（同一天到期、或同為新卡）內部維持原本順序，
+ * 兩個方向下都一樣。
  */
-export function sortByDue(cards: readonly Card[]): Card[] {
+export function sortByDue(cards: readonly Card[], direction: SortDirection = 'asc'): Card[] {
+  const flip = direction === 'asc' ? 1 : -1;
   return [...cards].sort((a, b) => {
     if (a.due === b.due) return 0;
-    if (a.due === null) return 1;
-    if (b.due === null) return -1;
-    return a.due < b.due ? -1 : 1;
+    if (a.due === null) return -flip;
+    if (b.due === null) return flip;
+    return (a.due < b.due ? -1 : 1) * flip;
   });
 }
 

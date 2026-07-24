@@ -277,6 +277,28 @@ button {
   color: var(--danger);
 }
 
+/* 計數與排序鈕並排一列。高度由 .count 自己的 margin 撐開。 */
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sort-toggle {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.sort-toggle:active {
+  background: var(--surface-2);
+}
+
 .rows {
   display: flex;
   flex-direction: column;

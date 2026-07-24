@@ -1,6 +1,6 @@
 import type { App } from '../app';
 import { toPlainText, toReadingText } from '../lib/reading';
-import { overdueDays, sortByDue } from '../lib/review';
+import { overdueDays, sortByDue, type SortDirection } from '../lib/review';
 import type { Card } from '../lib/types';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
@@ -21,22 +21,35 @@ export function listView(app: App): HTMLElement {
   search.placeholder = '搜尋詞條、讀音或釋義';
   search.autocapitalize = 'off';
 
-  const count = el('p', 'count');
+  const count = el('span', 'count');
   const rows = el('div', 'rows');
+
+  // 方向只活在這次畫面裡，離開卡片頁再回來就回到正序，與搜尋框的行為一致。
+  let direction: SortDirection = 'asc';
+  const sort = button('sort-toggle', '', () => {
+    direction = direction === 'asc' ? 'desc' : 'asc';
+    refresh();
+  });
 
   const now = app.now();
   const refresh = () => {
-    const matches = sortByDue(filter(app.data.cards, search.value));
+    const matches = sortByDue(filter(app.data.cards, search.value), direction);
     count.textContent = search.value.trim()
       ? `符合 ${matches.length} 張，共 ${app.data.cards.length} 張`
       : `共 ${app.data.cards.length} 張`;
+    sort.textContent = direction === 'asc' ? '到期 ↑' : '到期 ↓';
+    sort.setAttribute(
+      'aria-label',
+      direction === 'asc' ? '切換到期排序方向，目前最急的在前' : '切換到期排序方向，目前最不急的在前',
+    );
     rows.replaceChildren(...matches.map((card) => row(app, card, now)));
   };
   search.addEventListener('input', refresh);
   refresh();
 
+  const toolbar = el('div', 'list-toolbar', count, sort);
   const main = el('main', 'panel');
-  main.append(search, count, rows);
+  main.append(search, toolbar, rows);
 
   screen.append(header, main);
   return screen;

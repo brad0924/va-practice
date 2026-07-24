@@ -209,7 +209,7 @@ describe('評分後的佇列', () => {
 });
 
 describe('依到期排序', () => {
-  it('最急的排最前：逾期最久、今日到期、未來、新卡', () => {
+  it('最急的排最前：新卡、逾期最久、今日到期、未來', () => {
     const cards = [
       card('未來', { interval: 5, due: '2026-07-28' }),
       card('新卡'),
@@ -219,11 +219,30 @@ describe('依到期排序', () => {
       card('逾期短', { interval: 3, due: '2026-07-22' }),
     ];
     expect(sortByDue(cards).map((c) => c.id)).toEqual([
+      '新卡',
       '逾期久',
       '逾期短',
       '今日',
       '未來',
       '更遠',
+    ]);
+  });
+
+  it('倒序時最不急的排最前，新卡沉到最底', () => {
+    const cards = [
+      card('未來', { interval: 5, due: '2026-07-28' }),
+      card('新卡'),
+      card('今日', { interval: 3, due: '2026-07-23' }),
+      card('逾期久', { interval: 3, due: '2026-07-20' }),
+      card('更遠', { interval: 90, due: '2027-02-14' }),
+      card('逾期短', { interval: 3, due: '2026-07-22' }),
+    ];
+    expect(sortByDue(cards, 'desc').map((c) => c.id)).toEqual([
+      '更遠',
+      '未來',
+      '今日',
+      '逾期短',
+      '逾期久',
       '新卡',
     ]);
   });
@@ -237,9 +256,19 @@ describe('依到期排序', () => {
     expect(sortByDue(cards).map((c) => c.id)).toEqual(['丙', '甲', '乙']);
   });
 
-  it('新卡一律墊底，彼此之間維持原本順序', () => {
+  it('新卡一律排最前，彼此之間維持原本順序', () => {
     const cards = [card('新二'), card('新一'), card('舊', { interval: 3, due: '2026-07-25' })];
-    expect(sortByDue(cards).map((c) => c.id)).toEqual(['舊', '新二', '新一']);
+    expect(sortByDue(cards).map((c) => c.id)).toEqual(['新二', '新一', '舊']);
+  });
+
+  it('倒序只翻日期，同一組內部的順序不跟著翻', () => {
+    const cards = [
+      card('新二'),
+      card('新一'),
+      card('丙', { interval: 3, due: '2026-07-25' }),
+      card('甲', { interval: 3, due: '2026-07-25' }),
+    ];
+    expect(sortByDue(cards, 'desc').map((c) => c.id)).toEqual(['丙', '甲', '新二', '新一']);
   });
 
   it('不會改動傳入的陣列', () => {
