@@ -423,6 +423,76 @@ button {
   color: var(--danger);
 }
 
+/* ---------- 讀音格 ---------- */
+
+.reading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* 一串連續漢字一列，格與縫橫向排。串長時換行。 */
+.reading-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* 一格：上面漢字標籤，下面讀音框。 */
+.reading-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 3.5rem;
+}
+
+.reading-kanji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.reading-char {
+  padding: 0 0.1rem;
+}
+
+.reading-input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.reading-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* 格與格之間可點的縫。⊕ 黏起來、· 拆開。觸控目標比照 .bar-action（2.5rem），手機上按得到。 */
+.reading-seam {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  color: var(--accent);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.reading-seam:active {
+  background: var(--surface-2);
+}
+
 .data-actions {
   display: flex;
   gap: 0.5rem;
