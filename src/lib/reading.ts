@@ -225,12 +225,17 @@ export function mergeSeam(run: KanjiRun, seam: number): KanjiRun {
   return { start: run.start, cells };
 }
 
-/** 把第 index 格拆回逐字，讀音清空（無法把合併讀音分配回各字）。 */
-export function splitCell(run: KanjiRun, index: number): KanjiRun {
+/**
+ * 把第 index 格的 kanji 從第 at 字切成左右兩格（at 為 1 ~ kanji.length−1）。
+ * 每道縫獨立，只切這一個邊界，其餘格不動。兩格讀音皆清空
+ * （無法把合併讀音分配回各段，同 mergeSeam 的反向限制）。
+ */
+export function splitCellAt(run: KanjiRun, index: number, at: number): KanjiRun {
   const cells = run.cells.map((cell) => ({ ...cell }));
   const target = cells[index]!;
-  const pieces: ReadingCell[] = [...target.kanji].map((char) => ({ kanji: char, reading: '' }));
-  cells.splice(index, 1, ...pieces);
+  const left: ReadingCell = { kanji: target.kanji.slice(0, at), reading: '' };
+  const right: ReadingCell = { kanji: target.kanji.slice(at), reading: '' };
+  cells.splice(index, 1, left, right);
   return { start: run.start, cells };
 }
 

@@ -7,7 +7,7 @@ import {
   toMarkup,
   rebuildRuns,
   mergeSeam,
-  splitCell,
+  splitCellAt,
   validateDraft,
   type KanjiRun,
 } from './reading';
@@ -248,19 +248,74 @@ describe('合併縫 mergeSeam', () => {
   });
 });
 
-describe('拆格 splitCell', () => {
-  it('剃刀[かみそり] → 剃[] 刀[]，讀音清空', () => {
+describe('按邊界拆格 splitCellAt', () => {
+  it('兩字格 剃刀[かみそり] 切第 1 字 → 剃[] 刀[]，讀音清空', () => {
     const run: KanjiRun = {
       start: 0,
       cells: [{ kanji: '剃刀', reading: 'かみそり' }],
     };
-    expect(splitCell(run, 0)).toEqual({
+    expect(splitCellAt(run, 0, 1)).toEqual({
       start: 0,
       cells: [
         { kanji: '剃', reading: '' },
         { kanji: '刀', reading: '' },
       ],
     });
+  });
+
+  it('三字格 就職難 切第 1 道縫 → 就[] 職難[]，職難仍一格', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [{ kanji: '就職難', reading: 'しゅうしょくなん' }],
+    };
+    expect(splitCellAt(run, 0, 1)).toEqual({
+      start: 0,
+      cells: [
+        { kanji: '就', reading: '' },
+        { kanji: '職難', reading: '' },
+      ],
+    });
+  });
+
+  it('三字格 就職難 切第 2 道縫 → 就職[] 難[]', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [{ kanji: '就職難', reading: 'しゅうしょくなん' }],
+    };
+    expect(splitCellAt(run, 0, 2)).toEqual({
+      start: 0,
+      cells: [
+        { kanji: '就職', reading: '' },
+        { kanji: '難', reading: '' },
+      ],
+    });
+  });
+
+  it('只切目標格，同串其餘格不動', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [
+        { kanji: '就職難', reading: 'しゅうしょくなん' },
+        { kanji: '者', reading: 'しゃ' },
+      ],
+    };
+    expect(splitCellAt(run, 0, 1)).toEqual({
+      start: 0,
+      cells: [
+        { kanji: '就', reading: '' },
+        { kanji: '職難', reading: '' },
+        { kanji: '者', reading: 'しゃ' },
+      ],
+    });
+  });
+
+  it('不改動原物件', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [{ kanji: '就職難', reading: 'しゅうしょくなん' }],
+    };
+    splitCellAt(run, 0, 1);
+    expect(run.cells).toHaveLength(1);
   });
 });
 

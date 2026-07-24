@@ -1,6 +1,6 @@
 # 拆開改為每道縫獨立，不再整格拆光
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 決策背景見 `.scratch/reading-cells/spec.md`（決定 4）。關聯 `01-reading-cells-model.md`（模型層）與 `02-editor-reading-cells.md`（畫面）。

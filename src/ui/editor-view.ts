@@ -7,7 +7,7 @@ import {
   toMarkup,
   rebuildRuns,
   mergeSeam,
-  splitCell,
+  splitCellAt,
   validateDraft,
   type KanjiRun,
   type ReadingCell,
@@ -82,8 +82,9 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     const kanjiRow = el('div', 'reading-kanji');
     [...cell.kanji].forEach((char, k) => {
       if (k > 0) {
-        const seam = button('reading-seam', '·', () => applyToRun(ri, (r) => splitCell(r, ci)));
-        seam.setAttribute('aria-label', `把${cell.kanji}拆開`);
+        // 第 k 個字前的縫：只把這格從第 k 字切成左右兩格，其餘不動。
+        const seam = button('reading-seam', '·', () => applyToRun(ri, (r) => splitCellAt(r, ci, k)));
+        seam.setAttribute('aria-label', `把${cell.kanji.slice(0, k)}和${cell.kanji.slice(k)}拆開`);
         kanjiRow.append(seam);
       }
       kanjiRow.append(el('span', 'reading-char', char));
