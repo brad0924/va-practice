@@ -29,3 +29,8 @@ Type: enhancement
 - 之後任何只動 md／`.scratch/`／`docs/`／`.claude/` 的 push，Actions 不會出現新的執行紀錄（不是顯示「已略過」，是根本不存在）。
 - 同時動到 `src/` 與 `.scratch/` 的 push 照常部署——GitHub 的規則是只要有一個檔案不在忽略清單內就啟動。
 - 到 Actions 頁面手動 Run workflow 仍可強制部署。
+
+## Comments
+
+- 已推上 `main`（`8f65d57`）。該 commit 動到 `deploy.yml`，Actions 照常觸發了一次部署，符合驗收條件第一項——設定生效與否要看下一筆純文件的 push。
+- 本則留言即是驗收條件第二項的測試：這次 commit 只動到本檔案（`.scratch/**`），推上去後 Actions 若沒有出現新的執行紀錄，即代表 `paths-ignore` 生效。
