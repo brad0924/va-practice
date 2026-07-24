@@ -7,6 +7,14 @@ const CLOUD_HINT =
   '輸入自取的暱稱與密碼，進度就會自動備份到雲端；換裝置輸入同一組就接得回來。' +
   '密碼同時用來加密內容，沒有人能幫你重設，遺失後雲端那份就再也讀不出來。';
 
+/**
+ * 換密碼的後果是機制決定的，不是可以藏起來的細節：密碼同時是雲端的指紋與金鑰，
+ * 換掉之後舊密碼既推不上去也解不開（見 spec 決定 9）。因此這段文字常駐在表單裡。
+ */
+const CHANGE_HINT = '換密碼後，其他還在用舊密碼的裝置會被擋下來，需要各自重新輸入新密碼才能繼續同步。';
+
+const STOP_CONFIRM = '停止後不再備份到雲端，卡片與進度會完整留在這台裝置。確定要停止？';
+
 export function dataView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
@@ -23,7 +31,7 @@ export function dataView(app: App): HTMLElement {
   return screen;
 }
 
-/** 雲端備份：未登入時是一組暱稱密碼欄位，登入後只剩一行說明。 */
+/** 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止同步兩個控制項。 */
 function cloudSection(app: App): HTMLElement {
   const section = el('section', 'section');
   section.append(el('h2', 'section-title', '雲端備份'));
@@ -32,6 +40,14 @@ function cloudSection(app: App): HTMLElement {
   if (signedInAs !== null) {
     section.append(
       el('p', 'hint', `已登入：${signedInAs}。複習進度會自動備份，換裝置輸入同一組暱稱與密碼就接得回來。`),
+      el('h3', 'subsection-title', '換密碼'),
+      changePasswordForm(app),
+      button('danger', '停止同步', () => {
+        if (!confirm(STOP_CONFIRM)) return;
+        app.cloud.signOut();
+        // 重畫成未登入的樣子，暱稱密碼欄位跟著回來。
+        app.showData();
+      }),
     );
     return section;
   }
@@ -78,6 +94,54 @@ function cloudSection(app: App): HTMLElement {
 
   section.append(form);
   return section;
+}
+
+/**
+ * 換密碼。成功後不重畫整個畫面——畫面上其他東西都沒變，
+ * 就地清空欄位並留一句成功訊息，使用者才看得到「換掉了」這件事。
+ */
+function changePasswordForm(app: App): HTMLElement {
+  const password = el('input', 'field');
+  password.type = 'password';
+  password.autocomplete = 'new-password';
+
+  const error = el('p', 'error');
+  const status = el('p', 'status');
+
+  const submit = el('button', 'primary', '更新密碼');
+  submit.type = 'submit';
+
+  const form = el('form', 'form');
+  form.append(
+    labelled('新密碼', password),
+    el('p', 'hint', CHANGE_HINT),
+    error,
+    status,
+    el('div', 'form-actions', submit),
+  );
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    error.textContent = '';
+    status.textContent = '';
+    submit.disabled = true;
+    submit.textContent = '連線中…';
+    void app.cloud
+      .changePassword(password.value, app.data)
+      .then(() => {
+        password.value = '';
+        status.textContent = '密碼已更新。其他裝置要重新輸入新密碼才能繼續同步。';
+      })
+      .catch((reason: unknown) => {
+        error.textContent = toMessage(reason);
+      })
+      .finally(() => {
+        submit.disabled = false;
+        submit.textContent = '更新密碼';
+      });
+  });
+
+  return form;
 }
 
 /** 手動備份：雲端再穩定也可能出事，匯出的 JSON 是不依賴任何人的後路。 */

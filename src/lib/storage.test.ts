@@ -10,6 +10,9 @@ function fakeStorage(initial?: string): StorageLike & { raw(): string | null } {
     setItem: (_key, next) => {
       value = next;
     },
+    removeItem: () => {
+      value = null;
+    },
     raw: () => value,
   };
 }

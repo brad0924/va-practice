@@ -77,6 +77,27 @@ describe('加密與解密', () => {
   });
 });
 
+describe('換密碼', () => {
+  it('新指紋與舊指紋不同，還記著舊密碼的裝置因此被規則擋下來', async () => {
+    const before = await deriveKeys('brad', 'hunter2');
+    const after = await deriveKeys('brad', 'hunter3');
+    expect(after.fingerprint).not.toBe(before.fingerprint);
+  });
+
+  it('換的仍是同一個雲端路徑，暱稱沒變就是同一筆備份', async () => {
+    const before = await deriveKeys('brad', 'hunter2');
+    const after = await deriveKeys('brad', 'hunter3');
+    expect(after.path).toBe(before.path);
+  });
+
+  it('換密碼後的內容，舊密碼再也解不開——其他裝置必須重新輸入新密碼', async () => {
+    const before = await deriveKeys('brad', 'hunter2');
+    const after = await deriveKeys('brad', 'hunter3');
+    const payload = await encrypt(after.key, JSON.stringify({ version: 2, cards: [] }));
+    await expect(decrypt(before.key, payload)).rejects.toThrow();
+  });
+});
+
 describe('比較新舊', () => {
   it('雲端時間戳比較大就是雲端新', () => {
     expect(isRemoteNewer(200, 100)).toBe(true);

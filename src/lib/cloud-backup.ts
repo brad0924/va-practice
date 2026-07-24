@@ -42,6 +42,14 @@ export interface CloudBackup {
   begin(local: AppData): void;
   /** 登入。對得上雲端才把暱稱密碼記在本機；失敗時拋出可直接顯示給使用者的訊息。 */
   signIn(nickname: string, password: string, local: AppData): Promise<void>;
+  /**
+   * 換密碼。雲端那筆改用新密碼的指紋與金鑰，成功後這台裝置照常推拉。
+   * 已知且無法避免的後果：其他還記著舊密碼的裝置從此推不上去也解不開，
+   * 必須各自重新輸入一次新密碼（見 spec 決定 9）。
+   */
+  changePassword(password: string, local: AppData): Promise<void>;
+  /** 停止同步：忘掉本機記住的暱稱密碼，回到未登入。卡片與進度完整留在本機。 */
+  signOut(): void;
   /** 本機資料有變動。推的永遠是最新的整份，送出期間的變動會併到下一次。 */
   push(data: AppData): void;
 }
@@ -77,16 +85,18 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
     return { payload: open.payload, updatedAt: open.updatedAt };
   }
 
-  async function write(keys: CloudKeys, data: AppData): Promise<number> {
+  /**
+   * `prev` 是「寫入者認為現在存著的指紋」，預設就是自己的指紋；
+   * 只有換密碼時才會傳入舊指紋，讓同一條規則同時涵蓋兩種情況。
+   */
+  async function write(keys: CloudKeys, data: AppData, prev = keys.fingerprint): Promise<number> {
     const payload = await encrypt(keys.key, JSON.stringify(data));
     const response = await fetch(`${DATABASE}/backups/${keys.path}.json`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         fingerprint: keys.fingerprint,
-        // 「寫入者認為現在存著的指紋」。一般寫入時就是自己的指紋；
-        // 換密碼時才會是舊指紋配新指紋（見 issues/02-cloud-backup-controls.md）。
-        prev: keys.fingerprint,
+        prev,
         // 時間戳只能請伺服器自己填，客戶端送什麼數字規則都不收。
         open: { payload, updatedAt: { '.sv': 'timestamp' } },
       }),
@@ -196,6 +206,33 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
       blocked = false;
       remember(trimmed, password);
       hooks.onPushed(updatedAt);
+    },
+
+    async changePassword(password, local) {
+      if (password === '') throw new Error('新密碼要填。');
+      const saved = recall();
+      if (saved === null) throw new Error('尚未登入，無法換密碼。');
+
+      const before = await deriveKeys(saved.nickname, saved.password);
+      const keys = await deriveKeys(saved.nickname, password);
+      // 舊指紋配新指紋。舊密碼若對不上雲端，這裡就被規則擋在 401，雲端那份不動。
+      const updatedAt = await write(keys, local, before.fingerprint);
+
+      account = { nickname: saved.nickname, keys };
+      // 剛剛送上去的就是最新的整份，待推的那份已無意義。
+      pending = null;
+      blocked = false;
+      remember(saved.nickname, password);
+      hooks.onPushed(updatedAt);
+      hooks.onStatus('');
+    },
+
+    signOut() {
+      account = null;
+      pending = null;
+      blocked = false;
+      hooks.storage.removeItem(CREDENTIALS_KEY);
+      hooks.onStatus('');
     },
 
     push(data) {

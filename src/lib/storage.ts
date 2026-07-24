@@ -16,6 +16,7 @@ export const DATA_VERSION = 2;
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem(key: string): void;
 }
 
 /** 隨程式發佈的內建牌組（`src/data/cards.json`）。 */
