@@ -1,6 +1,6 @@
 # 讀音格：標記字串與可編輯結構之間的雙向轉換
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/reading-cells/spec.md`。本票只做純函式與測試，不碰任何畫面。

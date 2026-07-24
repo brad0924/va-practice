@@ -1,6 +1,6 @@
 # 編輯畫面改用讀音格，詞條框不再輸入括號
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/reading-cells/spec.md`。依賴 `01-reading-cells-model.md`。
