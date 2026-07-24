@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { parseReading, toPlainText, toReadingText } from './reading';
+import {
+  parseReading,
+  toPlainText,
+  toReadingText,
+  toDraft,
+  toMarkup,
+  rebuildRuns,
+  mergeSeam,
+  splitCell,
+  validateDraft,
+  type KanjiRun,
+} from './reading';
+import cardsData from '../data/cards.json';
 
 describe('讀音標記解析', () => {
   it('單一漢字加送假名', () => {
@@ -68,5 +80,264 @@ describe('文字轉換', () => {
   it('以讀音取代漢字後得到朗讀用的假名字串', () => {
     expect(toReadingText('書[か]き下[お]ろす')).toBe('かきおろす');
     expect(toReadingText('シンポジウム')).toBe('シンポジウム');
+  });
+});
+
+describe('標記字串攤成讀音格 toDraft', () => {
+  it('漢仮：焦[こ]がす', () => {
+    expect(toDraft('焦[こ]がす')).toEqual({
+      term: '焦がす',
+      runs: [{ start: 0, cells: [{ kanji: '焦', reading: 'こ' }] }],
+    });
+  });
+
+  it('漢：帰省[きせい] 產生一格，不逐字拆', () => {
+    expect(toDraft('帰省[きせい]')).toEqual({
+      term: '帰省',
+      runs: [{ start: 0, cells: [{ kanji: '帰省', reading: 'きせい' }] }],
+    });
+  });
+
+  it('仮：純假名沒有任何讀音格', () => {
+    expect(toDraft('くしゃみ')).toEqual({ term: 'くしゃみ', runs: [] });
+  });
+
+  it('漢仮漢仮：考[かんが]え込[こ]む', () => {
+    expect(toDraft('考[かんが]え込[こ]む')).toEqual({
+      term: '考え込む',
+      runs: [
+        { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+        { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
+      ],
+    });
+  });
+
+  it('漢仮漢：送[おく]り仮名[がな]', () => {
+    expect(toDraft('送[おく]り仮名[がな]')).toEqual({
+      term: '送り仮名',
+      runs: [
+        { start: 0, cells: [{ kanji: '送', reading: 'おく' }] },
+        { start: 2, cells: [{ kanji: '仮名', reading: 'がな' }] },
+      ],
+    });
+  });
+
+  it('仮漢仮：ざるを得[え]ない', () => {
+    expect(toDraft('ざるを得[え]ない')).toEqual({
+      term: 'ざるを得ない',
+      runs: [{ start: 3, cells: [{ kanji: '得', reading: 'え' }] }],
+    });
+  });
+
+  it('未標音的多字漢字串逐字兩格', () => {
+    expect(toDraft('書留')).toEqual({
+      term: '書留',
+      runs: [
+        {
+          start: 0,
+          cells: [
+            { kanji: '書', reading: '' },
+            { kanji: '留', reading: '' },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('緊鄰的兩串標音各成一格，合為同一串', () => {
+    expect(toDraft('書[かき]留[とめ]')).toEqual({
+      term: '書留',
+      runs: [
+        {
+          start: 0,
+          cells: [
+            { kanji: '書', reading: 'かき' },
+            { kanji: '留', reading: 'とめ' },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('邊界字串不當掉', () => {
+    expect(toDraft('')).toEqual({ term: '', runs: [] });
+    expect(toDraft('あ[い]')).toEqual({ term: 'あ[い]', runs: [] });
+    expect(toDraft('焦[こ')).toEqual({
+      term: '焦[こ',
+      runs: [{ start: 0, cells: [{ kanji: '焦', reading: '' }] }],
+    });
+    expect(toDraft('人々[ひとびと]')).toEqual({
+      term: '人々',
+      runs: [{ start: 0, cells: [{ kanji: '人々', reading: 'ひとびと' }] }],
+    });
+  });
+});
+
+describe('讀音格重建標記 toMarkup', () => {
+  it('有讀音輸出漢字[讀音]，沒讀音原樣輸出', () => {
+    expect(
+      toMarkup({
+        term: '書留',
+        runs: [
+          {
+            start: 0,
+            cells: [
+              { kanji: '書', reading: 'かき' },
+              { kanji: '留', reading: '' },
+            ],
+          },
+        ],
+      }),
+    ).toBe('書[かき]留');
+  });
+});
+
+describe('往返：132 張內建卡 toMarkup(toDraft) 不變形', () => {
+  it('每張卡原樣還原', () => {
+    for (const card of cardsData.cards) {
+      expect(toMarkup(toDraft(card.text))).toBe(card.text);
+    }
+  });
+});
+
+describe('合併縫 mergeSeam', () => {
+  it('書[かき] 留[とめ] → 書留[かきとめ]', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [
+        { kanji: '書', reading: 'かき' },
+        { kanji: '留', reading: 'とめ' },
+      ],
+    };
+    expect(mergeSeam(run, 0)).toEqual({
+      start: 0,
+      cells: [{ kanji: '書留', reading: 'かきとめ' }],
+    });
+  });
+
+  it('今[] 日[] 中[] 連點第 0 道縫 → 今日[] 中[]，toMarkup 得 今日中', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [
+        { kanji: '今', reading: '' },
+        { kanji: '日', reading: '' },
+        { kanji: '中', reading: '' },
+      ],
+    };
+    const merged = mergeSeam(run, 0);
+    expect(merged).toEqual({
+      start: 0,
+      cells: [
+        { kanji: '今日', reading: '' },
+        { kanji: '中', reading: '' },
+      ],
+    });
+    expect(toMarkup({ term: '今日中', runs: [merged] })).toBe('今日中');
+  });
+
+  it('不改動原物件', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [
+        { kanji: '書', reading: 'かき' },
+        { kanji: '留', reading: 'とめ' },
+      ],
+    };
+    mergeSeam(run, 0);
+    expect(run.cells).toHaveLength(2);
+  });
+});
+
+describe('拆格 splitCell', () => {
+  it('剃刀[かみそり] → 剃[] 刀[]，讀音清空', () => {
+    const run: KanjiRun = {
+      start: 0,
+      cells: [{ kanji: '剃刀', reading: 'かみそり' }],
+    };
+    expect(splitCell(run, 0)).toEqual({
+      start: 0,
+      cells: [
+        { kanji: '剃', reading: '' },
+        { kanji: '刀', reading: '' },
+      ],
+    });
+  });
+});
+
+describe('改詞條重算 rebuildRuns', () => {
+  const previous: KanjiRun[] = [
+    { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+    { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
+  ];
+
+  it('改詞尾：考え込む → 考え込んだ，兩格都保留', () => {
+    expect(rebuildRuns('考え込んだ', previous)).toEqual([
+      { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
+    ]);
+  });
+
+  it('換漢字：考え込む → 考え直す，考保留、直是新的', () => {
+    expect(rebuildRuns('考え直す', previous)).toEqual([
+      { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 2, cells: [{ kanji: '直', reading: '' }] },
+    ]);
+  });
+
+  it('前面插入：考え込む → 深く考え込む，不錯位', () => {
+    expect(rebuildRuns('深く考え込む', previous)).toEqual([
+      { start: 0, cells: [{ kanji: '深', reading: '' }] },
+      { start: 2, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 4, cells: [{ kanji: '込', reading: 'こ' }] },
+    ]);
+  });
+
+  it('保留合併過的多字切法', () => {
+    const merged: KanjiRun[] = [{ start: 0, cells: [{ kanji: '帰省', reading: 'きせい' }] }];
+    expect(rebuildRuns('帰省する', merged)).toEqual([
+      { start: 0, cells: [{ kanji: '帰省', reading: 'きせい' }] },
+    ]);
+  });
+});
+
+describe('儲存驗證 validateDraft', () => {
+  const run = (cells: { kanji: string; reading: string }[]): KanjiRun => ({ start: 0, cells });
+
+  it('同串混填混空被擋', () => {
+    const draft = {
+      term: '今日中',
+      runs: [
+        run([
+          { kanji: '今', reading: 'こん' },
+          { kanji: '日', reading: '' },
+          { kanji: '中', reading: 'ちゅう' },
+        ]),
+      ],
+    };
+    expect(validateDraft(draft).length).toBeGreaterThan(0);
+  });
+
+  it('同串全空通過', () => {
+    const draft = {
+      term: '今日中',
+      runs: [
+        run([
+          { kanji: '今', reading: '' },
+          { kanji: '日', reading: '' },
+          { kanji: '中', reading: '' },
+        ]),
+      ],
+    };
+    expect(validateDraft(draft)).toEqual([]);
+  });
+
+  it('讀音含羅馬字被擋', () => {
+    const draft = { term: '考', runs: [run([{ kanji: '考', reading: 'kanga' }])] };
+    expect(validateDraft(draft).length).toBeGreaterThan(0);
+  });
+
+  it('片假名加長音符通過', () => {
+    const draft = { term: 'コ', runs: [run([{ kanji: 'コ', reading: 'コーヒー' }])] };
+    expect(validateDraft(draft)).toEqual([]);
   });
 });

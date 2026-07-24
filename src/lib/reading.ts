@@ -70,3 +70,184 @@ export function toReadingText(text: string): string {
     .map((segment) => segment.reading ?? segment.text)
     .join('');
 }
+
+// ── 讀音格：編輯畫面用的可切分結構，與標記字串雙向轉換 ──────────────
+
+/** 一格：一段連續漢字與使用者填的讀音。reading 為空字串代表未填。 */
+export interface ReadingCell {
+  kanji: string;
+  reading: string;
+}
+
+/** 詞條裡的一串連續漢字，切成一或多格。各格的 kanji 接起來即原文。 */
+export interface KanjiRun {
+  /** 這串漢字在詞條純文字中的起始索引，用來定位與重建。 */
+  start: number;
+  cells: ReadingCell[];
+}
+
+/** 編輯畫面的完整狀態。term 為不含任何標記的詞條原文。 */
+export interface ReadingDraft {
+  term: string;
+  runs: KanjiRun[];
+}
+
+/** 讀音允許的字元：平假名、片假名、長音符 ー。 */
+const KANA = /^[ぁ-ゖァ-ヺー]+$/;
+
+/**
+ * 標記字串 → ReadingDraft。舊卡與貼上都走這裡。
+ * 已存的標記就是使用者選過的切法：`帰省[きせい]` 得一格，未標音的漢字串才逐字開格。
+ */
+export function toDraft(markup: string): ReadingDraft {
+  const segments = parseReading(markup);
+  const term = segments.map((segment) => segment.text).join('');
+
+  // 先攤成帶位置的原子格：有讀音的整段一格，未標音的漢字逐字一格。
+  const flat: Array<ReadingCell & { start: number }> = [];
+  let pos = 0;
+  for (const segment of segments) {
+    if (segment.reading !== undefined) {
+      flat.push({ kanji: segment.text, reading: segment.reading, start: pos });
+      pos += segment.text.length;
+    } else {
+      for (const char of segment.text) {
+        if (KANJI.test(char)) flat.push({ kanji: char, reading: '', start: pos });
+        pos += char.length;
+      }
+    }
+  }
+
+  // 位置相鄰的格併成同一串漢字。
+  const runs: KanjiRun[] = [];
+  for (const cell of flat) {
+    const last = runs[runs.length - 1];
+    const cellStart = cell.start;
+    const contiguous =
+      last && last.start + runLength(last) === cellStart;
+    const bare: ReadingCell = { kanji: cell.kanji, reading: cell.reading };
+    if (contiguous) {
+      last!.cells.push(bare);
+    } else {
+      runs.push({ start: cellStart, cells: [bare] });
+    }
+  }
+
+  return { term, runs };
+}
+
+/** 一串漢字的總字數，用來算它在 term 裡佔到哪。 */
+function runLength(run: KanjiRun): number {
+  return run.cells.reduce((sum, cell) => sum + cell.kanji.length, 0);
+}
+
+/** 一格輸出成標記：有讀音是 `漢字[讀音]`，沒讀音原樣輸出漢字。 */
+function cellToMarkup(cell: ReadingCell): string {
+  return cell.reading ? `${cell.kanji}[${cell.reading}]` : cell.kanji;
+}
+
+/** ReadingDraft → 標記字串。儲存時走這裡；非漢字部分原樣保留。 */
+export function toMarkup(draft: ReadingDraft): string {
+  const runs = [...draft.runs].sort((a, b) => a.start - b.start);
+  let result = '';
+  let pos = 0;
+  for (const run of runs) {
+    result += draft.term.slice(pos, run.start);
+    for (const cell of run.cells) result += cellToMarkup(cell);
+    pos = run.start + runLength(run);
+  }
+  result += draft.term.slice(pos);
+  return result;
+}
+
+/** 掃出 term 裡的每一串連續漢字，回傳 [start, kanji]。 */
+function scanRuns(term: string): Array<{ start: number; kanji: string }> {
+  const runs: Array<{ start: number; kanji: string }> = [];
+  let current: { start: number; kanji: string } | null = null;
+  for (let i = 0; i < term.length; i += 1) {
+    const char = term[i]!;
+    if (KANJI.test(char)) {
+      if (current) current.kanji += char;
+      else current = { start: i, kanji: char };
+    } else if (current) {
+      runs.push(current);
+      current = null;
+    }
+  }
+  if (current) runs.push(current);
+  return runs;
+}
+
+/**
+ * 詞條改動後重算各串，依漢字內容（不按位置）保留已填讀音與切法。
+ * 逐格拿舊格對齊：往後找第一個 kanji 對得上的舊格就整格搬過來（含合併切法），
+ * 對不上就是新漢字，逐字開空格。前面插入漢字不會讓已填讀音錯位。
+ */
+export function rebuildRuns(term: string, previous: KanjiRun[]): KanjiRun[] {
+  const oldCells = previous.flatMap((run) => run.cells);
+  let oi = 0; // 下一個尚未使用的舊格，保順序、可跳過（被刪的漢字）
+
+  return scanRuns(term).map(({ start, kanji }) => {
+    const cells: ReadingCell[] = [];
+    let k = 0;
+    while (k < kanji.length) {
+      let matched = -1;
+      for (let t = oi; t < oldCells.length; t += 1) {
+        if (kanji.startsWith(oldCells[t]!.kanji, k)) {
+          matched = t;
+          break;
+        }
+      }
+      if (matched !== -1) {
+        const old = oldCells[matched]!;
+        cells.push({ kanji: old.kanji, reading: old.reading });
+        k += old.kanji.length;
+        oi = matched + 1;
+      } else {
+        cells.push({ kanji: kanji[k]!, reading: '' });
+        k += 1;
+      }
+    }
+    return { start, cells };
+  });
+}
+
+/** 把第 seam 道縫黏起來（seam 0 起算，0 ~ cells.length−2）。讀音接起來。 */
+export function mergeSeam(run: KanjiRun, seam: number): KanjiRun {
+  const cells = run.cells.map((cell) => ({ ...cell }));
+  const left = cells[seam]!;
+  const right = cells[seam + 1]!;
+  const merged: ReadingCell = {
+    kanji: left.kanji + right.kanji,
+    reading: left.reading + right.reading,
+  };
+  cells.splice(seam, 2, merged);
+  return { start: run.start, cells };
+}
+
+/** 把第 index 格拆回逐字，讀音清空（無法把合併讀音分配回各字）。 */
+export function splitCell(run: KanjiRun, index: number): KanjiRun {
+  const cells = run.cells.map((cell) => ({ ...cell }));
+  const target = cells[index]!;
+  const pieces: ReadingCell[] = [...target.kanji].map((char) => ({ kanji: char, reading: '' }));
+  cells.splice(index, 1, ...pieces);
+  return { start: run.start, cells };
+}
+
+/** 儲存時檢查：同串全填或全空、讀音只能是假名。回傳錯誤訊息，全過為空。 */
+export function validateDraft(draft: ReadingDraft): string[] {
+  const errors: string[] = [];
+  for (const run of draft.runs) {
+    const filled = run.cells.filter((cell) => cell.reading !== '').length;
+    if (filled > 0 && filled < run.cells.length) {
+      const label = run.cells.map((cell) => cell.kanji).join('');
+      errors.push(`${label} 這串漢字的讀音要麼全部填、要麼全部留空`);
+    }
+    for (const cell of run.cells) {
+      if (cell.reading !== '' && !KANA.test(cell.reading)) {
+        errors.push(`${cell.kanji} 的讀音要填假名`);
+      }
+    }
+  }
+  return errors;
+}
