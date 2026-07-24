@@ -1,6 +1,6 @@
 # 文件與 ADR：讀音格取代語法輸入
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/reading-cells/spec.md`。建議在 `01`、`02` 完成後再落筆，確保文件描述的是真正做出來的東西。
