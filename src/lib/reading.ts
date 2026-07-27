@@ -246,6 +246,10 @@ export function splitCellAt(run: KanjiRun, index: number, at: number): KanjiRun 
  * `reply` 是外面世界丟進來的東西（結構化輸出保證的是形狀，不是內容），
  * 因此漢字必須逐串比對到完全相同，位置一律用 `scanRuns` 自己算，不採信回覆。
  * 任一條不過就整批回 `null`：部分採用會產生半填的串，反而卡住 `validateDraft`。
+ *
+ * 每一串另外帶一個 `splittable`，是 AI 對「這串假名拆不拆得開」的自述。
+ * 它說拆不開卻還是拆了，就在這裡合併回去——合併是無損的（讀音接起來即原讀音），
+ * 使用者要再拆卻得重打，所以由程式往便宜的方向修。
  */
 export function acceptPrefill(term: string, reply: unknown): KanjiRun[] | null {
   if (!Array.isArray(reply)) return null;
@@ -255,10 +259,13 @@ export function acceptPrefill(term: string, reply: unknown): KanjiRun[] | null {
   const runs: KanjiRun[] = [];
   for (let i = 0; i < scanned.length; i += 1) {
     const replyRun: unknown = reply[i];
-    if (!Array.isArray(replyRun) || replyRun.length === 0) return null;
+    if (typeof replyRun !== 'object' || replyRun === null) return null;
+    const { splittable, cells: replyCells } = replyRun as { splittable?: unknown; cells?: unknown };
+    if (typeof splittable !== 'boolean') return null;
+    if (!Array.isArray(replyCells) || replyCells.length === 0) return null;
 
     const cells: ReadingCell[] = [];
-    for (const raw of replyRun as unknown[]) {
+    for (const raw of replyCells as unknown[]) {
       if (typeof raw !== 'object' || raw === null) return null;
       const { kanji, reading } = raw as Partial<ReadingCell>;
       if (typeof kanji !== 'string' || kanji === '') return null;
@@ -268,9 +275,17 @@ export function acceptPrefill(term: string, reply: unknown): KanjiRun[] | null {
 
     // AI 不得增刪或改寫任何一個漢字：接起來要跟原本那串一字不差。
     if (cells.map((cell) => cell.kanji).join('') !== scanned[i]!.kanji) return null;
-    runs.push({ start: scanned[i]!.start, cells });
+    runs.push({ start: scanned[i]!.start, cells: splittable ? cells : [joinCells(cells)] });
   }
   return runs;
+}
+
+/** 把一串的所有格併成一格。漢字與讀音各自接起來，與 `mergeSeam` 同一套規則。 */
+function joinCells(cells: ReadingCell[]): ReadingCell {
+  return {
+    kanji: cells.map((cell) => cell.kanji).join(''),
+    reading: cells.map((cell) => cell.reading).join(''),
+  };
 }
 
 /** 儲存時檢查：同串全填或全空、讀音只能是假名。回傳錯誤訊息，全過為空。 */

@@ -399,21 +399,20 @@ describe('儲存驗證 validateDraft', () => {
 });
 
 describe('AI 預填採用 acceptPrefill', () => {
+  /** 組一串 AI 回覆：splittable 加上各格的 [漢字, 讀音]。 */
+  const ai = (splittable: boolean, ...cells: Array<[string, string]>) => ({
+    splittable,
+    cells: cells.map(([kanji, reading]) => ({ kanji, reading })),
+  });
+
   it('單一漢字串：焦がす', () => {
-    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'こ' }]])).toEqual([
+    expect(acceptPrefill('焦がす', [ai(true, ['焦', 'こ'])])).toEqual([
       { start: 0, cells: [{ kanji: '焦', reading: 'こ' }] },
     ]);
   });
 
   it('逐字分配：吹雪 兩格', () => {
-    expect(
-      acceptPrefill('吹雪', [
-        [
-          { kanji: '吹', reading: 'ふ' },
-          { kanji: '雪', reading: 'ぶき' },
-        ],
-      ]),
-    ).toEqual([
+    expect(acceptPrefill('吹雪', [ai(true, ['吹', 'ふ'], ['雪', 'ぶき'])])).toEqual([
       {
         start: 0,
         cells: [
@@ -424,18 +423,27 @@ describe('AI 預填採用 acceptPrefill', () => {
     ]);
   });
 
-  it('熟字訓整串一格：剃刀', () => {
-    expect(acceptPrefill('剃刀', [[{ kanji: '剃刀', reading: 'かみそり' }]])).toEqual([
+  it('拆不開的整串一格：剃刀', () => {
+    expect(acceptPrefill('剃刀', [ai(false, ['剃刀', 'かみそり'])])).toEqual([
       { start: 0, cells: [{ kanji: '剃刀', reading: 'かみそり' }] },
+    ]);
+  });
+
+  it('說拆不開卻還是拆了：程式自己合併回去，讀音接起來', () => {
+    expect(acceptPrefill('剃刀', [ai(false, ['剃', 'かみ'], ['刀', 'そり'])])).toEqual([
+      { start: 0, cells: [{ kanji: '剃刀', reading: 'かみそり' }] },
+    ]);
+  });
+
+  it('說拆得開就照它給的格數，不代為合併', () => {
+    expect(acceptPrefill('吹雪', [ai(true, ['吹雪', 'ふぶき'])])).toEqual([
+      { start: 0, cells: [{ kanji: '吹雪', reading: 'ふぶき' }] },
     ]);
   });
 
   it('多串：考え込む 兩串，start 各自正確', () => {
     expect(
-      acceptPrefill('考え込む', [
-        [{ kanji: '考', reading: 'かんが' }],
-        [{ kanji: '込', reading: 'こ' }],
-      ]),
+      acceptPrefill('考え込む', [ai(true, ['考', 'かんが']), ai(true, ['込', 'こ'])]),
     ).toEqual([
       { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
       { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
@@ -444,75 +452,66 @@ describe('AI 預填採用 acceptPrefill', () => {
 
   it('不採信 AI 的位置資訊，start 一律自己算', () => {
     expect(
-      acceptPrefill('ざるを得ない', [[{ kanji: '得', reading: 'え', start: 99 }]]),
+      acceptPrefill('ざるを得ない', [
+        { splittable: true, cells: [{ kanji: '得', reading: 'え', start: 99 }] },
+      ]),
     ).toEqual([{ start: 3, cells: [{ kanji: '得', reading: 'え' }] }]);
   });
 
   it('片假名讀音放行', () => {
-    expect(acceptPrefill('缶', [[{ kanji: '缶', reading: 'カン' }]])).toEqual([
+    expect(acceptPrefill('缶', [ai(true, ['缶', 'カン'])])).toEqual([
       { start: 0, cells: [{ kanji: '缶', reading: 'カン' }] },
     ]);
   });
 
   it('拒絕：串數與詞條對不上', () => {
-    expect(acceptPrefill('考え込む', [[{ kanji: '考', reading: 'かんが' }]])).toBeNull();
+    expect(acceptPrefill('考え込む', [ai(true, ['考', 'かんが'])])).toBeNull();
     expect(
-      acceptPrefill('焦がす', [
-        [{ kanji: '焦', reading: 'こ' }],
-        [{ kanji: '込', reading: 'こ' }],
-      ]),
+      acceptPrefill('焦がす', [ai(true, ['焦', 'こ']), ai(true, ['込', 'こ'])]),
     ).toBeNull();
   });
 
   it('拒絕：AI 改字、漏字、多字', () => {
-    expect(acceptPrefill('吹雪', [[{ kanji: '吹雨', reading: 'ふぶき' }]])).toBeNull();
-    expect(acceptPrefill('吹雪', [[{ kanji: '吹', reading: 'ふぶき' }]])).toBeNull();
-    expect(acceptPrefill('吹雪', [[{ kanji: '大吹雪', reading: 'おおふぶき' }]])).toBeNull();
+    expect(acceptPrefill('吹雪', [ai(false, ['吹雨', 'ふぶき'])])).toBeNull();
+    expect(acceptPrefill('吹雪', [ai(false, ['吹', 'ふぶき'])])).toBeNull();
+    expect(acceptPrefill('吹雪', [ai(false, ['大吹雪', 'おおふぶき'])])).toBeNull();
   });
 
   it('拒絕：讀音含羅馬字、漢字或數字', () => {
-    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'ko' }]])).toBeNull();
-    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: '焦' }]])).toBeNull();
-    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'こ1' }]])).toBeNull();
+    expect(acceptPrefill('焦がす', [ai(true, ['焦', 'ko'])])).toBeNull();
+    expect(acceptPrefill('焦がす', [ai(true, ['焦', '焦'])])).toBeNull();
+    expect(acceptPrefill('焦がす', [ai(true, ['焦', 'こ1'])])).toBeNull();
   });
 
   it('拒絕：任一格讀音為空字串', () => {
-    expect(
-      acceptPrefill('吹雪', [
-        [
-          { kanji: '吹', reading: 'ふぶき' },
-          { kanji: '雪', reading: '' },
-        ],
-      ]),
-    ).toBeNull();
+    expect(acceptPrefill('吹雪', [ai(true, ['吹', 'ふぶき'], ['雪', ''])])).toBeNull();
   });
 
   it('拒絕：任一格漢字為空字串', () => {
-    expect(
-      acceptPrefill('吹雪', [
-        [
-          { kanji: '吹雪', reading: 'ふぶき' },
-          { kanji: '', reading: 'き' },
-        ],
-      ]),
-    ).toBeNull();
+    expect(acceptPrefill('吹雪', [ai(true, ['吹雪', 'ふぶき'], ['', 'き'])])).toBeNull();
   });
 
   it('拒絕：形狀不對', () => {
     expect(acceptPrefill('焦がす', null)).toBeNull();
     expect(acceptPrefill('焦がす', '焦[こ]がす')).toBeNull();
-    expect(acceptPrefill('焦がす', [{ kanji: '焦', reading: 'こ' }])).toBeNull();
-    expect(acceptPrefill('焦がす', [[]])).toBeNull();
-    expect(acceptPrefill('焦がす', [['こ']])).toBeNull();
-    expect(acceptPrefill('焦がす', [[{ kanji: '焦' }]])).toBeNull();
-    expect(acceptPrefill('焦がす', [[{ kanji: 1, reading: 'こ' }]])).toBeNull();
+    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'こ' }]])).toBeNull();
+    expect(acceptPrefill('焦がす', [ai(true)])).toBeNull();
+    expect(acceptPrefill('焦がす', [{ splittable: true, cells: ['こ'] }])).toBeNull();
+    expect(acceptPrefill('焦がす', [{ splittable: true, cells: [{ kanji: '焦' }] }])).toBeNull();
+    expect(
+      acceptPrefill('焦がす', [{ splittable: true, cells: [{ kanji: 1, reading: 'こ' }] }]),
+    ).toBeNull();
+  });
+
+  it('拒絕：缺 splittable 或不是布林', () => {
+    expect(acceptPrefill('焦がす', [{ cells: [{ kanji: '焦', reading: 'こ' }] }])).toBeNull();
+    expect(
+      acceptPrefill('焦がす', [{ splittable: 'true', cells: [{ kanji: '焦', reading: 'こ' }] }]),
+    ).toBeNull();
   });
 
   it('往返：採用後 toMarkup 再 parseReading 還原同一組漢字與讀音', () => {
-    const runs = acceptPrefill('書き下ろす', [
-      [{ kanji: '書', reading: 'か' }],
-      [{ kanji: '下', reading: 'お' }],
-    ]);
+    const runs = acceptPrefill('書き下ろす', [ai(true, ['書', 'か']), ai(true, ['下', 'お'])]);
     const markup = toMarkup({ term: '書き下ろす', runs: runs! });
     expect(markup).toBe('書[か]き下[お]ろす');
     expect(parseReading(markup).filter((segment) => segment.reading !== undefined)).toEqual([
