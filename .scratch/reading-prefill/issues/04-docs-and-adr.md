@@ -1,6 +1,6 @@
 # 文件與 ADR：讀音預填
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 建議在 `01`、`02`、`03` 完成後再落筆，確保文件描述的是真正做出來的東西。
