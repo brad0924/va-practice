@@ -12,6 +12,8 @@
   --hard: #d9843f;
   --good: #46a758;
   --easy: #4a90d9;
+  --soon: #d9c14f;
+  --new: #9a7fe0;
   --danger: #e0574f;
   --tap: 3.25rem;
 }
@@ -347,12 +349,30 @@ button {
   white-space: nowrap;
 }
 
-.row-state.due {
+/* 六個時間桶，由急到緩：現在、<24小時、明天、<1週、未來、新。 */
+
+.row-state.now {
+  color: var(--danger);
+}
+
+.row-state.today {
+  color: var(--hard);
+}
+
+.row-state.tomorrow {
+  color: var(--soon);
+}
+
+.row-state.week {
+  color: var(--easy);
+}
+
+.row-state.future {
   color: var(--good);
 }
 
-.row-state.overdue {
-  color: var(--danger);
+.row-state.new {
+  color: var(--new);
 }
 
 .form {

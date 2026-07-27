@@ -65,21 +65,32 @@ function row(app: App, card: Card, now: Date): HTMLElement {
   entry.append(
     el('span', 'row-term', renderTerm(card.text, true)),
     el('span', 'row-meaning', card.meaning),
-    el('span', `row-state${stateModifier(days)}`, describeSchedule(card, days)),
+    el('span', `row-state${stateModifier(days)}`, describeSchedule(days)),
   );
   return entry;
 }
 
-function describeSchedule(card: Card, days: number | null): string {
-  if (days === null) return '新卡';
-  if (days > 0) return `逾期 ${days} 天`;
-  if (days === 0) return '今日到期';
-  return `${card.due} 到期`;
+/**
+ * 六個時間桶的白話標籤，與 `overdueDays()` 的天數一對一。
+ *
+ * 「<24小時」是「今日到期」這一桶的別名，不是真的用小時算：排程只到日，
+ * 分不出今天卡在當日的哪個時刻。逾期卡一律標「現在」，不再顯示拖了幾天。
+ */
+export function describeSchedule(days: number | null): string {
+  if (days === null) return '新';
+  if (days > 0) return '現在';
+  if (days === 0) return '<24小時';
+  if (days === -1) return '明天';
+  return days > -7 ? '<1週' : '未來';
 }
 
-function stateModifier(days: number | null): string {
-  if (days === null || days < 0) return '';
-  return days > 0 ? ' overdue' : ' due';
+/** 顏色靠 class 尾綴切換，六個桶各一種，對應 styles.css 的 `.row-state.xxx`。 */
+export function stateModifier(days: number | null): string {
+  if (days === null) return ' new';
+  if (days > 0) return ' now';
+  if (days === 0) return ' today';
+  if (days === -1) return ' tomorrow';
+  return days > -7 ? ' week' : ' future';
 }
 
 function filter(cards: readonly Card[], query: string): Card[] {
