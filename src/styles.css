@@ -339,7 +339,8 @@ button {
   font-size: 0.9rem;
 }
 
-.row-state {
+/* 到期日一律灰：桶就是照日期分的，同一桶內顏色必然相同，上色不提供新資訊。 */
+.row-due {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
@@ -349,30 +350,69 @@ button {
   white-space: nowrap;
 }
 
-/* 六個時間桶，由急到緩：現在、<24小時、明天、<1週、未來、新。 */
+/* 時間桶的標頭：浮在背景上的標題，無底色，層次是「背景上的標題 + 一疊卡片」。 */
+.bucket-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 0.25rem;
+  border-radius: 0.75rem;
+  text-align: left;
+}
 
-.row-state.now {
+.bucket-head:active {
+  background: var(--surface);
+}
+
+.bucket-mark {
+  font-size: 0.8rem;
+}
+
+.bucket-label {
+  font-weight: 700;
+}
+
+.bucket-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 六個桶各一色，順序同畫面由上而下：新、現在、<24小時、明天、<1週、未來。 */
+
+.bucket-head.new {
+  color: var(--new);
+}
+
+.bucket-head.now {
   color: var(--danger);
 }
 
-.row-state.today {
+.bucket-head.today {
   color: var(--hard);
 }
 
-.row-state.tomorrow {
+.bucket-head.tomorrow {
   color: var(--soon);
 }
 
-.row-state.week {
+.bucket-head.week {
   color: var(--easy);
 }
 
-.row-state.future {
+.bucket-head.future {
   color: var(--good);
 }
 
-.row-state.new {
-  color: var(--new);
+/* 展開後的那疊卡片左右各內縮，四周留白一致才有卡片感。 */
+.bucket-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 1.4rem;
 }
 
 .form {

@@ -1,44 +1,121 @@
 import { describe, it, expect } from 'vitest';
-import { describeSchedule, stateModifier } from './list-view';
+import { bucketOf, groupByBucket } from './list-view';
+import { DEFAULT_EASE } from '../lib/review';
+import type { Card } from '../lib/types';
 
-/** 六個時間桶與 overdueDays() 的天數一對一，邊界（−1／−2／−6／−7）是重點。 */
-describe('describeSchedule', () => {
-  it('新卡標「新」', () => {
-    expect(describeSchedule(null)).toBe('新');
+const NOW = new Date(2026, 6, 27); // 2026-07-27
+
+function card(id: string, due: string | null): Card {
+  return { id, text: id, meaning: id, interval: due === null ? null : 1, ease: DEFAULT_EASE, due };
+}
+
+/** 桶的邊界（null／1／0／−1／−2／−6／−7）是重點，與 overdueDays() 的天數一對一。 */
+describe('bucketOf', () => {
+  it('新卡落進「新」', () => {
+    expect(bucketOf(null)).toBe('new');
   });
 
-  it('逾期一律標「現在」，不顯示拖了幾天', () => {
-    expect(describeSchedule(1)).toBe('現在');
-    expect(describeSchedule(30)).toBe('現在');
+  it('逾期落進「現在」，不分拖了幾天', () => {
+    expect(bucketOf(1)).toBe('now');
+    expect(bucketOf(30)).toBe('now');
   });
 
-  it('今日到期標「<24小時」', () => {
-    expect(describeSchedule(0)).toBe('<24小時');
+  it('今日到期落進「<24小時」', () => {
+    expect(bucketOf(0)).toBe('today');
   });
 
-  it('明天到期標「明天」', () => {
-    expect(describeSchedule(-1)).toBe('明天');
+  it('明天到期落進「明天」', () => {
+    expect(bucketOf(-1)).toBe('tomorrow');
   });
 
-  it('後天到第 6 天標「<1週」', () => {
-    expect(describeSchedule(-2)).toBe('<1週');
-    expect(describeSchedule(-6)).toBe('<1週');
+  it('後天到第 6 天落進「<1週」', () => {
+    expect(bucketOf(-2)).toBe('week');
+    expect(bucketOf(-6)).toBe('week');
   });
 
-  it('滿 7 天以上標「未來」', () => {
-    expect(describeSchedule(-7)).toBe('未來');
-    expect(describeSchedule(-365)).toBe('未來');
+  it('滿 7 天以上落進「未來」', () => {
+    expect(bucketOf(-7)).toBe('future');
+    expect(bucketOf(-365)).toBe('future');
   });
 });
 
-describe('stateModifier', () => {
-  it('六個桶各自對應一個 class 尾綴', () => {
-    expect(stateModifier(null)).toBe(' new');
-    expect(stateModifier(1)).toBe(' now');
-    expect(stateModifier(0)).toBe(' today');
-    expect(stateModifier(-1)).toBe(' tomorrow');
-    expect(stateModifier(-2)).toBe(' week');
-    expect(stateModifier(-6)).toBe(' week');
-    expect(stateModifier(-7)).toBe(' future');
+describe('groupByBucket', () => {
+  const cards = [
+    card('新', null),
+    card('現在', '2026-07-20'),
+    card('今天', '2026-07-27'),
+    card('明天', '2026-07-28'),
+    card('週內', '2026-07-30'),
+    card('未來', '2026-09-01'),
+  ];
+
+  it('正序由急到緩：新、現在、<24小時、明天、<1週、未來', () => {
+    const buckets = groupByBucket(cards, NOW, 'asc');
+    expect(buckets.map((bucket) => bucket.key)).toEqual([
+      'new',
+      'now',
+      'today',
+      'tomorrow',
+      'week',
+      'future',
+    ]);
+    expect(buckets.map((bucket) => bucket.label)).toEqual([
+      '新',
+      '現在',
+      '<24小時',
+      '明天',
+      '<1週',
+      '未來',
+    ]);
+  });
+
+  it('倒序時桶順序完全顛倒', () => {
+    const buckets = groupByBucket(cards, NOW, 'desc');
+    expect(buckets.map((bucket) => bucket.key)).toEqual([
+      'future',
+      'week',
+      'tomorrow',
+      'today',
+      'now',
+      'new',
+    ]);
+  });
+
+  it('倒序時桶內卡片順序也顛倒', () => {
+    const week = [card('a', '2026-07-29'), card('b', '2026-07-30'), card('c', '2026-08-01')];
+    const ids = (direction: 'asc' | 'desc') =>
+      groupByBucket(week, NOW, direction)
+        .find((bucket) => bucket.key === 'week')!
+        .cards.map((each) => each.id);
+    expect(ids('asc')).toEqual(['a', 'b', 'c']);
+    expect(ids('desc')).toEqual(['c', 'b', 'a']);
+  });
+
+  // 「桶內順序也顛倒」指的是日期反過來。同一天到期的卡在兩個方向下維持同一個
+  // 相對順序，這是 sortByDue() 刻意保證的行為（見 CONTEXT.md「到期排序」），
+  // 因此全是新卡的「新」桶在倒序時順序不動。
+  it('同一天到期的卡在兩個方向下維持同一個相對順序', () => {
+    const sameDay = [card('a', '2026-07-30'), card('b', '2026-07-30'), card('c', '2026-07-30')];
+    const ids = (direction: 'asc' | 'desc') =>
+      groupByBucket(sameDay, NOW, direction)
+        .find((bucket) => bucket.key === 'week')!
+        .cards.map((each) => each.id);
+    expect(ids('asc')).toEqual(['a', 'b', 'c']);
+    expect(ids('desc')).toEqual(['a', 'b', 'c']);
+  });
+
+  it('沒有卡片的桶仍然回傳，cards 為空陣列', () => {
+    const buckets = groupByBucket([card('新', null)], NOW, 'asc');
+    expect(buckets).toHaveLength(6);
+    expect(buckets.find((bucket) => bucket.key === 'new')!.cards).toHaveLength(1);
+    expect(buckets.filter((bucket) => bucket.cards.length === 0)).toHaveLength(5);
+  });
+
+  it('每張卡恰好出現在一個桶裡，各桶張數總和等於輸入張數', () => {
+    const many = [...cards, card('另一張逾期', '2026-01-01'), card('另一張新卡', null)];
+    const buckets = groupByBucket(many, NOW, 'asc');
+    const ids = buckets.flatMap((bucket) => bucket.cards.map((each) => each.id));
+    expect(ids).toHaveLength(many.length);
+    expect(new Set(ids).size).toBe(many.length);
   });
 });
