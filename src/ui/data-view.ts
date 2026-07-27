@@ -15,6 +15,16 @@ const CHANGE_HINT = '換密碼後，其他還在用舊密碼的裝置會被擋�
 
 const STOP_CONFIRM = '停止後不再備份到雲端，卡片與進度會完整留在這台裝置。確定要停止？';
 
+/**
+ * 「不要開計費」是這個設計唯一的保險：金鑰只存在本機、不上雲也不進匯出檔，
+ * 但真的外洩時，沒綁卡的金鑰代價只是免費額度被別人用掉，不會生出帳單。
+ * 因此這句話與取得方式一起常駐在表單裡（見 issue 01 決定 7）。
+ */
+const GEMINI_HINT =
+  '到 Google AI Studio（aistudio.google.com/apikey）建立金鑰，' +
+  '並確認該專案沒有啟用計費——一旦啟用，免費額度就會消失，之後每次呼叫都從第一個字開始計費。' +
+  '金鑰只留在這台裝置，不會上傳雲端，也不會出現在匯出的備份檔裡。';
+
 export function dataView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
@@ -25,7 +35,7 @@ export function dataView(app: App): HTMLElement {
   );
 
   const main = el('main', 'panel');
-  main.append(cloudSection(app), fileSection(app));
+  main.append(cloudSection(app), geminiSection(app), fileSection(app));
 
   screen.append(header, main);
   return screen;
@@ -142,6 +152,52 @@ function changePasswordForm(app: App): HTMLElement {
   });
 
   return form;
+}
+
+/**
+ * Gemini 金鑰。已設定時畫面上只剩一行狀態字與清除鍵——連輸入框都收起來，
+ * 已存的金鑰因此沒有任何回顯的機會；要換金鑰就清掉再貼一次（見 issue 01 決定 6）。
+ * 這也與上面的雲端備份區塊同形：設定完成後表單換成控制項。
+ */
+function geminiSection(app: App): HTMLElement {
+  const section = el('section', 'section');
+  section.append(el('h2', 'section-title', 'Gemini API 金鑰'));
+
+  if (app.gemini.read() !== null) {
+    section.append(
+      el('p', 'hint', '已設定。要換一把金鑰的話，先按清除再貼上新的。'),
+      button('danger', '清除金鑰', () => {
+        app.gemini.write(null);
+        // 重畫成未設定的樣子，輸入框跟著回來。
+        app.showData();
+      }),
+    );
+    return section;
+  }
+
+  const key = el('input', 'field');
+  key.type = 'password';
+  key.autocapitalize = 'off';
+  key.spellcheck = false;
+  key.autocomplete = 'off';
+
+  const submit = el('button', 'primary', '儲存金鑰');
+  submit.type = 'submit';
+
+  const form = el('form', 'form');
+  form.append(el('p', 'hint', GEMINI_HINT), labelled('金鑰', key), el('div', 'form-actions', submit));
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    // 空的輸入框沒有東西可存，按了就當沒按——不必重畫。
+    if (key.value.trim() === '') return;
+    app.gemini.write(key.value);
+    // 重畫成已設定的樣子：輸入框收起來，清除鍵出現。
+    app.showData();
+  });
+
+  section.append(form);
+  return section;
 }
 
 /** 手動備份：雲端再穩定也可能出事，匯出的 JSON 是不依賴任何人的後路。 */

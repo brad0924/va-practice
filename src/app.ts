@@ -1,6 +1,7 @@
 import builtin from './data/cards.json';
 import { createStore, type Store } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
+import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { buildQueue, type Queue } from './lib/review';
 import type { AppData, Card } from './lib/types';
 import { initSpeech } from './ui/speech';
@@ -20,6 +21,8 @@ export interface App {
   readonly store: Store;
   /** 雲端備份。未登入時所有操作都是靜默的，一個網路請求都不發。 */
   readonly cloud: CloudBackup;
+  /** 使用者自備的 Gemini 金鑰。只留在這台裝置，不上雲也不進匯出檔。 */
+  readonly gemini: GeminiKey;
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
@@ -78,6 +81,7 @@ export function start(root: HTMLElement): void {
     },
     store,
     cloud,
+    gemini: createGeminiKey(localStorage),
     now,
     random,
 
