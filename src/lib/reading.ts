@@ -239,6 +239,40 @@ export function splitCellAt(run: KanjiRun, index: number, at: number): KanjiRun 
   return { start: run.start, cells };
 }
 
+/**
+ * 採用 AI（Artificial Intelligence，人工智慧）預填的讀音：
+ * 驗證回覆確實是「這個詞條的漢字」再轉成讀音格。
+ *
+ * `reply` 是外面世界丟進來的東西（結構化輸出保證的是形狀，不是內容），
+ * 因此漢字必須逐串比對到完全相同，位置一律用 `scanRuns` 自己算，不採信回覆。
+ * 任一條不過就整批回 `null`：部分採用會產生半填的串，反而卡住 `validateDraft`。
+ */
+export function acceptPrefill(term: string, reply: unknown): KanjiRun[] | null {
+  if (!Array.isArray(reply)) return null;
+  const scanned = scanRuns(term);
+  if (reply.length !== scanned.length) return null;
+
+  const runs: KanjiRun[] = [];
+  for (let i = 0; i < scanned.length; i += 1) {
+    const replyRun: unknown = reply[i];
+    if (!Array.isArray(replyRun) || replyRun.length === 0) return null;
+
+    const cells: ReadingCell[] = [];
+    for (const raw of replyRun as unknown[]) {
+      if (typeof raw !== 'object' || raw === null) return null;
+      const { kanji, reading } = raw as Partial<ReadingCell>;
+      if (typeof kanji !== 'string' || kanji === '') return null;
+      if (typeof reading !== 'string' || !KANA.test(reading)) return null;
+      cells.push({ kanji, reading });
+    }
+
+    // AI 不得增刪或改寫任何一個漢字：接起來要跟原本那串一字不差。
+    if (cells.map((cell) => cell.kanji).join('') !== scanned[i]!.kanji) return null;
+    runs.push({ start: scanned[i]!.start, cells });
+  }
+  return runs;
+}
+
 /** 儲存時檢查：同串全填或全空、讀音只能是假名。回傳錯誤訊息，全過為空。 */
 export function validateDraft(draft: ReadingDraft): string[] {
   const errors: string[] = [];

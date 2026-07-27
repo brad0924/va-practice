@@ -9,10 +9,12 @@ import {
   mergeSeam,
   splitCellAt,
   validateDraft,
+  acceptPrefill,
   type KanjiRun,
   type ReadingCell,
   type ReadingDraft,
 } from '../lib/reading';
+import { askReading } from '../lib/gemini-reading';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 
@@ -38,6 +40,19 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   termInput.spellcheck = false;
 
   const readingRegion = el('div', 'reading');
+
+  // 讀音區上方那一行：詢問中、AI 填好了、或失敗的原因。沒話講時整個元素拿掉，
+  // 免得 .labelled 的 gap 留下一道空隙。
+  const readingNote = el('p', 'hint');
+  const setNote = (text: string, className = 'hint') => {
+    if (text === '') {
+      readingNote.remove();
+      return;
+    }
+    readingNote.className = className;
+    readingNote.textContent = text;
+    readingRegion.before(readingNote);
+  };
 
   const preview = el('div', 'preview');
   const refreshPreview = () => {
@@ -104,6 +119,9 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     return cellEl;
   };
 
+  /** 目前有沒有任何一格填了讀音。守門與提示的存亡都看這個。 */
+  const anyFilled = () => runs.some((run) => run.cells.some((cell) => cell.reading !== ''));
+
   termInput.addEventListener('input', () => {
     const parsed = parseReading(termInput.value);
     if (parsed.some((segment) => segment.reading !== undefined)) {
@@ -120,8 +138,46 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       runs = next;
       if (changed) renderReading();
     }
+    // 詞條一改，上一次的提示就過期了——但改詞條會保留已填的讀音，
+    // AI 填的假名還活著時「請確認」那行絕不能跟著消失，那是唯一擋得住讀音幻覺的東西。
+    if (!anyFilled()) setNote('');
     refreshPreview();
   });
+
+  /** 這次編輯已經問過的詞條，同一串不重複問。 */
+  let askedTerm: string | null = null;
+
+  /**
+   * 詞條打完離開輸入框時去問一次 AI（Artificial Intelligence，人工智慧）。
+   * 守門條件任一不成立就完全靜默——
+   * 尤其是沒設定金鑰的情況（新裝置、手機），不能每次新增卡片都嘮叨一句。
+   */
+  const prefill = async () => {
+    const key = app.gemini.read();
+    const term = termInput.value;
+    if (key === null || term.trim() === '' || runs.length === 0) return;
+    // 已經填過的格子不覆蓋，開舊卡也因此不會觸發。
+    if (anyFilled() || term === askedTerm) return;
+
+    askedTerm = term;
+    setNote('詢問中…');
+    try {
+      const filled = acceptPrefill(term, await askReading(key, term));
+      // 等待期間使用者又改了詞條，這份回覆對的是舊的那串漢字，不能套上去。
+      if (termInput.value !== term) return;
+      if (filled === null) throw new Error('AI 給的讀音對不上這個詞條');
+      runs = filled;
+      renderReading();
+      refreshPreview();
+      setNote('讀音由 AI 填入，請確認');
+    } catch (reason) {
+      if (termInput.value !== term) return;
+      // 讀音格維持原狀留空，儲存流程完全不受影響。
+      setNote(`自動填讀音失敗：${reason instanceof Error ? reason.message : '未知原因'}`, 'error');
+    }
+  };
+
+  termInput.addEventListener('blur', () => void prefill());
 
   const meaningInput = el('input', 'field');
   meaningInput.type = 'text';

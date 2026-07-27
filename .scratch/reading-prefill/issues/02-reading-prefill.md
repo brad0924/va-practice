@@ -1,6 +1,6 @@
 # 詞條打完自動問 AI，把讀音填進讀音格
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 依賴 `01-gemini-key-setting.md`。這是本功能的主體。

@@ -9,6 +9,7 @@ import {
   mergeSeam,
   splitCellAt,
   validateDraft,
+  acceptPrefill,
   type KanjiRun,
 } from './reading';
 import cardsData from '../data/cards.json';
@@ -394,5 +395,129 @@ describe('儲存驗證 validateDraft', () => {
   it('片假名加長音符通過', () => {
     const draft = { term: 'コ', runs: [run([{ kanji: 'コ', reading: 'コーヒー' }])] };
     expect(validateDraft(draft)).toEqual([]);
+  });
+});
+
+describe('AI 預填採用 acceptPrefill', () => {
+  it('單一漢字串：焦がす', () => {
+    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'こ' }]])).toEqual([
+      { start: 0, cells: [{ kanji: '焦', reading: 'こ' }] },
+    ]);
+  });
+
+  it('逐字分配：吹雪 兩格', () => {
+    expect(
+      acceptPrefill('吹雪', [
+        [
+          { kanji: '吹', reading: 'ふ' },
+          { kanji: '雪', reading: 'ぶき' },
+        ],
+      ]),
+    ).toEqual([
+      {
+        start: 0,
+        cells: [
+          { kanji: '吹', reading: 'ふ' },
+          { kanji: '雪', reading: 'ぶき' },
+        ],
+      },
+    ]);
+  });
+
+  it('熟字訓整串一格：剃刀', () => {
+    expect(acceptPrefill('剃刀', [[{ kanji: '剃刀', reading: 'かみそり' }]])).toEqual([
+      { start: 0, cells: [{ kanji: '剃刀', reading: 'かみそり' }] },
+    ]);
+  });
+
+  it('多串：考え込む 兩串，start 各自正確', () => {
+    expect(
+      acceptPrefill('考え込む', [
+        [{ kanji: '考', reading: 'かんが' }],
+        [{ kanji: '込', reading: 'こ' }],
+      ]),
+    ).toEqual([
+      { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
+    ]);
+  });
+
+  it('不採信 AI 的位置資訊，start 一律自己算', () => {
+    expect(
+      acceptPrefill('ざるを得ない', [[{ kanji: '得', reading: 'え', start: 99 }]]),
+    ).toEqual([{ start: 3, cells: [{ kanji: '得', reading: 'え' }] }]);
+  });
+
+  it('片假名讀音放行', () => {
+    expect(acceptPrefill('缶', [[{ kanji: '缶', reading: 'カン' }]])).toEqual([
+      { start: 0, cells: [{ kanji: '缶', reading: 'カン' }] },
+    ]);
+  });
+
+  it('拒絕：串數與詞條對不上', () => {
+    expect(acceptPrefill('考え込む', [[{ kanji: '考', reading: 'かんが' }]])).toBeNull();
+    expect(
+      acceptPrefill('焦がす', [
+        [{ kanji: '焦', reading: 'こ' }],
+        [{ kanji: '込', reading: 'こ' }],
+      ]),
+    ).toBeNull();
+  });
+
+  it('拒絕：AI 改字、漏字、多字', () => {
+    expect(acceptPrefill('吹雪', [[{ kanji: '吹雨', reading: 'ふぶき' }]])).toBeNull();
+    expect(acceptPrefill('吹雪', [[{ kanji: '吹', reading: 'ふぶき' }]])).toBeNull();
+    expect(acceptPrefill('吹雪', [[{ kanji: '大吹雪', reading: 'おおふぶき' }]])).toBeNull();
+  });
+
+  it('拒絕：讀音含羅馬字、漢字或數字', () => {
+    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'ko' }]])).toBeNull();
+    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: '焦' }]])).toBeNull();
+    expect(acceptPrefill('焦がす', [[{ kanji: '焦', reading: 'こ1' }]])).toBeNull();
+  });
+
+  it('拒絕：任一格讀音為空字串', () => {
+    expect(
+      acceptPrefill('吹雪', [
+        [
+          { kanji: '吹', reading: 'ふぶき' },
+          { kanji: '雪', reading: '' },
+        ],
+      ]),
+    ).toBeNull();
+  });
+
+  it('拒絕：任一格漢字為空字串', () => {
+    expect(
+      acceptPrefill('吹雪', [
+        [
+          { kanji: '吹雪', reading: 'ふぶき' },
+          { kanji: '', reading: 'き' },
+        ],
+      ]),
+    ).toBeNull();
+  });
+
+  it('拒絕：形狀不對', () => {
+    expect(acceptPrefill('焦がす', null)).toBeNull();
+    expect(acceptPrefill('焦がす', '焦[こ]がす')).toBeNull();
+    expect(acceptPrefill('焦がす', [{ kanji: '焦', reading: 'こ' }])).toBeNull();
+    expect(acceptPrefill('焦がす', [[]])).toBeNull();
+    expect(acceptPrefill('焦がす', [['こ']])).toBeNull();
+    expect(acceptPrefill('焦がす', [[{ kanji: '焦' }]])).toBeNull();
+    expect(acceptPrefill('焦がす', [[{ kanji: 1, reading: 'こ' }]])).toBeNull();
+  });
+
+  it('往返：採用後 toMarkup 再 parseReading 還原同一組漢字與讀音', () => {
+    const runs = acceptPrefill('書き下ろす', [
+      [{ kanji: '書', reading: 'か' }],
+      [{ kanji: '下', reading: 'お' }],
+    ]);
+    const markup = toMarkup({ term: '書き下ろす', runs: runs! });
+    expect(markup).toBe('書[か]き下[お]ろす');
+    expect(parseReading(markup).filter((segment) => segment.reading !== undefined)).toEqual([
+      { text: '書', reading: 'か' },
+      { text: '下', reading: 'お' },
+    ]);
   });
 });
