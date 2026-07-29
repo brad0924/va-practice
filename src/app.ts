@@ -1,9 +1,9 @@
 import builtin from './data/cards.json';
-import { createStore, type Store } from './lib/storage';
+import { createStore } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
-import { buildQueue, type Queue } from './lib/review';
-import type { AppData, Card } from './lib/types';
+import { buildQueue, rate as rateCard, type Queue } from './lib/review';
+import type { AppData, Card, Rating } from './lib/types';
 import { initSpeech } from './ui/speech';
 import { createSyncStatus } from './ui/sync-status';
 import { reviewView } from './ui/review-view';
@@ -18,7 +18,6 @@ import { editorView } from './ui/editor-view';
 export interface App {
   readonly data: AppData;
   readonly queue: Queue;
-  readonly store: Store;
   /** 雲端備份。未登入時所有操作都是靜默的，一個網路請求都不發。 */
   readonly cloud: CloudBackup;
   /** 使用者自備的 Gemini 金鑰。只留在這台裝置，不上雲也不進匯出檔。 */
@@ -26,15 +25,16 @@ export interface App {
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
-  random(): number;
   reveal(): void;
-  /** 記錄評分結果並前進到下一張。 */
-  advance(queue: Queue, card: Card): void;
+  /** 對目前卡片評分並前進到下一張。 */
+  rate(rating: Rating): void;
   /** 新增或更新一張卡，同時反映到當日佇列上。 */
   upsert(card: Card): void;
   remove(id: string): void;
-  /** 匯入後整份資料被換掉，佇列需要重建。 */
-  reload(): void;
+  /** 整份覆蓋本機資料並推上雲端。格式不對時直接丟例外，由畫面接住。 */
+  importBackup(text: string): void;
+  /** 目前這份資料的備份內容，交給畫面決定檔名與怎麼存。 */
+  exportBackup(): string;
   showReview(): void;
   showList(): void;
   /** 只有卡片頁能進來，回去的目的地固定，不必傳 back。 */
@@ -59,7 +59,7 @@ export function start(root: HTMLElement): void {
     onPulled(json, updatedAt) {
       // 走一次匯入的驗證路徑，壞掉的雲端資料不會弄壞本機這份。
       store.save({ ...store.importJson(json), updatedAt });
-      app.reload();
+      reload();
       render();
     },
     onPushed(updatedAt) {
@@ -79,20 +79,19 @@ export function start(root: HTMLElement): void {
     get revealed() {
       return revealed;
     },
-    store,
     cloud,
     gemini: createGeminiKey(localStorage),
     now,
-    random,
 
     reveal() {
       revealed = true;
     },
 
-    advance(nextQueue, card) {
-      queue = nextQueue;
+    rate(rating) {
+      const result = rateCard(queue, rating, now(), random);
+      queue = result.queue;
       revealed = false;
-      replaceInData(card);
+      replaceInData(result.card);
       persist();
     },
 
@@ -116,10 +115,17 @@ export function start(root: HTMLElement): void {
       persist();
     },
 
-    reload() {
-      data = store.load();
-      queue = buildQueue(data.cards, now(), random);
-      revealed = false;
+    // 不是換掉整份資料的唯一入口：雲端拉下來那條路（onPulled）另外走，
+    // 時間戳來源、推不推雲端、重不重畫三件事都相反，刻意沒有合併。
+    importBackup(text) {
+      store.importJson(text);
+      reload();
+      // 匯入也是一次本機資料變動。不推上去的話，下次開 app 會被雲端那份蓋回去。
+      cloud.push(data);
+    },
+
+    exportBackup() {
+      return store.exportJson();
     },
 
     showReview() {
@@ -141,6 +147,13 @@ export function start(root: HTMLElement): void {
 
     keyHandler: null,
   };
+
+  // 整份資料被換掉之後，佇列與已掀開的狀態都要重建。
+  function reload(): void {
+    data = store.load();
+    queue = buildQueue(data.cards, now(), random);
+    revealed = false;
+  }
 
   function replaceInData(card: Card): void {
     data.cards = data.cards.map((existing) => (existing.id === card.id ? card : existing));

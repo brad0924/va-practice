@@ -1,7 +1,7 @@
 import type { App } from '../app';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
-import { el, button } from './dom';
+import { el, button, download } from './dom';
 
 const CLOUD_HINT =
   '輸入自取的暱稱與密碼，進度就會自動備份到雲端；換裝置輸入同一組就接得回來。' +
@@ -213,10 +213,7 @@ function fileSection(app: App): HTMLElement {
     if (!chosen) return;
     if (!confirm('匯入會整份覆蓋目前的卡片與進度，且無法復原。確定要繼續？')) return;
     try {
-      app.store.importJson(await chosen.text());
-      app.reload();
-      // 匯入也是一次本機資料變動。不推上去的話，下次開 app 會被雲端那份蓋回去。
-      app.cloud.push(app.data);
+      app.importBackup(await chosen.text());
       // 匯入成功不另外報喜，直接跳回卡片頁——新資料出現在眼前就是回饋。
       app.showList();
     } catch (error) {
@@ -232,7 +229,9 @@ function fileSection(app: App): HTMLElement {
     el(
       'div',
       'data-actions',
-      button('secondary', '匯出備份', () => download(app)),
+      button('secondary', '匯出備份', () =>
+        download(app.exportBackup(), `jlpt-cards-${toDateKey(app.now())}.json`, 'application/json'),
+      ),
       button('secondary', '匯入備份', () => file.click()),
     ),
     file,
@@ -243,14 +242,4 @@ function fileSection(app: App): HTMLElement {
 
 function labelled(text: string, control: HTMLInputElement): HTMLElement {
   return el('label', 'labelled', el('span', 'label-text', text), control);
-}
-
-function download(app: App): void {
-  const blob = new Blob([app.store.exportJson()], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = el('a');
-  link.href = url;
-  link.download = `jlpt-cards-${toDateKey(app.now())}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
 }

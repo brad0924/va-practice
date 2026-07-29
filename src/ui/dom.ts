@@ -16,3 +16,13 @@ export function button(className: string, label: string, onClick: () => void): H
   node.addEventListener('click', onClick);
   return node;
 }
+
+/** 把一段內容存成使用者的下載檔。瀏覽器沒有現成的下載函式，只能借一個隱形連結按下去。 */
+export function download(content: string, filename: string, type: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = el('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}

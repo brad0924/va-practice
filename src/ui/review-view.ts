@@ -1,5 +1,5 @@
 import type { App } from '../app';
-import { currentCard, isComplete, rate } from '../lib/review';
+import { currentCard, isComplete } from '../lib/review';
 import type { Rating } from '../lib/types';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
@@ -48,8 +48,7 @@ export function reviewView(app: App): HTMLElement {
   };
 
   const submit = (rating: Rating) => {
-    const result = rate(app.queue, rating, app.now(), app.random);
-    app.advance(result.queue, result.card);
+    app.rate(rating);
     app.showReview();
   };
 
