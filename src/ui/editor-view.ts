@@ -1,20 +1,9 @@
 import type { App } from '../app';
 import { newCard } from '../lib/review';
 import type { Card } from '../lib/types';
-import {
-  parseReading,
-  toDraft,
-  toMarkup,
-  rebuildRuns,
-  mergeSeam,
-  splitCellAt,
-  validateDraft,
-  acceptPrefill,
-  type KanjiRun,
-  type ReadingCell,
-  type ReadingDraft,
-} from '../lib/reading';
+import { toMarkup, type KanjiRun, type ReadingCell } from '../lib/reading';
 import { askReading } from '../lib/gemini-reading';
+import { createReadingEditor, type Change, type Note } from './reading-editor';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 
@@ -28,27 +17,34 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     el('span', 'bar-title', card ? '編輯卡片' : '新增卡片'),
   );
 
-  // 舊卡照已存標記還原成讀音格；新卡從空白開始。
-  const initial: ReadingDraft = card ? toDraft(card.text) : { term: '', runs: [] };
-  let runs: KanjiRun[] = initial.runs;
+  // 讀音格的規則全在這台機器裡，畫面只負責畫、接事件、照它回的變更單辦事。
+  // 金鑰在這裡取一次就夠：要改金鑰得離開這個畫面，回來時整個 editorView 已重建。
+  const key = app.gemini.read();
+  const editor = createReadingEditor({
+    markup: card?.text,
+    ask: key === null ? null : (term) => askReading(key, term),
+  });
 
   const termInput = el('input', 'field');
   termInput.type = 'text';
-  termInput.value = initial.term;
+  termInput.value = editor.term;
   termInput.placeholder = '焦がす';
   termInput.autocapitalize = 'off';
   termInput.spellcheck = false;
 
   const readingRegion = el('div', 'reading');
 
-  // 讀音區上方那一行：詢問中、AI 填好了、或失敗的原因。沒話講時整個元素拿掉，
+  // 讀音區上方那一行：詢問中、AI（Artificial Intelligence，人工智慧）填好了、或失敗的原因。
+  // 沒話講時整個元素拿掉，
   // 免得 .labelled 的 gap 留下一道空隙。
   const readingNote = el('p', 'hint');
-  const setNote = (text: string, className = 'hint') => {
-    if (text === '') {
+  const refreshNote = () => {
+    const note = editor.note;
+    if (note === null) {
       readingNote.remove();
       return;
     }
+    const { className, text } = noteWording(note);
     readingNote.className = className;
     readingNote.textContent = text;
     readingRegion.before(readingNote);
@@ -57,23 +53,24 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   const preview = el('div', 'preview');
   const refreshPreview = () => {
     // 預覽一律看「組出來的標記字串」，行為與舊版一致。
-    preview.replaceChildren(renderTerm(toMarkup({ term: termInput.value, runs }), true));
+    preview.replaceChildren(renderTerm(toMarkup({ term: editor.term, runs: editor.runs }), true));
   };
 
-  // 依 runs 重建整個讀音區。只有詞條改動與切開／合併會呼叫，
-  // 讀音框自己打字時不重建，才不會失焦、不打斷 IME（Input Method Editor，輸入法編輯器）組字。
+  // 依 runs 重建整個讀音區。只有變更單說要重畫時才會呼叫，
+  // 讀音格自己打字時不重建，才不會失焦、不打斷 IME（Input Method Editor，輸入法編輯器）組字。
   const renderReading = () => {
-    if (runs.length === 0) {
+    if (editor.runs.length === 0) {
       readingRegion.replaceChildren(el('p', 'hint', '這個詞沒有漢字'));
       return;
     }
-    readingRegion.replaceChildren(...runs.map((run, ri) => renderRun(run, ri)));
+    readingRegion.replaceChildren(...editor.runs.map((run, ri) => renderRun(run, ri)));
   };
 
-  // 切開／合併都是「換掉某一串、重畫、刷新預覽」，抽出來免得兩處各寫一遍。
-  const applyToRun = (ri: number, transform: (run: KanjiRun) => KanjiRun) => {
-    runs[ri] = transform(runs[ri]!);
-    renderReading();
+  /** 照單辦事。預覽由 term 與 runs 組出來，任何改動都要刷，因此不進變更單。 */
+  const apply = (change: Change) => {
+    if (change.term) termInput.value = editor.term;
+    if (change.runs) renderReading();
+    if (change.note) refreshNote();
     refreshPreview();
   };
 
@@ -82,7 +79,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     run.cells.forEach((cell, ci) => {
       if (ci > 0) {
         const left = run.cells[ci - 1]!;
-        const seam = button('reading-seam', '⊕', () => applyToRun(ri, (r) => mergeSeam(r, ci - 1)));
+        const seam = button('reading-seam', '⊕', () => apply(editor.mergeAt(ri, ci - 1)));
         seam.setAttribute('aria-label', `把${left.kanji}和${cell.kanji}合併`);
         runEl.append(seam);
       }
@@ -98,7 +95,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     [...cell.kanji].forEach((char, k) => {
       if (k > 0) {
         // 第 k 個字前的縫：只把這格從第 k 字切成左右兩格，其餘不動。
-        const seam = button('reading-seam', '·', () => applyToRun(ri, (r) => splitCellAt(r, ci, k)));
+        const seam = button('reading-seam', '·', () => apply(editor.splitAt(ri, ci, k)));
         seam.setAttribute('aria-label', `把${cell.kanji.slice(0, k)}和${cell.kanji.slice(k)}拆開`);
         kanjiRow.append(seam);
       }
@@ -110,74 +107,20 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     input.value = cell.reading;
     input.autocapitalize = 'off';
     input.spellcheck = false;
-    input.addEventListener('input', () => {
-      runs[ri]!.cells[ci]!.reading = input.value;
-      refreshPreview();
-    });
+    input.addEventListener('input', () => apply(editor.setReading(ri, ci, input.value)));
 
     cellEl.append(kanjiRow, input);
     return cellEl;
   };
 
-  /** 目前有沒有任何一格填了讀音。守門與提示的存亡都看這個。 */
-  const anyFilled = () => runs.some((run) => run.cells.some((cell) => cell.reading !== ''));
+  termInput.addEventListener('input', () => apply(editor.setTerm(termInput.value)));
 
-  termInput.addEventListener('input', () => {
-    const parsed = parseReading(termInput.value);
-    if (parsed.some((segment) => segment.reading !== undefined)) {
-      // 貼上帶標記的字串：括號攤回格子，詞條框只留純文字。
-      const draft = toDraft(termInput.value);
-      termInput.value = draft.term;
-      runs = draft.runs;
-      renderReading();
-    } else {
-      // 依漢字內容保留已填讀音。漢字排列沒變（多半只是尾端加減假名）就不動
-      // DOM（Document Object Model，文件物件模型），正在打字的讀音框才不會失焦、IME 才不會被打斷。
-      const next = rebuildRuns(termInput.value, runs);
-      const changed = shape(next) !== shape(runs);
-      runs = next;
-      if (changed) renderReading();
-    }
-    // 詞條一改，上一次的提示就過期了——但改詞條會保留已填的讀音，
-    // AI 填的假名還活著時「請確認」那行絕不能跟著消失，那是唯一擋得住讀音幻覺的東西。
-    if (!anyFilled()) setNote('');
-    refreshPreview();
+  // 詞條打完離開輸入框時去問一次。守門沒過的話兩張單子都是空的，什麼都不會動。
+  termInput.addEventListener('blur', () => {
+    const { now, later } = editor.prefill();
+    apply(now);
+    void later.then(apply);
   });
-
-  /** 這次編輯已經問過的詞條，同一串不重複問。 */
-  let askedTerm: string | null = null;
-
-  /**
-   * 詞條打完離開輸入框時去問一次 AI（Artificial Intelligence，人工智慧）。
-   * 守門條件任一不成立就完全靜默——
-   * 尤其是沒設定金鑰的情況（新裝置、手機），不能每次新增卡片都嘮叨一句。
-   */
-  const prefill = async () => {
-    const key = app.gemini.read();
-    const term = termInput.value;
-    if (key === null || term.trim() === '' || runs.length === 0) return;
-    // 已經填過的格子不覆蓋，開舊卡也因此不會觸發。
-    if (anyFilled() || term === askedTerm) return;
-
-    askedTerm = term;
-    setNote('詢問中…');
-    try {
-      const filled = acceptPrefill(term, await askReading(key, term));
-      // 等待期間使用者又改了詞條，這份回覆對的是舊的那串漢字，不能套上去。
-      if (termInput.value !== term) return;
-      if (filled === null) throw new Error('AI 給的讀音對不上這個詞條');
-      runs = filled;
-      renderReading();
-      refreshPreview();
-      setNote('讀音由 AI 填入，請確認');
-    } catch (reason) {
-      if (termInput.value !== term) return;
-      // 讀音格維持原狀留空，儲存流程完全不受影響。
-      setNote(`自動填讀音失敗：${reason instanceof Error ? reason.message : '未知原因'}`, 'error');
-    }
-  };
-
-  termInput.addEventListener('blur', () => void prefill());
 
   const meaningInput = el('input', 'field');
   meaningInput.type = 'text';
@@ -200,20 +143,18 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const term = termInput.value.trim();
     const meaning = meaningInput.value.trim();
-    if (!term || !meaning) {
+    const result = editor.commit();
+    // 詞條空白與釋義空白在這裡合成同一句，順序維持現狀：空白檢查先、讀音驗證後。
+    if ((!result.ok && result.reason === 'empty-term') || !meaning) {
       error.textContent = '詞條與釋義都要填。';
       return;
     }
-    // 對齊 trim 後的 term，讀音照漢字內容搬過來。
-    const draft: ReadingDraft = { term, runs: rebuildRuns(term, runs) };
-    const problems = validateDraft(draft);
-    if (problems.length > 0) {
-      error.textContent = problems.join('；');
+    if (!result.ok) {
+      error.textContent = result.errors.join('；');
       return;
     }
-    const text = toMarkup(draft);
+    const text = result.text;
     app.upsert(card ? { ...card, text, meaning } : newCard(crypto.randomUUID(), text, meaning));
     back();
   });
@@ -239,9 +180,16 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   return screen;
 }
 
-/** 漢字排列的指紋，用來判斷詞條改動後是否需要重建讀音區 DOM。 */
-function shape(runs: KanjiRun[]): string {
-  return runs.map((run) => run.cells.map((cell) => cell.kanji).join(',')).join(';');
+/** 狀態代號翻成使用者看到的那一行字與樣式。措辭與樣式屬於畫面，不進讀音編輯器。 */
+function noteWording(note: Note): { className: string; text: string } {
+  switch (note.kind) {
+    case 'asking':
+      return { className: 'hint', text: '詢問中…' };
+    case 'filled':
+      return { className: 'hint', text: '讀音由 AI 填入，請確認' };
+    case 'failed':
+      return { className: 'error', text: `自動填讀音失敗：${note.reason}` };
+  }
 }
 
 function labelled(text: string, control: HTMLInputElement): HTMLElement {
