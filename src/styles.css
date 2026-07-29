@@ -474,6 +474,22 @@ button {
   font-weight: 600;
 }
 
+/* 新增卡片頁才有的兩顆並排、各半等寬。只加在那一個容器上，
+   編輯模式與資料頁那幾組單顆滿寬的 .form-actions 完全不受影響。 */
+.form-actions.split {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.form-actions.split > button {
+  flex: 1;
+  width: auto;
+  min-height: var(--tap);
+  border-radius: 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
 .danger {
   width: 100%;
   min-height: var(--tap);
@@ -612,4 +628,42 @@ button {
   color: var(--muted);
   font-size: 0.75rem;
   pointer-events: none;
+}
+
+/* ---------- 存完留在原地的回饋 ---------- */
+
+.toast[hidden] {
+  display: none;
+}
+
+/* 浮在表單之上不佔版位，長出來與消失都不會把底下的按鈕推走。
+   壓在 sync-status 那行小字底下，兩則同時出現時不互相蓋住。
+
+   表單捲到底時它會蓋在那兩顆按鈕上，因此本體比照 sync-status 不吃點擊——
+   連著加卡的人不會在這三秒內按不到「儲存並繼續」。只有 ✕ 例外，那顆要能按。 */
+.toast {
+  pointer-events: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
+  margin: 0 auto;
+  width: fit-content;
+  max-width: calc(100% - 1.5rem);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.875rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+
+.toast-close {
+  flex: 0 0 auto;
+  pointer-events: auto;
+  padding: 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
 }
