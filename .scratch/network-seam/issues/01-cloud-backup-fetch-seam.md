@@ -1,6 +1,6 @@
 # 01 — 雲端備份的網路縫與八條測試
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 需求

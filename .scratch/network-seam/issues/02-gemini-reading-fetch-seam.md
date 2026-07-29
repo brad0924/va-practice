@@ -1,6 +1,6 @@
 # 02 — 讀音預填的網路縫、九條測試與文件更正
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 需求
