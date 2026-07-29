@@ -190,10 +190,12 @@ describe('儲存', () => {
 });
 
 describe('匯出與匯入', () => {
-  it('匯出的是可讀的 JSON，含版本號', () => {
+  // 匯出本身（序列化目前資料）現在是畫面層（App.exportBackup）的職責，
+  // 這裡驗證的是 load() 回傳的資料本身帶有版本號，序列化後仍是可讀的 JSON。
+  it('load() 的結果序列化後仍是可讀的 JSON，含版本號', () => {
     const store = createStore(fakeStorage(), BUILTIN);
-    store.load();
-    const parsed = JSON.parse(store.exportJson());
+    const data = store.load();
+    const parsed = JSON.parse(JSON.stringify(data, null, 2));
     expect(parsed.version).toBe(2);
     expect(parsed.cards).toHaveLength(2);
   });
@@ -206,7 +208,7 @@ describe('匯出與匯入', () => {
     data.cards[0]!.ease = 2.15;
     data.cards[0]!.due = '2026-08-04';
     store.save(data);
-    const exported = store.exportJson();
+    const exported = JSON.stringify(data, null, 2);
 
     const target = createStore(fakeStorage(), BUILTIN);
     target.importJson(exported);

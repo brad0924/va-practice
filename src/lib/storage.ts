@@ -1,7 +1,8 @@
 /**
  * 資料存取：畫面只需要載入與儲存兩項操作，
- * 首次初始化與單向合併是內部細節。匯出與匯入同樣由本模組負責，
- * 只是必須由使用者觸發，因此也開在介面上。
+ * 首次初始化與單向合併是內部細節。匯入同樣由本模組負責，
+ * 因為必須驗證格式並整份覆蓋，因此也開在介面上；
+ * 匯出只是把畫面手上現有的資料序列化，交給畫面層直接做即可。
  *
  * 目前實作為瀏覽器本機儲存；日後若改接雲端服務，僅需替換此模組內部（見 ADR-0002）。
  */
@@ -27,7 +28,6 @@ export interface BuiltinDeck {
 export interface Store {
   load(): AppData;
   save(data: AppData): void;
-  exportJson(): string;
   importJson(json: string): AppData;
 }
 
@@ -90,10 +90,6 @@ export function createStore(storage: StorageLike, builtin: BuiltinDeck): Store {
 
     save(data) {
       write({ ...data, version: DATA_VERSION });
-    },
-
-    exportJson() {
-      return JSON.stringify(load(), null, 2);
     },
 
     importJson(json) {

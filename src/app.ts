@@ -125,7 +125,7 @@ export function start(root: HTMLElement): void {
     },
 
     exportBackup() {
-      return store.exportJson();
+      return JSON.stringify(data, null, 2);
     },
 
     showReview() {
