@@ -56,6 +56,8 @@ export function start(root: HTMLElement): void {
 
   const cloud = createCloudBackup({
     storage: localStorage,
+    // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
+    fetch: fetch.bind(window),
     onPulled(json, updatedAt) {
       // 走一次匯入的驗證路徑，壞掉的雲端資料不會弄壞本機這份。
       store.save({ ...store.importJson(json), updatedAt });
@@ -68,6 +70,9 @@ export function start(root: HTMLElement): void {
     },
     onStatus: createSyncStatus(document.body),
   });
+
+  // 離線時累積下來的那一份，恢復連線就補上去。
+  window.addEventListener('online', () => cloud.retry());
 
   const app: App = {
     get data() {

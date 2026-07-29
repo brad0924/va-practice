@@ -5,6 +5,11 @@
  * 雲端只是備份的搬運帶，不是第二個真相來源（見 ADR-0002、ADR-0003）。
  *
  * 未登入時本模組完全靜默，一個網路請求都不發。
+ *
+ * `hooks.fetch` 與 `retry()` 出現在介面上是同一個立場的兩面：
+ * 本模組不碰 DOM（Document Object Model，文件物件模型）。
+ * 上網的方式跟 `storage` 一樣由呼叫端遞進來；「連線恢復了，該補推了」是瀏覽器事件，
+ * 何時觸發由接線層（`app.ts`）決定，這裡只提供一個可以叫的動作。
  */
 import type { AppData } from './types';
 import type { StorageLike } from './storage';
@@ -52,10 +57,17 @@ export interface CloudBackup {
   signOut(): void;
   /** 本機資料有變動。推的永遠是最新的整份，送出期間的變動會併到下一次。 */
   push(data: AppData): void;
+  /**
+   * 把待推的那份再送一次。與 `push()` 一樣命令式、不等結果。
+   * 何時該重試由接線層決定（瀏覽器的 `online` 事件在 `app.ts` 上）。
+   */
+  retry(): void;
 }
 
 export interface CloudBackupHooks {
   storage: StorageLike;
+  /** 上網的方式。與 `storage` 同待遇：一律由呼叫端遞進來，本模組不碰全域。 */
+  fetch: typeof fetch;
   /** 拉到比本機新的雲端資料。傳的是解密後的 JSON 原文，交給呼叫端驗證後寫入。 */
   onPulled(json: string, updatedAt: number): void;
   /** 推送成功，這是伺服器蓋的時間戳，本機要記下來才能在下次開 app 時比新舊。 */
@@ -72,11 +84,8 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
   /** 雲端拒絕了我們的指紋。再送幾次都一樣，等重新輸入密碼才有意義。 */
   let blocked = false;
 
-  // 離線時累積下來的那一份，恢復連線就補上去。
-  window.addEventListener('online', () => void flush());
-
   async function readOpen(keys: CloudKeys): Promise<RemoteOpen | null> {
-    const response = await fetch(`${DATABASE}/backups/${keys.path}/open.json`);
+    const response = await hooks.fetch(`${DATABASE}/backups/${keys.path}/open.json`);
     if (!response.ok) throw new Error(`讀取雲端失敗（${response.status}）`);
     const body: unknown = await response.json();
     if (typeof body !== 'object' || body === null) return null;
@@ -91,7 +100,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
    */
   async function write(keys: CloudKeys, data: AppData, prev = keys.fingerprint): Promise<number> {
     const payload = await encrypt(keys.key, JSON.stringify(data));
-    const response = await fetch(`${DATABASE}/backups/${keys.path}.json`, {
+    const response = await hooks.fetch(`${DATABASE}/backups/${keys.path}.json`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -239,6 +248,10 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
       // 未登入時連記都不記，維持「行為與現在完全一樣」。
       if (account === null) return;
       pending = data;
+      void flush();
+    },
+
+    retry() {
       void flush();
     },
   };

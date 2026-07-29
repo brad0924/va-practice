@@ -3,8 +3,11 @@
  *
  * 這裡刻意不做任何判斷：回覆是否真的對應這個詞條，一律交給
  * `acceptPrefill`（`reading.ts`）那支純函式決定。本模組只負責把請求送出去、
- * 把 JSON（JavaScript Object Notation，JavaScript 物件表示法）挖出來，
- * 比照 `cloud-backup.ts` 直接用全域 `fetch`，因此沒有測試檔。
+ * 把 JSON（JavaScript Object Notation，JavaScript 物件表示法）挖出來。
+ *
+ * 上網的方式由呼叫端遞進來（比照 `cloud-backup.ts` 的 `hooks.fetch`），
+ * 這支函式七成的程式碼在做同一件事——把各種失敗翻成使用者看得懂的話，
+ * 那部分有 `gemini-reading.test.ts` 守著。
  */
 
 /**
@@ -93,14 +96,16 @@ async function reason(response: Response): Promise<string> {
  *
  * 失敗一律拋出「可以直接顯示給使用者」的訊息——瀏覽器原生的
  * `Failed to fetch`、`AbortError` 對使用者沒有意義，在這裡就翻成人話。
+ *
+ * `doFetch` 必填，與 `storage` 同待遇：讓「這個模組會上網」在呼叫端就讀得到。
  */
-export async function askReading(key: string, term: string): Promise<unknown> {
+export async function askReading(key: string, term: string, doFetch: typeof fetch): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     let response: Response;
     try {
-      response = await fetch(ENDPOINT, {
+      response = await doFetch(ENDPOINT, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({

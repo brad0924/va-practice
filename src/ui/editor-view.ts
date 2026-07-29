@@ -22,7 +22,8 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   const key = app.gemini.read();
   const editor = createReadingEditor({
     markup: card?.text,
-    ask: key === null ? null : (term) => askReading(key, term),
+    // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
+    ask: key === null ? null : (term) => askReading(key, term, fetch.bind(window)),
   });
 
   const termInput = el('input', 'field');
