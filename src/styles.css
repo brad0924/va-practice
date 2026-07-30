@@ -19,7 +19,7 @@
   /* 每個畫面底部的留白。固定值，不疊 env(safe-area-inset-bottom)：真機實測那條公式
      在 iPhone standalone 下算出 46px，底下會空一大截。固定值讓 standalone 與瀏覽器
      分頁（safe-area 恆為 0）留白一致。 */
-  --screen-pad-bottom: 18px;
+  --screen-pad-bottom: 16px;
 }
 
 * {

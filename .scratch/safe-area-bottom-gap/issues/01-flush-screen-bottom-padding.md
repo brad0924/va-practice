@@ -49,3 +49,4 @@ padding: env(safe-area-inset-top) 0.75rem calc(env(safe-area-inset-bottom) + 0.7
 
 - 原型：`/prototype` 建了 `src/prototype-safe-area-bottom.ts`，掛載在 `main.ts`（僅 `import.meta.env.DEV` 時，網址帶 `?proto=safe-area`），用真正的 production class 重現複習頁評分列、卡片頁捲到底兩種畫面，各配 0px／18px 兩版，畫面上直接印出真機量到的 `safe-area-inset-top` / `safe-area-inset-bottom` 與 standalone 狀態，供使用者在真機上直接比較挑選。**這個原型檔案（`src/prototype-safe-area-bottom.ts`）跟 `main.ts` 裡對應的掛載那幾行，實作這張票時要一併刪掉**，決定過程封存到丟棄分支，不留在 main。
 - 交接筆記（本機暫存檔，不在版控內，僅供追溯這次討論脈絡）：`C:\Users\P10394584\AppData\Local\Temp\handoff-safe-area-bottom-gap.md`。
+- 實作後微調：使用者要求把留白從決定 1 的 `18px` 再收成 `16px`。實作時已把這個數字抽成 `--screen-pad-bottom`（`src/styles.css` 的 `:root`），所以只改一處，`.sync-status` 的位置自動跟著算。抽 token 這步票上沒要求，是 code-review 兩軸都點出「同一個字面值散在兩條必須同步的規則裡」才補的。桌機實測：`padding-bottom` 16px、評分鍵上緣距底 67.67px（16+52）、`.sync-status` 距評分鍵上緣仍是 8.00px。維持 px 不寫成 `1rem`——決定 1 要的是固定值，`rem` 會隨使用者字級縮放。
