@@ -28,10 +28,11 @@ export function createToast(): Toast {
     node.hidden = true;
   };
 
+  const icon = el('span', 'toast-icon', '✓');
   const text = el('span', 'toast-text');
   const close = button('toast-close', '✕', hide);
   close.setAttribute('aria-label', '關閉');
-  node.append(text, close);
+  node.append(icon, text, close);
 
   return {
     node,

@@ -636,34 +636,48 @@ button {
   display: none;
 }
 
-/* 浮在表單之上不佔版位，長出來與消失都不會把底下的按鈕推走。
-   壓在 sync-status 那行小字底下，兩則同時出現時不互相蓋住。
+/* 貼在頂部列下方，不佔版位，長出來與消失都不會把表單往下推。
+   淡底＋左側色條，比舊版的灰底藥丸明顯得多，也不會疊到底部的評分鍵／儲存鍵。
 
-   表單捲到底時它會蓋在那兩顆按鈕上，因此本體比照 sync-status 不吃點擊——
-   連著加卡的人不會在這三秒內按不到「儲存並繼續」。只有 ✕ 例外，那顆要能按。 */
+   本體比照 sync-status 不吃點擊——蓋到詞條欄位時使用者仍點得到下面的輸入框，
+   只有 ✕ 例外，那顆要能按。 */
 .toast {
   pointer-events: none;
   position: fixed;
+  top: calc(env(safe-area-inset-top) + 3.5rem);
   left: 0;
   right: 0;
-  bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
   margin: 0 auto;
-  width: fit-content;
-  max-width: calc(100% - 1.5rem);
+  width: 95%;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.4rem 0.4rem 0.4rem 0.875rem;
-  border-radius: 999px;
-  background: var(--surface-2);
-  font-size: 0.9rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0.75rem 0.85rem;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--good) 18%, var(--surface));
+  border-left: 4px solid var(--good);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.toast-icon {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.toast-text {
+  flex: 1;
 }
 
 .toast-close {
-  flex: 0 0 auto;
   pointer-events: auto;
-  padding: 0 0.5rem;
-  color: var(--muted);
-  font-size: 0.9rem;
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 50%;
+  color: var(--text);
+  font-size: 1rem;
   line-height: 1;
 }
