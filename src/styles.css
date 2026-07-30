@@ -16,6 +16,10 @@
   --new: #9a7fe0;
   --danger: #e0574f;
   --tap: 3.25rem;
+  /* 每個畫面底部的留白。固定值，不疊 env(safe-area-inset-bottom)：真機實測那條公式
+     在 iPhone standalone 下算出 46px，底下會空一大截。固定值讓 standalone 與瀏覽器
+     分頁（safe-area 恆為 0）留白一致。 */
+  --screen-pad-bottom: 18px;
 }
 
 * {
@@ -46,7 +50,7 @@ body {
   height: 100%;
   max-width: 30rem;
   margin: 0 auto;
-  padding: env(safe-area-inset-top) 0.75rem calc(env(safe-area-inset-bottom) + 0.75rem);
+  padding: env(safe-area-inset-top) 0.75rem var(--screen-pad-bottom);
 }
 
 button {
@@ -617,8 +621,10 @@ button {
   position: fixed;
   left: 0;
   right: 0;
-  /* 抬到底部那排按鈕上方，才不會蓋住「顯示答案」與四個評分鍵。 */
-  bottom: calc(env(safe-area-inset-bottom) + var(--tap) + 1.25rem);
+  /* 抬到底部那排按鈕上方，才不會蓋住「顯示答案」與四個評分鍵。
+     按鍵上緣距螢幕底部 = 畫面底部留白 + 按鍵最小高 var(--tap)，再加 0.5rem
+     讓出一點空隙。文字換行讓按鍵長高時這顆會略偏低，可接受。 */
+  bottom: calc(var(--tap) + var(--screen-pad-bottom) + 0.5rem);
   margin: 0 auto;
   width: fit-content;
   max-width: calc(100% - 1.5rem);
