@@ -343,8 +343,13 @@ button {
   font-size: 0.9rem;
 }
 
-/* 到期日一律灰：桶就是照日期分的，同一桶內顏色必然相同，上色不提供新資訊。 */
-.row-due {
+/*
+ * 到期日一律灰：桶就是照日期分的，同一桶內顏色必然相同，上色不提供新資訊。
+ * .row-tag 是統計畫面 modal 清單裡同一位置的標籤（到期日或成長倍數），中性瀏覽
+ * 用途，樣式共用。
+ */
+.row-due,
+.row-tag {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
@@ -686,4 +691,218 @@ button {
   color: var(--text);
   font-size: 1rem;
   line-height: 1;
+}
+
+/* ---------- 統計畫面 ---------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  background: var(--surface);
+  border-radius: 0.9rem;
+  padding: 0.9rem 0.5rem;
+  text-align: center;
+}
+
+.tile-num {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 4.2rem 1fr 2.2rem;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+}
+
+/* 張數 > 0 的長條才長成按鈕，這裡只重置按鈕預設樣式並加按壓回饋。 */
+.bar-row-btn {
+  border-radius: 0.5rem;
+}
+
+.bar-row-btn:active {
+  background: var(--surface-2);
+}
+
+.bar-row-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bar-row-track {
+  height: 0.6rem;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-row-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.bar-row-count {
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 每一段區間一色，標籤與長條的填色共用同一組 token，色票只在這裡寫一次。
+ * 到期分佈六桶對照卡片頁時間桶（.bucket-head.<key>）；熟練度分佈六段是
+ * 新的成長倍數區間色票（issue 01 決定 6）。
+ */
+.bar-row.new .bar-row-label {
+  color: var(--new);
+}
+.bar-row.new .bar-row-fill {
+  background: var(--new);
+}
+.bar-row.now .bar-row-label {
+  color: var(--danger);
+}
+.bar-row.now .bar-row-fill {
+  background: var(--danger);
+}
+.bar-row.today .bar-row-label {
+  color: var(--hard);
+}
+.bar-row.today .bar-row-fill {
+  background: var(--hard);
+}
+.bar-row.tomorrow .bar-row-label {
+  color: var(--soon);
+}
+.bar-row.tomorrow .bar-row-fill {
+  background: var(--soon);
+}
+.bar-row.week .bar-row-label {
+  color: var(--easy);
+}
+.bar-row.week .bar-row-fill {
+  background: var(--easy);
+}
+.bar-row.future .bar-row-label {
+  color: var(--good);
+}
+.bar-row.future .bar-row-fill {
+  background: var(--good);
+}
+
+.bar-row.floor .bar-row-label {
+  color: var(--danger);
+}
+.bar-row.floor .bar-row-fill {
+  background: var(--danger);
+}
+.bar-row.low .bar-row-label {
+  color: var(--hard);
+}
+.bar-row.low .bar-row-fill {
+  background: var(--hard);
+}
+.bar-row.mid-low .bar-row-label {
+  color: var(--soon);
+}
+.bar-row.mid-low .bar-row-fill {
+  background: var(--soon);
+}
+.bar-row.mid-high .bar-row-label {
+  color: var(--muted);
+}
+.bar-row.mid-high .bar-row-fill {
+  background: var(--muted);
+}
+.bar-row.steady .bar-row-label {
+  color: var(--easy);
+}
+.bar-row.steady .bar-row-fill {
+  background: var(--easy);
+}
+.bar-row.high .bar-row-label {
+  color: var(--good);
+}
+.bar-row.high .bar-row-fill {
+  background: var(--good);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 28rem;
+  max-height: 75vh;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  padding: 1rem 0.875rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.modal-close {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 50%;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.modal-close:active {
+  background: var(--surface-2);
+}
+
+.modal-rows {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }

@@ -9,6 +9,7 @@ import { createSyncStatus } from './ui/sync-status';
 import { reviewView } from './ui/review-view';
 import { listView } from './ui/list-view';
 import { dataView } from './ui/data-view';
+import { statsView } from './ui/stats-view';
 import { editorView } from './ui/editor-view';
 
 /**
@@ -39,6 +40,8 @@ export interface App {
   showList(): void;
   /** 只有卡片頁能進來，回去的目的地固定，不必傳 back。 */
   showData(): void;
+  /** 只有資料頁能進來，回去的目的地固定，不必傳 back。 */
+  showStats(): void;
   showEditor(card: Card | null, back: () => void): void;
   /** 目前畫面的鍵盤處理器，離開畫面時自動解除。 */
   keyHandler: ((event: KeyboardEvent) => void) | null;
@@ -143,6 +146,10 @@ export function start(root: HTMLElement): void {
     },
     showData() {
       render = () => mount(() => dataView(app));
+      render();
+    },
+    showStats() {
+      render = () => mount(() => statsView(app));
       render();
     },
     showEditor(card, back) {

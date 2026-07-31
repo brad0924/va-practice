@@ -32,6 +32,7 @@ export function dataView(app: App): HTMLElement {
   header.append(
     button('bar-action', '卡片', () => app.showList()),
     el('span', 'bar-title', '資料'),
+    button('bar-action', '統計', () => app.showStats()),
   );
 
   const main = el('main', 'panel');
