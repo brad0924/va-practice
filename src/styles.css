@@ -321,6 +321,10 @@ button {
   border-radius: 0.75rem;
   background: var(--surface);
   text-align: left;
+  /* .modal-rows 高度被 .modal-panel 的 max-height 卡住時，flex-shrink 預設值會把每一列
+     壓縮到只剩 min-height，內容（尤其是釋義那一行）就會被壓出框外、被下一列的底色蓋住。
+     列的高度該由內容決定，不該被外層擠壓。 */
+  flex-shrink: 0;
 }
 
 .row:active {
