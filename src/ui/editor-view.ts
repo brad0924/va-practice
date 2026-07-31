@@ -150,8 +150,9 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   });
 
   /**
-   * 填完一欄就把焦點送到空的那一欄（ADR-0006）。手機鍵盤右下角那顆打勾只收鍵盤、
-   * 不送出表單，程式看得到的只有 blur，這件事因此只能掛在失焦上。
+   * 填完一欄就把焦點送到空的那一欄（ADR-0006）。iPhone 鍵盤上方那條橫條右端的「完了」
+   * 是純系統 UI，按下去網頁只收到 blur、沒有任何按鍵事件，這件事因此只能掛在失焦上。
+   * 也因為不在使用者手勢裡，焦點跳得動但鍵盤叫不回來——想留住鍵盤要按 ↵，見 jumpOnEnter。
    *
    * 「離開的這一欄有值」是不加就會壞掉的前提：少了它，兩欄都空時按打勾會在兩欄之間
    * 來回彈，鍵盤永遠收不掉。
@@ -169,12 +170,38 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     to.focus();
   };
 
+  /** 由上而下第一個還空著的欄；兩欄都有值時回 null。順序與 saveCard 的空白檢查一致。 */
+  const firstEmpty = (): HTMLInputElement | null => {
+    if (termInput.value.trim() === '') return termInput;
+    if (meaningInput.value.trim() === '') return meaningInput;
+    return null;
+  };
+
+  /**
+   * Enter 分兩段：還有空欄時只把游標送過去，不出紅字也不儲存；兩欄都有值才放行去存。
+   *
+   * 手機九宮格右下角那顆 ↵ 走的就是這裡。它與收鍵盤的「完了」不同，是真按鍵——因此
+   * 這支 handler 站在使用者手勢裡，`focus()` 帶得動鍵盤，跳過去之後可以直接接著打。
+   *
+   * 與兩顆儲存按鈕刻意不同調：按鈕是「我要存」，Enter 是「我要往下走」，紅字只留給前者。
+   * 只掛在詞條與釋義上，讀音格按 Enter 仍照舊送出表單。
+   */
+  const jumpOnEnter = (event: KeyboardEvent) => {
+    // 組字中的 Enter 是輸入法在確定候選字，不是使用者要往下走。
+    if (event.key !== 'Enter' || event.isComposing) return;
+    const empty = firstEmpty();
+    if (empty === null) return;
+    event.preventDefault();
+    empty.focus();
+  };
+
   const startEditing = () => {
     cancelling = false;
   };
 
   for (const field of [termInput, meaningInput]) {
     field.addEventListener('focus', startEditing);
+    field.addEventListener('keydown', jumpOnEnter);
   }
   termInput.addEventListener('blur', (event) => jumpToEmpty(event, termInput, meaningInput));
   meaningInput.addEventListener('blur', (event) => jumpToEmpty(event, meaningInput, termInput));
