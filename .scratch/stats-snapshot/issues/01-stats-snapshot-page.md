@@ -1,6 +1,6 @@
 # 新增「統計」畫面：卡片現況的快照統計
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 問題
@@ -124,3 +124,4 @@ Type: enhancement
   git show prototype/stats-snapshot:.scratch/stats-snapshot/prototype.html > /tmp/preview.html
   ```
   或 `git checkout prototype/stats-snapshot -- .scratch/stats-snapshot/prototype.html` 暫時拉到工作目錄看完再 `git checkout main -- .` 復原。上面「畫面骨架」與「主要函式」兩段已經是從這份原型直接摘出的規格，正常實作不必回去翻原型檔案。
+- 實作完成後，使用者貼了一張原型舊版「熟練度・下限」清單的截圖（紅色 pill 標籤、兩行式標題），問能否改成那樣。這正是決定 7 明確要求拿掉的紅色警示 pill——已跟使用者確認過，維持目前實作（中性灰字標籤、單行標題），不改。
