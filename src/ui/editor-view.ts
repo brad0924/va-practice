@@ -13,10 +13,9 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   const screen = el('div', 'screen');
 
   const header = el('header', 'bar');
-  header.append(
-    button('bar-action', '取消', back),
-    el('span', 'bar-title', card ? '編輯卡片' : '新增卡片'),
-  );
+  // 這顆按鈕底下還掛了防「點空」的 pointerdown，見下面的 jumpToEmpty。
+  const cancel = button('bar-action', '取消', back);
+  header.append(cancel, el('span', 'bar-title', card ? '編輯卡片' : '新增卡片'));
 
   // 讀音格的規則全在這台機器裡，畫面只負責畫、接事件、照它回的變更單辦事。
   // 金鑰在這裡取一次就夠：要改金鑰得離開這個畫面，回來時整個 editorView 已重建。
@@ -123,6 +122,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   termInput.addEventListener('input', () => apply(editor.setTerm(termInput.value)));
 
   // 詞條打完離開輸入框時去問一次。守門沒過的話兩張單子都是空的，什麼都不會動。
+  // 詞條的 blur 底下還有一支（下面的 jumpToEmpty），兩支互不相干。
   termInput.addEventListener('blur', () => {
     const asked = editor;
     const { now, later } = editor.prefill();
@@ -140,6 +140,45 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   meaningInput.value = card?.meaning ?? '';
   meaningInput.placeholder = '燒焦';
 
+  // iPhone 上鍵盤還開著時直接點按鈕，blur 先發生、焦點跳走、畫面捲動，按鈕在 touchend
+  // 前就移位了，那一下 click 不會觸發。三顆按鈕都會中，但只有「取消」白按沒有便宜可佔
+  // （想離開卻被拉回輸入框、鍵盤又彈出來），所以只在它身上立旗子擋掉那次跳轉。
+  // 旗子由「焦點回到這兩欄」清掉——該跳的失焦前面必定有一次這樣的聚焦，因此不會留過夜。
+  let cancelling = false;
+  cancel.addEventListener('pointerdown', () => {
+    cancelling = true;
+  });
+
+  /**
+   * 填完一欄就把焦點送到空的那一欄（ADR-0006）。手機鍵盤右下角那顆打勾只收鍵盤、
+   * 不送出表單，程式看得到的只有 blur，這件事因此只能掛在失焦上。
+   *
+   * 「離開的這一欄有值」是不加就會壞掉的前提：少了它，兩欄都空時按打勾會在兩欄之間
+   * 來回彈，鍵盤永遠收不掉。
+   */
+  const jumpToEmpty = (event: FocusEvent, from: HTMLInputElement, to: HTMLInputElement) => {
+    if (cancelling) return;
+    // 焦點自己落到別處就不搶：另一個輸入框，或讀音區裡的任何東西——格子與拆／合的縫
+    // 都算。少了這條功能會壞掉：新增卡片時釋義必定是空的，一碰讀音區就會被彈走，
+    // 讀音永遠改不成。桌機按 Tab 也走這條，既有的 Tab 順序因此不受影響。
+    const next = event.relatedTarget;
+    if (next instanceof HTMLInputElement) return;
+    if (next instanceof HTMLElement && readingRegion.contains(next)) return;
+    if (from.value.trim() === '' || to.value.trim() !== '') return;
+    // 這裡刻意不出紅字：使用者還沒說要儲存，紅字只留給真的按下儲存那一刻。
+    to.focus();
+  };
+
+  const startEditing = () => {
+    cancelling = false;
+  };
+
+  for (const field of [termInput, meaningInput]) {
+    field.addEventListener('focus', startEditing);
+  }
+  termInput.addEventListener('blur', (event) => jumpToEmpty(event, termInput, meaningInput));
+  meaningInput.addEventListener('blur', (event) => jumpToEmpty(event, meaningInput, termInput));
+
   const error = el('p', 'error');
 
   const form = el('form', 'form');
@@ -156,15 +195,21 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   const toast = createToast();
 
+  /** 空欄擋下來：同一句紅字，游標落到該填的那一欄。 */
+  const rejectBlank = (field: HTMLInputElement): null => {
+    error.textContent = '詞條與釋義都要填。';
+    field.focus();
+    return null;
+  };
+
   /** 兩顆按鈕共用的驗證與儲存。存好回這張卡的讀音標記，驗證沒過回 null 並留下錯誤那行。 */
   const saveCard = (): string | null => {
     const meaning = meaningInput.value.trim();
     const result = editor.commit();
     // 詞條空白與釋義空白在這裡合成同一句，順序維持現狀：空白檢查先、讀音驗證後。
-    if ((!result.ok && result.reason === 'empty-term') || !meaning) {
-      error.textContent = '詞條與釋義都要填。';
-      return null;
-    }
+    // 兩欄都空時焦點落在詞條——由上而下第一個該填的那欄。
+    if (!result.ok && result.reason === 'empty-term') return rejectBlank(termInput);
+    if (!meaning) return rejectBlank(meaningInput);
     if (!result.ok) {
       error.textContent = result.errors.join('；');
       return null;
