@@ -12,8 +12,12 @@ export function listView(app: App): HTMLElement {
   header.append(
     button('bar-action', '複習', () => app.showReview()),
     el('span', 'bar-title', '卡片'),
-    button('bar-action', '資料', () => app.showData()),
-    button('bar-action', '新增', () => app.showEditor(null, () => app.showList())),
+    el(
+      'div',
+      'bar-side',
+      button('bar-action', '資料', () => app.showData()),
+      button('bar-action', '新增', () => app.showEditor(null, () => app.showList())),
+    ),
   );
 
   const search = el('input', 'field search');

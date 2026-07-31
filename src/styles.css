@@ -72,10 +72,30 @@ button {
   flex: 0 0 auto;
 }
 
+/* 有標題的頂部列改成三欄，左右兩欄寬度永遠相等，標題才會不論左右按鈕多寡都精準置中。
+   review-view 的頂部列沒有 .bar-title，不吃這條規則，維持原本的左右分散版面。 */
+.bar:has(.bar-title) {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  justify-items: start;
+}
+
+/* 最右欄的內容（不管是單顆按鈕還是 .bar-side 容器）都靠右貼齊，
+   跟最左欄靠左貼齊對稱，標題才會落在正中間。 */
+.bar > *:last-child:not(.bar-title) {
+  justify-self: end;
+}
+
 .bar-title {
   font-weight: 600;
-  flex: 1;
   text-align: center;
+  justify-self: center;
+}
+
+.bar-side {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .bar-action {
