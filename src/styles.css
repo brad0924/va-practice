@@ -639,6 +639,136 @@ button {
   margin: 1.5rem 0 0.75rem;
 }
 
+/* 可收縮分區的標頭。標題文字沿用 .section-title 的字級與粗細，間距改由這裡負責，
+   收起來時底下才不會留一道空隙。 */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  text-align: left;
+}
+
+.section-head .section-title {
+  margin: 0;
+}
+
+.section-mark {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* ---------- 資料畫面的單字本區 ---------- */
+
+.book-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* 收起來時是空的，連上面那道 gap 都不該留下。 */
+.book-body:empty {
+  display: none;
+}
+
+.book-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-left: 0.875rem;
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.book-check {
+  flex: 0 0 auto;
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent);
+}
+
+.book-check:disabled {
+  opacity: 0.5;
+}
+
+/* 本名與張數那一塊才是展開維護鈕的按鈕，勾選框在它外面，兩者互不搶點擊。 */
+.book-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  padding-right: 0.875rem;
+  text-align: left;
+}
+
+.book-name {
+  word-break: break-word;
+}
+
+.book-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 維護鈕與匯入結果都往內縮，看得出它們屬於上面那一列而不是獨立的一區。 */
+.book-tools,
+.import-outcome,
+.book-form {
+  padding-left: 2.6rem;
+}
+
+.book-tools {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.book-tool {
+  flex: 1;
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+
+.book-tool:active {
+  filter: brightness(0.88);
+}
+
+.book-tool.remove {
+  color: var(--danger);
+}
+
+.book-add {
+  min-height: var(--tap);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.book-add:active {
+  background: var(--surface-2);
+}
+
+/* 跳過的詞可能有上百筆，自己捲動；否則會把「新增單字本」頂出視野外。
+   橫向則靠換行收住：詞條加上本名可以很長，不換行會把整區撐寬。 */
+.skip-list {
+  max-height: 40vh;
+  overflow-y: auto;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.9;
+  word-break: break-word;
+}
+
 /* ---------- 雲端備份的狀態字 ---------- */
 
 /* 平常不出現，只在推不上雲端時露臉。不擋任何按鈕，不打斷複習。 */

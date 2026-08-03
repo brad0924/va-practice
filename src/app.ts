@@ -31,6 +31,11 @@ export interface App {
   /** 新增或更新一張卡，同時反映到當日佇列上。 */
   upsert(card: Card): void;
   remove(id: string): void;
+  /**
+   * 換上一份改過的資料並存檔、推上雲端。給單字本那幾支純函式
+   * （`addBook` / `renameBook` / `deleteBook` / `setScope`）的產物用。
+   */
+  applyData(next: AppData): void;
   /** 整份覆蓋本機資料並推上雲端。格式不對時直接丟例外，由畫面接住。 */
   importBackup(text: string): void;
   /**
@@ -124,6 +129,17 @@ export function start(root: HTMLElement): void {
       queue = queue.filter((card) => card.id !== id);
       // 刪掉的若是目前這張，下一張會遞補上來，不能沿用已掀開的狀態。
       revealed = false;
+      persist();
+    },
+
+    applyData(next) {
+      data = next;
+      // 刪掉一本會連它的卡一起消失，佇列裡那幾張不能留著。
+      // 少掉的若含目前這張，下一張會遞補上來，不能沿用已掀開的狀態——與 remove() 同一個理由。
+      const alive = new Set(data.cards.map((card) => card.id));
+      const kept = queue.filter((card) => alive.has(card.id));
+      if (kept.length !== queue.length) revealed = false;
+      queue = kept;
       persist();
     },
 

@@ -2,6 +2,7 @@ import type { App } from '../app';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
 import { el, button, download } from './dom';
+import { booksSection } from './books-section';
 
 const CLOUD_HINT =
   '輸入自取的暱稱與密碼，進度就會自動備份到雲端；換裝置輸入同一組就接得回來。' +
@@ -36,7 +37,8 @@ export function dataView(app: App): HTMLElement {
   );
 
   const main = el('main', 'panel');
-  main.append(cloudSection(app), geminiSection(app), fileSection(app));
+  // 單字本擺最上面：它是這一頁的主角，其餘三區都是設定好就很久不再碰的東西。
+  main.append(booksSection(app), cloudSection(app), geminiSection(app), fileSection(app));
 
   screen.append(header, main);
   return screen;
