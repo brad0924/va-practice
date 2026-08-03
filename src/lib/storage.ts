@@ -29,10 +29,53 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
+/** 匯入單字時被跳過的一筆：那個詞已經有卡了。 */
+export interface ImportSkip {
+  /** 去掉讀音標記後的詞條原文，直接顯示給使用者。 */
+  term: string;
+  /** 這個詞目前所在的單字本；來源檔案內部重複時為目標本。 */
+  bookId: string;
+}
+
+/** 一次匯入單字的結果。 */
+export interface ImportResult {
+  /** 匯入之後的整份資料，已經寫回本機。 */
+  data: AppData;
+  /** 實際新增的張數。加上 `skipped` 的長度等於來源檔案的卡片總數。 */
+  imported: number;
+  /** 因為詞條已經有卡而被跳過的每一筆。 */
+  skipped: ImportSkip[];
+}
+
 export interface Store {
   load(): AppData;
   save(data: AppData): void;
   importJson(json: string): AppData;
+  /**
+   * 把 json 裡的卡加進 bookId 那一本，複習進度原封搬過來。整份寫回並回傳結果。
+   * 與 importJson() 是兩個相反的操作：那個把整台裝置換成別台的樣子，這個往某一本裡加料。
+   */
+  importWords(json: string, bookId: string): ImportResult;
+}
+
+/** 解析使用者交進來的檔案內容。壞掉時的訊息可以直接顯示給使用者，兩條匯入都用它。 */
+function parseJson(json: string): unknown {
+  try {
+    return JSON.parse(json);
+  } catch (error) {
+    throw new Error(`這不是有效的 JSON 檔：${toMessage(error)}`);
+  }
+}
+
+/** 全新裝置的那一份：零本零卡。卡片只來自使用者新增或匯入單字，沒有隨程式發佈的來源。 */
+function blank(): AppData {
+  return {
+    version: DATA_VERSION,
+    books: [],
+    cards: [],
+    scopes: { review: [], list: [], stats: [] },
+    updatedAt: 0,
+  };
 }
 
 export function createStore(storage: StorageLike): Store {
@@ -52,16 +95,7 @@ export function createStore(storage: StorageLike): Store {
 
   return {
     load() {
-      const stored = read();
-      // 全新裝置是零本零卡：卡片只來自使用者新增或匯入單字，沒有隨程式發佈的來源。
-      const data =
-        stored ?? {
-          version: DATA_VERSION,
-          books: [],
-          cards: [],
-          scopes: { review: [], list: [], stats: [] },
-          updatedAt: 0,
-        };
+      const data = read() ?? blank();
       // 一律寫回，讓儲存的內容永遠是遷移後的形式，
       // 否則舊格式的資料每次載入都要重跑一次遷移。
       write(data);
@@ -73,16 +107,43 @@ export function createStore(storage: StorageLike): Store {
     },
 
     importJson(json) {
-      let raw: unknown;
-      try {
-        raw = JSON.parse(json);
-      } catch (error) {
-        throw new Error(`這不是有效的 JSON 檔：${toMessage(error)}`);
-      }
       // 整份覆蓋，不與現有資料合併。先驗證再寫入，壞檔案不會弄壞既有資料。
-      const data = parseAppData(raw);
+      const data = parseAppData(parseJson(json));
       write(data);
       return data;
+    },
+
+    importWords(json, bookId) {
+      // 沿用整份匯入的「先驗證再寫入」順序：驗證與收攏都做完了才動既有資料。
+      // 來源若是新格式（含多本），它的單字本結構到此為止，底下只取卡片。
+      const incoming = parseAppData(parseJson(json));
+      const current = read() ?? blank();
+      if (!current.books.some((book) => book.id === bookId)) {
+        throw new Error('要匯進去的那本單字本已經不在了');
+      }
+
+      const cards = [...current.cards];
+      // 撞號時換一個新的識別碼，否則來源那張會在畫面上與既有那張混為一談。
+      const taken = new Set(cards.map((card) => card.id));
+      const skipped: ImportSkip[] = [];
+
+      for (const card of incoming.cards) {
+        // 比對對象是已經收下的全部（含這一輪剛加進去的），
+        // 因此來源檔案自己內部的重複也走同一條路，回報的本自然是目標本。
+        const conflict = findTermConflict(cards, card.text);
+        if (conflict !== null) {
+          skipped.push({ term: toPlainText(card.text), bookId: conflict.bookId });
+          continue;
+        }
+        const id = taken.has(card.id) ? crypto.randomUUID() : card.id;
+        taken.add(id);
+        // interval／ease／due 一律原封不動，只換識別碼與歸屬。
+        cards.push({ ...card, id, bookId });
+      }
+
+      const data = { ...current, cards };
+      write(data);
+      return { data, imported: cards.length - current.cards.length, skipped };
     },
   };
 }

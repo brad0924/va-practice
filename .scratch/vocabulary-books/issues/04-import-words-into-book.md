@@ -1,6 +1,6 @@
 # 匯入單字：把一份備份檔的卡加進指定的一本，重複的一次列出
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/vocabulary-books/spec.md`。依賴 `01` 與 `03`。
@@ -62,3 +62,11 @@ Type: enhancement
 - 壞 JSON 與缺欄位的檔案：丟出可讀的例外，且既有資料一張卡都沒變。
 - 目標 `bookId` 不存在時丟例外。
 - 讀音標記不同但詞條相同（`焚[こ]がす` vs `焚がす`）判為重複。
+
+## Comments
+
+- **決定 11 的落地寫在 `app.ts`**：`store.importWords()` 只負責寫回本機，推上雲端那一步照票 03 的理由不由 `Store` 自己做。因此本票一併加了 `App.importWords()`，形狀完全比照既有的 `importBackup()`（`store.importXxx()` → `reload()` → `cloud.push(data)`），而不是字面呼叫 `persist()`——`persist()` 會再存一次已經存好的東西，且 `importBackup()` 本來就沒走它。票 05 的畫面直接呼叫 `app.importWords()` 即可，不必自己碰 store 或 cloud。
+- **重複比對是邊收邊比**：`findTermConflict()` 吃的是「已經收下的全部」而不是原本那份，所以決定 6（比對全 app）與決定 8（檔案內部重複）走的是同一行程式碼，內部重複回報的本自然就是目標本，不必另外寫一段。
+- **識別碼撞號用 `Set` 追蹤而非只看既有的卡**：同一份來源檔裡兩張卡帶同一個 id 時，第二張同樣會拿到新的識別碼。票上只寫「與現有卡撞號」，但只擋既有的話那兩張會在 app 裡同號。
+- **順手抽出的兩支小函式**：`blank()`（`load()` 與 `importWords()` 共用的「零本零卡那一份」）與 `parseJson()`（兩條匯入共用的 JSON 解析與錯誤訊息）。都是本次新增造成的重複，非既有程式碼的重構。
+- **`ImportResult.data` 對 `app.ts` 而言是多餘的**（它接著 `reload()` 會重讀一份）。仍照票上的介面形狀保留，因為測試直接吃它比從 storage 讀回來讀得清楚。

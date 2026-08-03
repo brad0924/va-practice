@@ -1,4 +1,4 @@
-import { createStore } from './lib/storage';
+import { createStore, type ImportResult } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { buildQueue, rate as rateCard, type Queue } from './lib/review';
@@ -33,6 +33,11 @@ export interface App {
   remove(id: string): void;
   /** 整份覆蓋本機資料並推上雲端。格式不對時直接丟例外，由畫面接住。 */
   importBackup(text: string): void;
+  /**
+   * 把一份備份檔的卡加進某一本並推上雲端，重複的跳過。
+   * 格式不對或那一本不在了時直接丟例外，由畫面接住。
+   */
+  importWords(text: string, bookId: string): ImportResult;
   /** 目前這份資料的備份內容，交給畫面決定檔名與怎麼存。 */
   exportBackup(): string;
   showReview(): void;
@@ -129,6 +134,15 @@ export function start(root: HTMLElement): void {
       reload();
       // 匯入也是一次本機資料變動。不推上去的話，下次開 app 會被雲端那份蓋回去。
       cloud.push(data);
+    },
+
+    // 與 importBackup 同一條路：store 已經寫回本機，這裡補上重讀與推雲端兩步。
+    // 差別只在它加料而非覆蓋，因此還帶回一份給畫面顯示跳過了哪些詞。
+    importWords(text, bookId) {
+      const result = store.importWords(text, bookId);
+      reload();
+      cloud.push(data);
+      return result;
     },
 
     exportBackup() {

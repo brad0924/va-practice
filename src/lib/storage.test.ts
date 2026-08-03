@@ -649,6 +649,223 @@ describe('詞條全域唯一', () => {
   });
 });
 
+describe('匯入單字', () => {
+  /** A 本有一張帶讀音標記的 打ち合わせ，B 本是空的。匯入一律以 B 本為目標。 */
+  function twoBooksOneCard(): AppData {
+    return modern({
+      books: [
+        { id: 'book-a', name: 'A 本' },
+        { id: 'book-b', name: 'B 本' },
+      ],
+      cards: [card('打[う]ち合[あ]わせ', 'book-a', { id: 'card-a' })],
+      scopes: { review: ['book-a', 'book-b'], list: ['book-a'], stats: ['book-b'] },
+    });
+  }
+
+  /** 一台已經有 A、B 兩本的裝置。 */
+  function device(data: AppData = twoBooksOneCard()) {
+    const storage = fakeStorage();
+    const store = createStore(storage);
+    store.save(data);
+    return { storage, store };
+  }
+
+  /** 把幾張卡包成一份舊格式（沒有單字本）的備份檔。 */
+  function backup(...cards: Partial<Card>[]): string {
+    return JSON.stringify({
+      version: 2,
+      cards: cards.map((overrides, index) => ({
+        id: `來源-${index}`,
+        text: '詞',
+        meaning: '釋義',
+        interval: null,
+        ease: DEFAULT_EASE,
+        due: null,
+        ...overrides,
+      })),
+    });
+  }
+
+  /** 三張卡的舊格式備份檔，各自帶著不同的進度。 */
+  const THREE_WORDS = backup(
+    { text: '約束', meaning: '約定', interval: 12, ease: 2.15, due: '2026-08-01' },
+    { text: '会議', meaning: '會議', interval: 3, ease: 2.5, due: '2026-09-01' },
+    { text: '焦[こ]がす', meaning: '燒焦' },
+  );
+
+  /** 目標本裡的卡，順序沿用結果中的順序。 */
+  function inTarget(data: AppData): Card[] {
+    return data.cards.filter((entry) => entry.bookId === 'book-b');
+  }
+
+  it('三張卡全部進了目標那一本', () => {
+    const { store } = device();
+    const result = store.importWords(THREE_WORDS, 'book-b');
+    expect(inTarget(result.data).map((entry) => entry.text)).toEqual(['約束', '会議', '焦[こ]がす']);
+    expect(result.imported).toBe(3);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('複習進度一字不差地搬過來', () => {
+    const { store } = device();
+    const result = store.importWords(THREE_WORDS, 'book-b');
+    expect(inTarget(result.data).map(({ interval, ease, due }) => ({ interval, ease, due }))).toEqual([
+      { interval: 12, ease: 2.15, due: '2026-08-01' },
+      { interval: 3, ease: 2.5, due: '2026-09-01' },
+      { interval: null, ease: DEFAULT_EASE, due: null },
+    ]);
+  });
+
+  it('既有的卡與單字本清單、三組範圍都不受影響', () => {
+    const { store } = device();
+    const result = store.importWords(THREE_WORDS, 'book-b');
+    expect(result.data.cards.find((entry) => entry.id === 'card-a')).toEqual(twoBooksOneCard().cards[0]);
+    expect(result.data.books).toEqual(twoBooksOneCard().books);
+    expect(result.data.scopes).toEqual(twoBooksOneCard().scopes);
+  });
+
+  it('結果整份寫回儲存，重開就在那裡', () => {
+    const { storage, store } = device();
+    store.importWords(THREE_WORDS, 'book-b');
+    expect(createStore(storage).load().cards).toHaveLength(4);
+  });
+
+  it('全 app 已有的詞被跳過，回報的是它現在所在的那一本', () => {
+    const { store } = device();
+    const result = store.importWords(
+      backup({ text: '打ち合わせ', meaning: '碰頭', interval: 5, ease: 2.4, due: '2026-08-05' }, { text: '約束' }),
+      'book-b',
+    );
+    expect(result.skipped).toEqual([{ term: '打ち合わせ', bookId: 'book-a' }]);
+    expect(result.imported).toBe(1);
+    expect(inTarget(result.data).map((entry) => entry.text)).toEqual(['約束']);
+  });
+
+  it('跳過重複的並不影響既有那張卡的進度', () => {
+    const { store } = device();
+    const result = store.importWords(
+      backup({ text: '打ち合わせ', meaning: '碰頭', interval: 5, ease: 2.4, due: '2026-08-05' }),
+      'book-b',
+    );
+    expect(result.data.cards.find((entry) => entry.id === 'card-a')).toEqual(twoBooksOneCard().cards[0]);
+  });
+
+  it.each([
+    ['來源帶讀音標記、既有的沒有', '焚がす', '焚[こ]がす'],
+    ['既有的帶讀音標記、來源沒有', '焚[こ]がす', '焚がす'],
+  ])('%s時判為重複', (_label, existing, incoming) => {
+    const { store } = device(
+      modern({
+        books: [
+          { id: 'book-a', name: 'A 本' },
+          { id: 'book-b', name: 'B 本' },
+        ],
+        cards: [card(existing, 'book-a', { id: 'card-a' })],
+        scopes: { review: ['book-a', 'book-b'], list: ['book-a'], stats: ['book-b'] },
+      }),
+    );
+    const result = store.importWords(backup({ text: incoming }), 'book-b');
+    expect(result.imported).toBe(0);
+    expect(result.skipped).toEqual([{ term: '焚がす', bookId: 'book-a' }]);
+  });
+
+  it('同一份檔裡的兩張同詞，第一張進去、第二張列進跳過清單且指向目標本', () => {
+    const { store } = device();
+    const result = store.importWords(
+      backup(
+        { text: '約束', meaning: '約定', interval: 12, ease: 2.15, due: '2026-08-01' },
+        { text: '約[やく]束[そく]', meaning: '約定（重複的那張）', interval: 1, ease: 2.5, due: '2026-08-02' },
+      ),
+      'book-b',
+    );
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toEqual([{ term: '約束', bookId: 'book-b' }]);
+    expect(inTarget(result.data)[0]).toMatchObject({ meaning: '約定', due: '2026-08-01' });
+  });
+
+  it('imported 與實際新增張數一致，加上跳過的等於來源總數', () => {
+    const { store } = device();
+    const before = twoBooksOneCard().cards.length;
+    const result = store.importWords(
+      backup({ text: '打ち合わせ' }, { text: '約束' }, { text: '約束' }, { text: '会議' }),
+      'book-b',
+    );
+    expect(result.imported).toBe(result.data.cards.length - before);
+    expect(result.imported + result.skipped.length).toBe(4);
+  });
+
+  it('新格式的兩本共 5 張全部壓進目標那一本，來源的單字本不還原', () => {
+    const { store } = device();
+    const source = JSON.stringify(
+      modern({
+        books: [
+          { id: 'src-1', name: '來源第一本' },
+          { id: 'src-2', name: '來源第二本' },
+        ],
+        cards: [
+          card('約束', 'src-1'),
+          card('会議', 'src-1'),
+          card('焦[こ]がす', 'src-2'),
+          card('拝[おが]む', 'src-2'),
+          card('迷子', 'src-2'),
+        ],
+        scopes: { review: ['src-1'], list: ['src-2'], stats: ['src-1'] },
+      }),
+    );
+
+    const result = store.importWords(source, 'book-b');
+    expect(result.imported).toBe(5);
+    expect(inTarget(result.data)).toHaveLength(5);
+    expect(result.data.books.map((book) => book.name)).toEqual(['A 本', 'B 本']);
+  });
+
+  it('來源的卡片識別碼與既有卡撞號時換一個新的，既有那張不被蓋掉', () => {
+    const { store } = device();
+    const result = store.importWords(
+      backup({ id: 'card-a', text: '約束', interval: 7, ease: 2.4, due: '2026-08-01' }),
+      'book-b',
+    );
+    expect(result.data.cards).toHaveLength(2);
+    expect(result.data.cards.find((entry) => entry.id === 'card-a')!.text).toBe('打[う]ち合[あ]わせ');
+    expect(inTarget(result.data)[0]).toMatchObject({ interval: 7, ease: 2.4, due: '2026-08-01' });
+    expect(inTarget(result.data)[0]!.id).not.toBe('card-a');
+  });
+
+  it('識別碼沒撞到時沿用來源檔案裡的', () => {
+    const { store } = device();
+    const result = store.importWords(backup({ id: '來自來源的識別碼', text: '約束' }), 'book-b');
+    expect(inTarget(result.data)[0]!.id).toBe('來自來源的識別碼');
+  });
+
+  it('同一份檔裡兩張卡撞同一個號時，兩張都留得下來', () => {
+    const { store } = device();
+    const result = store.importWords(
+      backup({ id: '同號', text: '約束' }, { id: '同號', text: '会議' }),
+      'book-b',
+    );
+    expect(result.imported).toBe(2);
+    expect(new Set(inTarget(result.data).map((entry) => entry.id)).size).toBe(2);
+  });
+
+  it.each([
+    ['不是 JSON 的內容', '隨便貼的一段字'],
+    ['沒有卡片清單', '{"version":2}'],
+    ['卡片缺少必要欄位', '{"version":2,"cards":[{"id":"x"}]}'],
+  ])('%s會丟例外，且既有資料一個字都沒動', (_label, json) => {
+    const { storage, store } = device();
+    const before = storage.raw();
+    expect(() => store.importWords(json, 'book-b')).toThrow();
+    expect(storage.raw()).toBe(before);
+  });
+
+  it('目標單字本不存在時丟例外，且不自動建立', () => {
+    const { storage, store } = device();
+    const before = storage.raw();
+    expect(() => store.importWords(THREE_WORDS, '早就被刪掉的本')).toThrow(/單字本/);
+    expect(storage.raw()).toBe(before);
+  });
+});
+
 describe('範圍過濾', () => {
   const cards = [
     card('焦がす', 'book-n2'),
