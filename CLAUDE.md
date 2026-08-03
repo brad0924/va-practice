@@ -1,6 +1,6 @@
 # va-practice
 
-JLPT 單字複習工具。純前端閃卡應用，資料來源是 AnkiApp 匯出的 JLPT N2 牌組。
+JLPT 單字複習工具。純前端閃卡應用，卡片收在使用者自建的單字本裡，由使用者自行新增或匯入。
 
 ## Agent skills
 
