@@ -1,6 +1,6 @@
 # 內建牌組退場：刪除 cards.json、單向合併與 knownBuiltinIds
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/vocabulary-books/spec.md`。依賴 `01-book-model-and-migration.md`。
@@ -32,3 +32,10 @@ Type: enhancement
 - 使用者刪掉一張卡、重新載入，那張卡不會被補回來（因為根本沒有補入這件事）。
 - 讀入含 `knownBuiltinIds` 的舊資料不丟例外，且存回去之後該欄位不再出現。
 - 打包產物不再包含那 132 張卡的內容。
+
+## Comments
+
+- 決定 2、3、4、5、6 在 issue 01 就已一併完成（`createStore` 只吃 storage、`knownBuiltinIds` 移除、零本零卡初始化、單向合併測試整批刪除）。本票實際只剩刪 `cards.json` 與 `cards.test.ts`。
+- `src/lib/reading.test.ts` 也 import 了 `cards.json`，用在「132 張卡 toMarkup(toDraft) 往返不變形」。票面未提及但驗收條件要求不得留下任何 import。實際統計後那 132 張只有 10 種標記形狀，其中 8 種已有手寫案例，且「未標音的漢字串」真實資料一張都沒有；改為內嵌 15 個字串，並補上 `KKK`、`K.KK` 兩種原本沒被往返驗到的形狀。
+- 驗收條件「刪掉的卡不會被補回來」原本沒有測試守著（單向合併的測試在 01 已刪光），補了一支到 `storage.test.ts`。
+- **遺留給 issue 07**：`docs/spec.md` 尚有多處提到 132 張內建牌組，其中第 162 行「另驗證讀音格與方括號字串的雙向轉換，含 132 張內建卡的往返一致」已與程式碼不符。issue 07 的決定 8 只點名「資料存取」那一條 Testing Decisions，未涵蓋「讀音標記」這一條。
