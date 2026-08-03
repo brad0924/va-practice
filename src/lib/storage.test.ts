@@ -58,6 +58,24 @@ describe('首次啟動', () => {
     expect(createStore(storage).load().books).toEqual([]);
   });
 
+  it('刪掉一張卡再重開，那張卡不會被補回來', () => {
+    const storage = fakeStorage();
+    const store = createStore(storage);
+    store.save(
+      modern({
+        cards: [
+          ...modern().cards,
+          { id: '拝む', bookId: 'book-n2', text: '拝[おが]む', meaning: '拜', interval: null, ease: DEFAULT_EASE, due: null },
+        ],
+      }),
+    );
+
+    const kept = store.load().cards.filter((card) => card.id !== '拝む');
+    store.save(modern({ cards: kept }));
+
+    expect(createStore(storage).load().cards.map((card) => card.id)).toEqual(['焦がす']);
+  });
+
   it('重開之後拿到的是同一份資料，不會重跑初始化', () => {
     const storage = fakeStorage();
     const store = createStore(storage);

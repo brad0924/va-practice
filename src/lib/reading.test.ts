@@ -12,7 +12,6 @@ import {
   acceptPrefill,
   type KanjiRun,
 } from './reading';
-import cardsData from '../data/cards.json';
 
 describe('讀音標記解析', () => {
   it('單一漢字加送假名', () => {
@@ -193,11 +192,30 @@ describe('讀音格重建標記 toMarkup', () => {
   });
 });
 
-describe('往返：132 張內建卡 toMarkup(toDraft) 不變形', () => {
-  it('每張卡原樣還原', () => {
-    for (const card of cardsData.cards) {
-      expect(toMarkup(toDraft(card.text))).toBe(card.text);
-    }
+// 打開一張既有的卡（toDraft）什麼都不改直接存（toMarkup），字串必須原樣不動——
+// 位置算歪一格就會把使用者沒碰過的卡寫壞。
+// 以下涵蓋標記字串的每一種形狀：已標音的漢字串出現在詞首／詞中／詞尾、
+// 相鄰兩串與三串、多字共用一個讀音、完全未標音的漢字串、純假名、疊字，
+// 以及兩個不合語法但必須原樣保留的邊界字串。
+describe('往返：toMarkup(toDraft) 不變形', () => {
+  it.each([
+    '焦[こ]がす',
+    '崖[がけ]',
+    '帰省[きせい]',
+    '作[さく]物[もつ]',
+    '心[こころ]構[がま]え',
+    '吐[は]き気[け]',
+    '考[かんが]え込[こ]む',
+    'ざるを得[え]ない',
+    '就[しゅう]職[しょく]難[なん]',
+    '送[おく]り仮[が]名[な]',
+    '書留',
+    'シンポジウム',
+    '人々[ひとびと]',
+    'あ[い]',
+    '焦[こ',
+  ])('%s 原樣還原', (markup) => {
+    expect(toMarkup(toDraft(markup))).toBe(markup);
   });
 });
 
