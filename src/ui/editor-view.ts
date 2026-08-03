@@ -242,7 +242,9 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       return null;
     }
     const text = result.text;
-    app.upsert(card ? { ...card, text, meaning } : newCard(crypto.randomUUID(), text, meaning));
+    // 單字本下拉尚未做（見票 06），新卡暫時一律進清單第一本。
+    const bookId = app.data.books[0]?.id ?? '';
+    app.upsert(card ? { ...card, text, meaning } : newCard(crypto.randomUUID(), bookId, text, meaning));
     return text;
   };
 

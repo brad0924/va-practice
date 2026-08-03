@@ -1,17 +1,21 @@
 /**
- * 資料存取：畫面只需要載入與儲存兩項操作，
- * 首次初始化與單向合併是內部細節。匯入同樣由本模組負責，
- * 因為必須驗證格式並整份覆蓋，因此也開在介面上；
+ * 資料存取：畫面只需要載入與儲存兩項操作，首次初始化是內部細節。
+ * 匯入同樣由本模組負責，因為必須驗證格式並整份覆蓋，因此也開在介面上；
  * 匯出只是把畫面手上現有的資料序列化，交給畫面層直接做即可。
+ *
+ * 舊格式的相容也在這裡，且只在這裡：本機 localStorage、匯入備份檔、
+ * 雲端拉下來的那一份走的都是 parseAppData()，改一處三條路都涵蓋到。
  *
  * 目前實作為瀏覽器本機儲存；日後若改接雲端服務，僅需替換此模組內部（見 ADR-0002）。
  */
-import type { AppData, Card } from './types';
-import { toPlainText } from './reading';
-import { DEFAULT_EASE, isDateKey, newCard } from './review';
+import type { AppData, Book, BookScopes, Card } from './types';
+import { DEFAULT_EASE, isDateKey } from './review';
 
 export const STORAGE_KEY = 'va-practice:data';
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 3;
+
+/** 沒有歸屬的卡被收攏進去的那一本。使用者之後可以改名或刪除。 */
+export const HOME_BOOK_NAME = '我的單字';
 
 /** localStorage 的最小介面，測試時可換成假的實作。 */
 export interface StorageLike {
@@ -20,20 +24,13 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
-/** 隨程式發佈的內建牌組（`src/data/cards.json`）。 */
-export interface BuiltinDeck {
-  cards: { id: string; text: string; meaning: string }[];
-}
-
 export interface Store {
   load(): AppData;
   save(data: AppData): void;
   importJson(json: string): AppData;
 }
 
-export function createStore(storage: StorageLike, builtin: BuiltinDeck): Store {
-  const builtinIds = builtin.cards.map((entry) => entry.id);
-
+export function createStore(storage: StorageLike): Store {
   function write(data: AppData): void {
     storage.setItem(STORAGE_KEY, JSON.stringify(data, null, 2));
   }
@@ -42,51 +39,29 @@ export function createStore(storage: StorageLike, builtin: BuiltinDeck): Store {
     const raw = storage.getItem(STORAGE_KEY);
     if (raw === null) return null;
     try {
-      return parseAppData(JSON.parse(raw), builtinIds);
+      return parseAppData(JSON.parse(raw));
     } catch (error) {
       throw new Error(`本機儲存的資料已毀損，無法讀取：${toMessage(error)}`);
     }
   }
 
-  function load(): AppData {
-    const stored = read();
-    if (stored === null) {
-      const initial: AppData = {
-        version: DATA_VERSION,
-        cards: builtin.cards.map((entry) => newCard(entry.id, entry.text, entry.meaning)),
-        knownBuiltinIds: builtinIds,
-        updatedAt: 0,
-      };
-      write(initial);
-      return initial;
-    }
-
-    // 單向合併：只補入這台裝置沒見過的內建卡，已存在與已刪除的一律不動。
-    // 詞條也要比對，否則使用者自己加過的詞，日後被收進內建牌組時會變成兩張一樣的卡。
-    const seen = new Set([
-      ...stored.knownBuiltinIds,
-      ...stored.cards.map((card) => card.id),
-      ...stored.cards.map((card) => toPlainText(card.text)),
-    ]);
-    const added = builtin.cards
-      .filter((entry) => !seen.has(entry.id) && !seen.has(toPlainText(entry.text)))
-      .map((entry) => newCard(entry.id, entry.text, entry.meaning));
-
-    const merged: AppData = {
-      version: DATA_VERSION,
-      cards: [...stored.cards, ...added],
-      knownBuiltinIds: [...new Set([...stored.knownBuiltinIds, ...builtinIds])],
-      // 補內建卡不算「這份資料被推上雲端過」，時間戳原封不動。
-      updatedAt: stored.updatedAt,
-    };
-    // 一律寫回，讓儲存的內容永遠是正規化後的形式。
-    // 否則舊格式的資料會一直缺少內建卡名單，下次發佈追加卡片時就補不進來。
-    write(merged);
-    return merged;
-  }
-
   return {
-    load,
+    load() {
+      const stored = read();
+      // 全新裝置是零本零卡：卡片只來自使用者新增或匯入單字，沒有隨程式發佈的來源。
+      const data =
+        stored ?? {
+          version: DATA_VERSION,
+          books: [],
+          cards: [],
+          scopes: { review: [], list: [], stats: [] },
+          updatedAt: 0,
+        };
+      // 一律寫回，讓儲存的內容永遠是遷移後的形式，
+      // 否則舊格式的資料每次載入都要重跑一次遷移。
+      write(data);
+      return data;
+    },
 
     save(data) {
       write({ ...data, version: DATA_VERSION });
@@ -100,29 +75,91 @@ export function createStore(storage: StorageLike, builtin: BuiltinDeck): Store {
         throw new Error(`這不是有效的 JSON 檔：${toMessage(error)}`);
       }
       // 整份覆蓋，不與現有資料合併。先驗證再寫入，壞檔案不會弄壞既有資料。
-      const data = parseAppData(raw, builtinIds);
+      const data = parseAppData(raw);
       write(data);
       return data;
     },
   };
 }
 
-function parseAppData(raw: unknown, builtinIds: string[]): AppData {
+function parseAppData(raw: unknown): AppData {
   if (typeof raw !== 'object' || raw === null) throw new Error('內容不是一個物件');
   const source = raw as Record<string, unknown>;
   if (!Array.isArray(source.cards)) throw new Error('找不到卡片清單');
 
+  // version 2 以前沒有 books 也沒有 bookId，兩者一起交給 adopt() 收攏。
+  const adopted = adopt(
+    Array.isArray(source.books) ? source.books.map(parseBook) : [],
+    source.cards.map(parseCard),
+  );
+
   return {
-    version: typeof source.version === 'number' ? source.version : DATA_VERSION,
-    cards: source.cards.map(parseCard),
-    // 舊備份可能沒有這份名單。此時採用目前的內建卡識別碼，
-    // 以免備份中被刪掉的卡在下次載入時整批被補回來。
-    knownBuiltinIds: Array.isArray(source.knownBuiltinIds)
-      ? source.knownBuiltinIds.filter((id): id is string => typeof id === 'string')
-      : builtinIds,
+    // 解析的產物一律是當前格式，版本號跟著標上——舊格式讀進來的那一刻就已經被遷移完了。
+    version: DATA_VERSION,
+    books: adopted.books,
+    cards: adopted.cards,
+    scopes: normalizeScopes(parseScopes(source.scopes), adopted.books, adopted.home),
     // version 1 的資料沒有這個欄位，視為最舊，開 app 時會被雲端那份蓋掉。
     updatedAt: typeof source.updatedAt === 'number' ? source.updatedAt : 0,
   };
+}
+
+/**
+ * 把 `bookId` 指不到任何一本的卡收進「我的單字」，該本不存在就順便建立。
+ * 舊格式（完全沒有 bookId）與手改壞的檔案因此走同一條路。
+ * 每張卡都有家時什麼都不做（`home` 為 null），
+ * 所以已是新格式的資料反覆載入不會多長一本。
+ */
+function adopt(books: Book[], cards: Card[]): { books: Book[]; cards: Card[]; home: Book | null } {
+  const known = new Set(books.map((book) => book.id));
+  if (cards.every((card) => known.has(card.bookId))) return { books, cards, home: null };
+
+  const home = books.find((book) => book.name === HOME_BOOK_NAME) ?? {
+    id: crypto.randomUUID(),
+    name: HOME_BOOK_NAME,
+  };
+  return {
+    books: known.has(home.id) ? books : [...books, home],
+    // interval／ease／due 一律原封不動，只換歸屬。
+    cards: cards.map((card) => (known.has(card.bookId) ? card : { ...card, bookId: home.id })),
+    home,
+  };
+}
+
+/**
+ * 剔除指向不存在單字本的 id；剔除後為空的那一組補成全選——
+ * 一組範圍空掉等於畫面上什麼都看不到，那不是使用者要的結果。
+ * 零本時三組皆為空陣列，此時空狀態才是對的。
+ *
+ * 收攏卡片的那一本一律補進三組：這些卡剛被救回來，
+ * 若沒進任何範圍，複習、列表、統計三個畫面就全都看不到它們。
+ */
+function normalizeScopes(scopes: BookScopes, books: Book[], home: Book | null): BookScopes {
+  const known = new Set(books.map((book) => book.id));
+  const all = books.map((book) => book.id);
+  const fix = (ids: string[]): string[] => {
+    if (books.length === 0) return [];
+    const kept = ids.filter((id) => known.has(id));
+    if (kept.length === 0) return all;
+    return home !== null && !kept.includes(home.id) ? [...kept, home.id] : kept;
+  };
+  return { review: fix(scopes.review), list: fix(scopes.list), stats: fix(scopes.stats) };
+}
+
+function parseScopes(raw: unknown): BookScopes {
+  const source = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+  const group = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+  return { review: group(source.review), list: group(source.list), stats: group(source.stats) };
+}
+
+function parseBook(raw: unknown, index: number): Book {
+  if (typeof raw !== 'object' || raw === null) throw new Error(`第 ${index + 1} 本單字本不是一個物件`);
+  const source = raw as Record<string, unknown>;
+  for (const field of ['id', 'name'] as const) {
+    if (typeof source[field] !== 'string') throw new Error(`第 ${index + 1} 本單字本缺少 ${field} 欄位`);
+  }
+  return { id: source.id as string, name: source.name as string };
 }
 
 function parseCard(raw: unknown, index: number): Card {
@@ -139,6 +176,8 @@ function parseCard(raw: unknown, index: number): Card {
   const interval = typeof source.interval === 'number' ? source.interval : null;
   return {
     id: source.id as string,
+    // 舊格式沒有這個欄位，空字串指不到任何一本，adopt() 會把它收攏。
+    bookId: typeof source.bookId === 'string' ? source.bookId : '',
     text: source.text as string,
     meaning: source.meaning as string,
     interval: dueWasInvalid ? null : interval,

@@ -27,8 +27,8 @@ const RATINGS: Record<Rating, { interval: (days: number, ease: number) => number
   easy: { interval: (days, ease) => days * ease * 1.3, easeDelta: 0.15 },
 };
 
-export function newCard(id: string, text: string, meaning: string): Card {
-  return { id, text, meaning, interval: null, ease: DEFAULT_EASE, due: null };
+export function newCard(id: string, bookId: string, text: string, meaning: string): Card {
+  return { id, bookId, text, meaning, interval: null, ease: DEFAULT_EASE, due: null };
 }
 
 /** 當地時區的 `YYYY-MM-DD`。到期只看日期不看時間，早上打開就能看到當天全部的卡。 */

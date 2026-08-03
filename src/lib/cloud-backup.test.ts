@@ -15,8 +15,9 @@ const OFFLINE_NOTE = '進度還沒上傳，恢復連線後會自動補上';
 function appData(mark: string, updatedAt = 0): AppData {
   return {
     version: DATA_VERSION,
-    cards: [{ id: mark, text: mark, meaning: mark, interval: null, ease: DEFAULT_EASE, due: null }],
-    knownBuiltinIds: [],
+    books: [{ id: 'book', name: '我的單字' }],
+    cards: [{ id: mark, bookId: 'book', text: mark, meaning: mark, interval: null, ease: DEFAULT_EASE, due: null }],
+    scopes: { review: ['book'], list: ['book'], stats: ['book'] },
     updatedAt,
   };
 }

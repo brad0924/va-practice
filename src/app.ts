@@ -1,4 +1,3 @@
-import builtin from './data/cards.json';
 import { createStore } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
@@ -48,7 +47,7 @@ export interface App {
 }
 
 export function start(root: HTMLElement): void {
-  const store = createStore(localStorage, builtin);
+  const store = createStore(localStorage);
   const now = () => new Date();
   const random = Math.random;
 

@@ -6,7 +6,7 @@ import type { Card } from '../lib/types';
 const NOW = new Date(2026, 6, 27); // 2026-07-27
 
 function card(id: string, overrides: Partial<Card> = {}): Card {
-  return { id, text: id, meaning: id, interval: null, ease: DEFAULT_EASE, due: null, ...overrides };
+  return { id, bookId: 'book', text: id, meaning: id, interval: null, ease: DEFAULT_EASE, due: null, ...overrides };
 }
 
 /**

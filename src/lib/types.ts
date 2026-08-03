@@ -1,10 +1,28 @@
 /** 使用者看完答案後的自評，共四級。 */
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
+/** 卡片的容器。名字可改，識別碼建立後不變。 */
+export interface Book {
+  id: string;
+  name: string;
+}
+
+/**
+ * 複習、卡片列表、統計三個畫面各自的單字本範圍，互不影響。
+ * 每組至少含一個 id；零本時三組皆為空陣列。
+ */
+export interface BookScopes {
+  review: string[];
+  list: string[];
+  stats: string[];
+}
+
 /** 一張卡：日文詞條與中文釋義的配對，外加排程狀態。 */
 export interface Card {
-  /** 建立後不變，即使詞條被編輯亦然，以確保單向合併不會重複加入。 */
+  /** 建立後不變，即使詞條被編輯亦然。 */
   id: string;
+  /** 所屬單字本。一張卡剛好屬於一本，不能同時屬於多本，也不能不屬於任何一本。 */
+  bookId: string;
   /** 帶讀音標記的詞條，如 `焦[こ]がす`。 */
   text: string;
   meaning: string;
@@ -19,12 +37,11 @@ export interface Card {
 /** 匯出／匯入與本機儲存共用的資料格式。 */
 export interface AppData {
   version: number;
+  /** 單字本清單，順序即畫面上的顯示順序。 */
+  books: Book[];
   cards: Card[];
-  /**
-   * 上次儲存時，內建牌組有哪些識別碼。
-   * 單向合併只補入不在這份名單中的內建卡，使用者刪掉的卡因此不會被補回來。
-   */
-  knownBuiltinIds: string[];
+  /** 三個畫面各自的單字本範圍。跟著備份走，因此換裝置後範圍一致。 */
+  scopes: BookScopes;
   /**
    * 這份資料上次被推上雲端時，伺服器蓋的時間戳（毫秒）。
    * 只用來與雲端那份比新舊，一律由伺服器決定，本機不自行填。

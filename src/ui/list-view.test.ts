@@ -6,7 +6,7 @@ import type { Card } from '../lib/types';
 const NOW = new Date(2026, 6, 27); // 2026-07-27
 
 function card(id: string, due: string | null): Card {
-  return { id, text: id, meaning: id, interval: due === null ? null : 1, ease: DEFAULT_EASE, due };
+  return { id, bookId: 'book', text: id, meaning: id, interval: due === null ? null : 1, ease: DEFAULT_EASE, due };
 }
 
 /** 桶的邊界（null／1／0／−1／−2／−6／−7）是重點，與 overdueDays() 的天數一對一。 */

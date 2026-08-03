@@ -15,7 +15,7 @@ import type { Card } from './types';
 const NOW = new Date('2026-07-23T09:00:00');
 
 function card(id: string, overrides: Partial<Card> = {}): Card {
-  return { id, text: id, meaning: id, interval: null, ease: DEFAULT_EASE, due: null, ...overrides };
+  return { id, bookId: 'book', text: id, meaning: id, interval: null, ease: DEFAULT_EASE, due: null, ...overrides };
 }
 
 /** 固定亂數來源，讓抖動與排序完全可預測。 */
@@ -28,8 +28,9 @@ const noFuzz = () => 0.5; // 抖動偏移 0%
 
 describe('新卡', () => {
   it('沒有間隔與到期日，成長倍數為 2.5', () => {
-    expect(newCard('a', '焦[こ]がす', '燒焦')).toEqual({
+    expect(newCard('a', 'book', '焦[こ]がす', '燒焦')).toEqual({
       id: 'a',
+      bookId: 'book',
       text: '焦[こ]がす',
       meaning: '燒焦',
       interval: null,
