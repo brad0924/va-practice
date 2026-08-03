@@ -1,6 +1,6 @@
 # 文件收尾：CONTEXT.md 詞彙、docs/spec.md 更新、兩則 ADR
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/vocabulary-books/spec.md`。依賴 `01`–`06` 全部完成。
@@ -60,3 +60,16 @@ Type: enhancement
 - `docs/spec.md` 描述的接縫數量與實際程式碼一致。
 - 兩則新 ADR 各自寫清楚背景、決定、被否決的替代方案與後果。
 - 全篇文件中提到的檔案與函式確實存在（不留指向已刪除 `src/data/cards.json` 的敘述）。
+
+## Comments
+
+實作時經使用者拍板的兩個範圍決定：
+
+1. **`docs/spec.md` 全篇改乾淨**，不限於本票點名的五處。Problem Statement、Solution、User Stories 34／37／38、〈排程〉的「132 張全數進入佇列」、〈讀音標記〉、〈預期的使用曲線〉原本都還在描述內建牌組的世界，一併改寫。連帶調整：User Story 新增第 39 條（詞條全域唯一），其後的〈裝置與部署〉由 39–44 順移為 40–45；Out of Scope 補上單字本相關的五條並把「原牌組的附件」併入歷史說明那一節；〈卡片列表〉補上單字本篩選與列上本名。`CLAUDE.md` 開頭那句「資料來源是 AnkiApp 匯出的 JLPT N2 牌組」同樣已不成立，一併改掉。
+2. **`docs/adr/0002` 只在開頭加一行「已被 ADR-0008 取代」**，內文一字不動。ADR 是決策當下的紀錄，慣例是標示被取代而非改寫，因此本票驗收的「不留指向 `src/data/cards.json` 的敘述」在 ADR 上以標示取代的方式滿足——0002 與 0008 兩處提到該檔都是明確的歷史敘述。
+
+留給後續的既有文件缺口（**與本票無關，均為別的功能留下的債，未處理**）：
+
+- `docs/spec.md` 的 Out of Scope 仍寫著「**雲端同步**：進度僅存於本機……本次不實作」，但雲端備份已於 ADR-0003 實作。
+- 同一份 Out of Scope 的「**列表排序切換**：列表固定依到期排序，不提供切換」與〈卡片列表〉的「排序固定、不提供切換」，已被 `.scratch/due-sort-toggle/` 推翻；`CONTEXT.md` 的「到期排序」詞條寫的才是現況。
+- `docs/adr/0003` 第 33 行以「內建牌組 10.4 KB / 132 張」估算雲端額度。屬歷史量測，維持原樣。
