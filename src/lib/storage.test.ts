@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { createStore, HOME_BOOK_NAME, type StorageLike } from './storage';
+import {
+  addBook,
+  assertTermAvailable,
+  cardsInBooks,
+  createStore,
+  deleteBook,
+  findTermConflict,
+  HOME_BOOK_NAME,
+  renameBook,
+  setScope,
+  type StorageLike,
+} from './storage';
 import { DEFAULT_EASE } from './review';
-import type { AppData } from './types';
+import type { AppData, Card } from './types';
 
 /** 一台裝置的本機儲存。同一個 storage 傳給不同的 store，等同重開 App。 */
 function fakeStorage(initial?: string): StorageLike & { raw(): string | null } {
@@ -41,6 +52,32 @@ function modern(overrides: Partial<AppData> = {}): AppData {
     updatedAt: 0,
     ...overrides,
   };
+}
+
+/** 一張新卡。識別碼預設用詞條本身，只有歸屬與詞條要緊的情境用這個。 */
+function card(text: string, bookId: string, overrides: Partial<Card> = {}): Card {
+  return {
+    id: text,
+    bookId,
+    text,
+    meaning: '釋義',
+    interval: null,
+    ease: DEFAULT_EASE,
+    due: null,
+    ...overrides,
+  };
+}
+
+/** 兩本各一張卡，三組範圍刻意各不相同，藉此看出操作有沒有波及不該動的那幾組。 */
+function twoBooks(): AppData {
+  return modern({
+    books: [
+      { id: 'book-n2', name: 'JLPT N2' },
+      { id: 'book-work', name: '工作用' },
+    ],
+    cards: [card('焦[こ]がす', 'book-n2'), card('会議', 'book-work')],
+    scopes: { review: ['book-n2', 'book-work'], list: ['book-n2'], stats: ['book-work'] },
+  });
 }
 
 describe('首次啟動', () => {
@@ -440,5 +477,205 @@ describe('匯出與匯入', () => {
     );
     expect(data.cards[0]!.due).toBe(expectedDue);
     expect(data.cards[0]!.interval).toBe(expectedInterval);
+  });
+});
+
+describe('新增單字本', () => {
+  it('出現在清單末端，且三組範圍都含它', () => {
+    const data = addBook(twoBooks(), '文法句型');
+    expect(data.books.map((book) => book.name)).toEqual(['JLPT N2', '工作用', '文法句型']);
+
+    const id = data.books.at(-1)!.id;
+    expect(data.scopes.review).toContain(id);
+    expect(data.scopes.list).toContain(id);
+    expect(data.scopes.stats).toContain(id);
+  });
+
+  it('原本就在範圍裡的本沒有被擠掉', () => {
+    const data = addBook(twoBooks(), '文法句型');
+    expect(data.scopes.list).toContain('book-n2');
+    expect(data.scopes.stats).toContain('book-work');
+  });
+
+  it('存的是使用者原本輸入的字，只去掉前後空白', () => {
+    const data = addBook(twoBooks(), '  JLPT  N1  ');
+    expect(data.books.at(-1)!.name).toBe('JLPT  N1');
+  });
+
+  it.each([
+    ['前後空白', 'JLPT N2 '],
+    ['中間連續空白', 'JLPT  N2'],
+    ['大小寫', 'jlpt n2'],
+    ['全形半形', 'ＪＬＰＴ　Ｎ２'],
+  ])('與既有的本只差在%s時算重名，被拒且訊息指得出撞到誰', (_label, name) => {
+    expect(() => addBook(twoBooks(), name)).toThrow(/JLPT N2/);
+  });
+
+  it.each([
+    ['空字串', ''],
+    ['只有半形空白', '   '],
+    ['只有全形空白', '　'],
+  ])('名字是%s時被拒', (_label, name) => {
+    expect(() => addBook(twoBooks(), name)).toThrow(/名字/);
+  });
+
+  it('被拒時原本那份資料一個字都沒動', () => {
+    const before = twoBooks();
+    expect(() => addBook(before, 'jlpt n2')).toThrow();
+    expect(before.books).toHaveLength(2);
+  });
+});
+
+describe('單字本改名', () => {
+  it('名字變了，該本的卡一張都沒動', () => {
+    const before = twoBooks();
+    const data = renameBook(before, 'book-n2', '日檢 N2');
+    expect(data.books.find((book) => book.id === 'book-n2')!.name).toBe('日檢 N2');
+    expect(data.cards).toEqual(before.cards);
+  });
+
+  it('三組範圍不受影響', () => {
+    const data = renameBook(twoBooks(), 'book-n2', '日檢 N2');
+    expect(data.scopes).toEqual(twoBooks().scopes);
+  });
+
+  it('改成自己原本名字的另一種寫法會成功', () => {
+    const data = renameBook(twoBooks(), 'book-n2', 'ＪＬＰＴ　Ｎ２');
+    expect(data.books[0]!.name).toBe('ＪＬＰＴ　Ｎ２');
+  });
+
+  it('撞到別本的名字被拒', () => {
+    expect(() => renameBook(twoBooks(), 'book-n2', '工作用')).toThrow(/工作用/);
+  });
+
+  it('改名一樣走正規化比對，不是只擋一字不差的重名', () => {
+    const data = modern({
+      books: [
+        { id: 'book-n2', name: 'JLPT N2' },
+        { id: 'book-n1', name: 'JLPT N1' },
+      ],
+      cards: [],
+      scopes: { review: ['book-n2', 'book-n1'], list: ['book-n2'], stats: ['book-n1'] },
+    });
+    expect(() => renameBook(data, 'book-n1', 'ｊｌｐｔ　ｎ２')).toThrow(/JLPT N2/);
+  });
+
+  it('改成空白被拒', () => {
+    expect(() => renameBook(twoBooks(), 'book-n2', '   ')).toThrow(/名字/);
+  });
+});
+
+describe('刪除單字本', () => {
+  it('該本、它的卡、三組範圍裡的它一起消失', () => {
+    const data = deleteBook(twoBooks(), 'book-n2');
+    expect(data.books.map((book) => book.id)).toEqual(['book-work']);
+    expect(data.cards.map((entry) => entry.id)).toEqual(['会議']);
+    expect(data.scopes.review).not.toContain('book-n2');
+    expect(data.scopes.list).not.toContain('book-n2');
+    expect(data.scopes.stats).not.toContain('book-n2');
+  });
+
+  it('刪掉某一組唯一的那一本時，該組補成全選而不是空的', () => {
+    // twoBooks() 的 list 原本只有 book-n2，刪掉它會把那一組清空。
+    expect(deleteBook(twoBooks(), 'book-n2').scopes.list).toEqual(['book-work']);
+  });
+
+  it('刪到剩零本時三組皆為空陣列', () => {
+    const data = deleteBook(deleteBook(twoBooks(), 'book-n2'), 'book-work');
+    expect(data.books).toEqual([]);
+    expect(data.cards).toEqual([]);
+    expect(data.scopes).toEqual({ review: [], list: [], stats: [] });
+  });
+});
+
+describe('範圍的變更', () => {
+  it('把某一組設成空陣列會被拒', () => {
+    expect(() => setScope(twoBooks(), 'review', [])).toThrow(/至少/);
+  });
+
+  it('改一組不動另外兩組', () => {
+    const data = setScope(twoBooks(), 'review', ['book-work']);
+    expect(data.scopes.review).toEqual(['book-work']);
+    expect(data.scopes.list).toEqual(['book-n2']);
+    expect(data.scopes.stats).toEqual(['book-work']);
+  });
+});
+
+describe('詞條全域唯一', () => {
+  /** 打ち合わせ 在 A 本，会議 在 B 本。 */
+  function crossBooks(): AppData {
+    return modern({
+      books: [
+        { id: 'book-a', name: 'A 本' },
+        { id: 'book-b', name: 'B 本' },
+      ],
+      cards: [
+        card('打[う]ち合[あ]わせ', 'book-a', { id: 'card-a' }),
+        card('会議', 'book-b', { id: 'card-b' }),
+      ],
+      scopes: { review: ['book-a', 'book-b'], list: ['book-a', 'book-b'], stats: ['book-a', 'book-b'] },
+    });
+  }
+
+  it('往另一本新增同一個詞被拒，訊息說得出它在哪一本', () => {
+    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ')).toThrow(/A 本/);
+  });
+
+  it('撞到的那張卡帶得出所在的單字本', () => {
+    expect(findTermConflict(crossBooks().cards, '打ち合わせ')!.bookId).toBe('book-a');
+  });
+
+  it('讀音標記不同、詞條相同一樣算撞到', () => {
+    expect(findTermConflict(crossBooks().cards, '打[うちあ]ち合わせ')).not.toBeNull();
+  });
+
+  it('沒撞到時回 null 且不丟例外', () => {
+    expect(findTermConflict(crossBooks().cards, '約束')).toBeNull();
+    expect(() => assertTermAvailable(crossBooks(), '約束')).not.toThrow();
+  });
+
+  it('編輯別本的卡、把詞條改成該詞同樣被拒', () => {
+    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ', 'card-b')).toThrow(/A 本/);
+  });
+
+  it('把一張卡的詞條改成它自己不算撞到', () => {
+    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ', 'card-a')).not.toThrow();
+    expect(findTermConflict(crossBooks().cards, '打ち合わせ', 'card-a')).toBeNull();
+  });
+
+  it('釋義不參與比對', () => {
+    const cards = [card('会議', 'book-b', { meaning: '會議' })];
+    expect(findTermConflict(cards, '会議')).not.toBeNull();
+  });
+});
+
+describe('範圍過濾', () => {
+  const cards = [
+    card('焦がす', 'book-n2'),
+    card('会議', 'book-work'),
+    card('約束', 'book-grammar'),
+  ];
+
+  it('單本只拿到那本的卡', () => {
+    expect(cardsInBooks(cards, ['book-work']).map((entry) => entry.id)).toEqual(['会議']);
+  });
+
+  it('多本一起拿，順序沿用卡片原本的順序', () => {
+    expect(cardsInBooks(cards, ['book-grammar', 'book-n2']).map((entry) => entry.id)).toEqual([
+      '焦がす',
+      '約束',
+    ]);
+  });
+
+  it('全選拿到全部', () => {
+    expect(cardsInBooks(cards, ['book-n2', 'book-work', 'book-grammar'])).toEqual(cards);
+  });
+
+  it('bookIds 為空時回傳空陣列', () => {
+    expect(cardsInBooks(cards, [])).toEqual([]);
+  });
+
+  it('卡的 bookId 不在清單裡就不會被拿出來', () => {
+    expect(cardsInBooks(cards, ['早就被刪掉的本'])).toEqual([]);
   });
 });

@@ -3,6 +3,10 @@
  * 匯入同樣由本模組負責，因為必須驗證格式並整份覆蓋，因此也開在介面上；
  * 匯出只是把畫面手上現有的資料序列化，交給畫面層直接做即可。
  *
+ * 單字本的操作（新增、改名、刪除、範圍變更）與兩道約束（名稱不重複、詞條全域唯一）
+ * 也收在這裡，形式是吃一份 AppData、吐一份新的純函式——寫檔與推上雲端仍走
+ * app.ts 的 persist()，這裡不自己碰 storage，否則雲端那一份會漏掉。
+ *
  * 舊格式的相容也在這裡，且只在這裡：本機 localStorage、匯入備份檔、
  * 雲端拉下來的那一份走的都是 parseAppData()，改一處三條路都涵蓋到。
  *
@@ -10,6 +14,7 @@
  */
 import type { AppData, Book, BookScopes, Card } from './types';
 import { DEFAULT_EASE, isDateKey } from './review';
+import { toPlainText } from './reading';
 
 export const STORAGE_KEY = 'va-practice:data';
 export const DATA_VERSION = 3;
@@ -82,6 +87,112 @@ export function createStore(storage: StorageLike): Store {
   };
 }
 
+// ── 單字本的新增、改名、刪除 ──────────────────────────────────────
+
+/**
+ * 比對用的名稱：全形半形、大小寫、前後空白、中間連續空白一律歸一。
+ * 只用於比對——`Book.name` 存的永遠是使用者原本輸入的字串，畫面顯示的也是它。
+ */
+function normalizeBookName(name: string): string {
+  return name.normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * 檢查名稱收不收，收的話回傳要存進 `Book.name` 的顯示值。
+ * `exceptId` 是改名時的自己：不與自己比對，「JLPT N2」改成「JLPT　N2」才會成功。
+ */
+function acceptBookName(books: readonly Book[], name: string, exceptId?: string): string {
+  const normalized = normalizeBookName(name);
+  if (normalized === '') throw new Error('單字本的名字不能是空白');
+
+  const taken = books.find(
+    (book) => book.id !== exceptId && normalizeBookName(book.name) === normalized,
+  );
+  if (taken) throw new Error(`已經有一本叫「${taken.name}」了`);
+
+  return name.trim();
+}
+
+/**
+ * 新增一本，放在清單末端，並自動加進三組範圍——
+ * 剛建好的本沒進任何一組的話，往裡面加的卡三個畫面都看不到。
+ */
+export function addBook(data: AppData, name: string): AppData {
+  const book: Book = { id: crypto.randomUUID(), name: acceptBookName(data.books, name) };
+  return {
+    ...data,
+    books: [...data.books, book],
+    scopes: mapScopes(data.scopes, (ids) => [...ids, book.id]),
+  };
+}
+
+/** 改名。只動名字：卡片與三組範圍都不受影響。 */
+export function renameBook(data: AppData, id: string, name: string): AppData {
+  const accepted = acceptBookName(data.books, name, id);
+  return {
+    ...data,
+    books: data.books.map((book) => (book.id === id ? { ...book, name: accepted } : book)),
+  };
+}
+
+/**
+ * 刪除一本，連同它的卡一起。確認對話由畫面負責，這一層直接刪。
+ * 三組範圍走與載入時同一支正規化：移除它、被移空的那一組補成全選；
+ * 刪到零本時三組皆為空陣列，此時空狀態才是對的。
+ */
+export function deleteBook(data: AppData, id: string): AppData {
+  const books = data.books.filter((book) => book.id !== id);
+  return {
+    ...data,
+    books,
+    cards: data.cards.filter((card) => card.bookId !== id),
+    // 第三個參數是「要一併補進三組的那一本」，刪除不涉及收攏，故為 null。
+    scopes: normalizeScopes(data.scopes, books, null),
+  };
+}
+
+/**
+ * 設定其中一組範圍。會把該組清空的變更一律拒絕——畫面另外負責在只剩一本時
+ * 把勾選框設為 disabled，這裡是繞過去之後的最後一道。
+ * 零本時三組本來就是空的，不在此列。
+ */
+export function setScope(data: AppData, group: keyof BookScopes, bookIds: readonly string[]): AppData {
+  if (bookIds.length === 0 && data.books.length > 0) throw new Error('至少要選一本單字本');
+  return { ...data, scopes: { ...data.scopes, [group]: [...bookIds] } };
+}
+
+// ── 詞條全域唯一 ──────────────────────────────────────────────
+
+/**
+ * 這個詞條是否已經被某張卡佔走，回傳撞到的那張卡（沒撞到是 null）。
+ * 比對基準是去掉讀音標記後的原文，`焦[こ]がす` 與 `焦がす` 因此算同一個詞；釋義不參與。
+ * `exceptCardId` 是編輯既有卡時的自己：不與自己比對。
+ */
+export function findTermConflict(
+  cards: readonly Card[],
+  text: string,
+  exceptCardId?: string,
+): Card | null {
+  const term = toPlainText(text);
+  return cards.find((card) => card.id !== exceptCardId && toPlainText(card.text) === term) ?? null;
+}
+
+/** 同上，但撞到時丟出可直接顯示的例外，訊息說得出那個詞現在在哪一本。 */
+export function assertTermAvailable(data: AppData, text: string, exceptCardId?: string): void {
+  const conflict = findTermConflict(data.cards, text, exceptCardId);
+  if (conflict === null) return;
+
+  const book = data.books.find((candidate) => candidate.id === conflict.bookId);
+  const where = book ? `「${book.name}」` : '別的單字本';
+  throw new Error(`「${toPlainText(conflict.text)}」已經在${where}裡了`);
+}
+
+/** 取出屬於這幾本的卡，順序沿用卡片原本的。`bookIds` 為空時回傳空陣列。 */
+export function cardsInBooks(cards: readonly Card[], bookIds: readonly string[]): Card[] {
+  const wanted = new Set(bookIds);
+  return cards.filter((card) => wanted.has(card.bookId));
+}
+
 function parseAppData(raw: unknown): AppData {
   if (typeof raw !== 'object' || raw === null) throw new Error('內容不是一個物件');
   const source = raw as Record<string, unknown>;
@@ -143,7 +254,12 @@ function normalizeScopes(scopes: BookScopes, books: Book[], home: Book | null): 
     if (kept.length === 0) return all;
     return home !== null && !kept.includes(home.id) ? [...kept, home.id] : kept;
   };
-  return { review: fix(scopes.review), list: fix(scopes.list), stats: fix(scopes.stats) };
+  return mapScopes(scopes, fix);
+}
+
+/** 對三組範圍各做同一件事。三組永遠一起變，把「三組」這件事只寫一次。 */
+function mapScopes(scopes: BookScopes, fn: (ids: string[]) => string[]): BookScopes {
+  return { review: fn(scopes.review), list: fn(scopes.list), stats: fn(scopes.stats) };
 }
 
 function parseScopes(raw: unknown): BookScopes {

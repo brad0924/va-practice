@@ -1,6 +1,6 @@
 # 單字本的新增／改名／刪除，與名稱、詞條兩道約束
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 決策背景見 `.scratch/vocabulary-books/spec.md`。依賴 `01-book-model-and-migration.md`。本票只做資料存取模組的操作與純函式，不碰畫面。
@@ -59,3 +59,11 @@ Type: enhancement
 - **刪除本**：該本從 `books` 消失、該本的卡全數消失、三組 `scopes` 都不再含它；刪到剩零本時三組皆為空陣列。
 - **範圍不得清空**：`books` 有兩本時，把某一組設成空陣列的操作被拒。
 - **`cardsInBooks`**：單本、多本、全選、空 `bookIds`、卡的 `bookId` 不在清單裡，五種情況結果正確。
+
+## Comments
+
+- **形狀由 agent 拍板**：這些操作做成吃一份 `AppData`、吐一份新的**純函式**（`addBook` / `renameBook` / `deleteBook` / `setScope`），不是 `Store` 的方法。理由是 `app.ts` 現行的模式是「記憶體裡持有一份 `data` → 改它 → `persist()` 一次做存檔與推雲端」；若由 `Store` 自己寫檔，會繞過 `cloud.push()`，且 `app.ts` 手上那份會變舊。票 04 的 `importWords()` 因為要吃 JSON 字串並驗證，仍留在 `Store` 上，兩者形狀不同是刻意的。
+- **詞條約束開了兩支**：`findTermConflict()`（純查詢，回傳撞到的那張卡，帶得出 `bookId`）與 `assertTermAvailable()`（撞到就丟可直接顯示的例外）。決定 5 要求「帶得出 bookId」、決定 9 要求「丟出可直接顯示的 Error」，兩者無法用同一支滿足；票 04 的批次跳過也只吃得下前者。
+- **決定 7 的一個推論**：刪掉某本之後，若某一組範圍被清空（例如統計原本只勾了被刪的那本），該組會**補成全選**。票上只寫「不得為空」沒寫補什麼，這裡沿用載入時 `normalizeScopes()` 既有且已測試的行為（「剔除後為空的那一組補成全選」），三條路才是同一套規則。
+- **未加的檢查**：`renameBook` / `deleteBook` 傳到不存在的 `id` 時靜默不動作、`setScope` 不驗證傳入的 id 是否存在。票上皆未要求，且呼叫端（票 05 的畫面）拿的一律是清單上真實的 id；載入時的 `normalizeScopes()` 本來就會剔除指不到的 id。
+- 順手把「對三組範圍各做同一件事」抽成 `mapScopes()`，`normalizeScopes()` 與 `addBook()` 共用。
