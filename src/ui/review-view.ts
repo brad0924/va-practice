@@ -13,6 +13,9 @@ const RATING_BUTTONS: { rating: Rating; label: string; key: string }[] = [
 ];
 
 export function reviewView(app: App): HTMLElement {
+  // 零本與「今天練完了」是兩件事，空狀態各說各的。這裡沒有任何單字本開關——
+  // 複習範圍在資料頁設（見票 05），答題時視線裡不放多餘的東西。
+  if (app.data.books.length === 0) return noBooksView(app);
   if (isComplete(app.queue)) return doneView(app);
   const card = currentCard(app.queue)!;
 
@@ -79,6 +82,26 @@ export function reviewView(app: App): HTMLElement {
     }
   };
 
+  screen.append(header, main, footer);
+  return screen;
+}
+
+function noBooksView(app: App): HTMLElement {
+  const screen = el('div', 'screen');
+  const header = el('header', 'bar');
+  header.append(el('span', 'remaining', '剩餘 0 張'), button('bar-action', '卡片', () => app.showList()));
+
+  const main = el('main', 'card done');
+  main.append(
+    el('div', 'done-mark', '📚'),
+    el('h1', 'done-title', '還沒有單字本'),
+    el('p', 'done-note', '先建一本並加幾張卡，就可以開始複習。'),
+  );
+
+  const footer = el('footer', 'actions');
+  footer.append(button('primary', '去建立單字本', () => app.showData()));
+
+  app.keyHandler = null;
   screen.append(header, main, footer);
   return screen;
 }

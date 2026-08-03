@@ -1,6 +1,8 @@
 import type { App } from '../app';
 import { groupByBucket } from './list-view';
+import { cardsInBooks, setScope } from '../lib/storage';
 import type { Card } from '../lib/types';
+import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 
@@ -73,52 +75,88 @@ export function statsView(app: App): HTMLElement {
   const header = el('header', 'bar');
   header.append(button('bar-action', '資料', () => app.showData()), el('span', 'bar-title', '統計'));
 
-  const snapshot = computeSnapshot(app.data.cards, app.now());
-
-  const overview = el('section', 'section');
-  overview.append(
-    el('h2', 'section-title', '現況'),
-    el(
-      'div',
-      'tiles',
-      tile(String(snapshot.total), '卡片總數'),
-      tile(String(snapshot.reviewCount), '已複習過'),
-      tile(snapshot.avgInterval.toFixed(1), '平均間隔（天）'),
-    ),
-  );
-
-  const dueMax = Math.max(...snapshot.buckets.map((bucket) => bucket.cards.length));
-  const dueSection = el('section', 'section');
-  dueSection.append(
-    el('h2', 'section-title', '到期分佈'),
-    el(
-      'div',
-      'bar-list',
-      ...snapshot.buckets.map((bucket) =>
-        barRow(bucket.key, bucket.label, bucket.cards.length, dueMax, () =>
-          openModal(bucket.label, bucket.cards, (card) => card.due ?? '新卡'),
-        ),
-      ),
-    ),
-  );
-
-  const easeMax = Math.max(...snapshot.easeBins.map((bin) => bin.cards.length));
-  const easeSection = el('section', 'section');
-  easeSection.append(
-    el('h2', 'section-title', '熟練度分佈'),
-    el(
-      'div',
-      'bar-list',
-      ...snapshot.easeBins.map((bin) =>
-        barRow(bin.key, bin.label, bin.cards.length, easeMax, () =>
-          openModal(bin.label, bin.cards, (card) => `倍數 ${card.ease.toFixed(2)}`),
-        ),
-      ),
-    ),
-  );
-
   const main = el('main', 'panel');
-  main.append(overview, dueSection, easeSection);
+
+  if (app.data.books.length === 0) {
+    // 借 .form 的直排與間距，空狀態不必另外一套版面。
+    main.append(
+      el(
+        'div',
+        'form',
+        el('p', 'hint', '還沒有任何單字本，沒有東西可以統計。'),
+        el('div', 'form-actions', button('primary', '去建立單字本', () => app.showData())),
+      ),
+    );
+    screen.append(header, main);
+    return screen;
+  }
+
+  // 這一組範圍與複習、列表那兩組互不影響，改了只動這個畫面。
+  // 只重畫底下三區而不整頁重建，下拉才不會每勾一本就收起來。
+  const books = bookFilter({
+    books: app.data.books,
+    selected: app.data.scopes.stats,
+    variant: 'block',
+    onChange: (ids) => {
+      app.applyData(setScope(app.data, 'stats', ids));
+      refresh();
+    },
+  });
+
+  const content = el('div', 'stats-content');
+
+  function refresh(): void {
+    // computeSnapshot() 不必知道單字本存在，把過濾後的卡片傳進去就好。
+    const snapshot = computeSnapshot(cardsInBooks(app.data.cards, app.data.scopes.stats), app.now());
+
+    const overview = el('section', 'section');
+    overview.append(
+      el('h2', 'section-title', '現況'),
+      el(
+        'div',
+        'tiles',
+        tile(String(snapshot.total), '卡片總數'),
+        tile(String(snapshot.reviewCount), '已複習過'),
+        tile(snapshot.avgInterval.toFixed(1), '平均間隔（天）'),
+      ),
+    );
+
+    const dueMax = Math.max(...snapshot.buckets.map((bucket) => bucket.cards.length));
+    const dueSection = el('section', 'section');
+    dueSection.append(
+      el('h2', 'section-title', '到期分佈'),
+      el(
+        'div',
+        'bar-list',
+        ...snapshot.buckets.map((bucket) =>
+          barRow(bucket.key, bucket.label, bucket.cards.length, dueMax, () =>
+            openModal(bucket.label, bucket.cards, (card) => card.due ?? '新卡'),
+          ),
+        ),
+      ),
+    );
+
+    const easeMax = Math.max(...snapshot.easeBins.map((bin) => bin.cards.length));
+    const easeSection = el('section', 'section');
+    easeSection.append(
+      el('h2', 'section-title', '熟練度分佈'),
+      el(
+        'div',
+        'bar-list',
+        ...snapshot.easeBins.map((bin) =>
+          barRow(bin.key, bin.label, bin.cards.length, easeMax, () =>
+            openModal(bin.label, bin.cards, (card) => `倍數 ${card.ease.toFixed(2)}`),
+          ),
+        ),
+      ),
+    );
+
+    content.replaceChildren(overview, dueSection, easeSection);
+    // 換掉的內容底下沒有原本那幾張卡了，開著的彈窗會停在舊清單上。
+    closeModal();
+  }
+
+  main.append(books, content);
 
   // 這個 app 第一個彈窗元件：常駐在畫面裡的 .modal-overlay，openModal／closeModal
   // 只換內容與 hidden 屬性，不重新建立節點。
@@ -142,6 +180,8 @@ export function statsView(app: App): HTMLElement {
   function closeModal(): void {
     overlay.hidden = true;
   }
+
+  refresh();
 
   app.keyHandler = (event) => {
     if (event.key === 'Escape' && !overlay.hidden) closeModal();

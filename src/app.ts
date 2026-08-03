@@ -1,4 +1,4 @@
-import { createStore, type ImportResult } from './lib/storage';
+import { cardsInBooks, createStore, type ImportResult } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { buildQueue, rate as rateCard, type Queue } from './lib/review';
@@ -28,7 +28,7 @@ export interface App {
   reveal(): void;
   /** 對目前卡片評分並前進到下一張。 */
   rate(rating: Rating): void;
-  /** 新增或更新一張卡，同時反映到當日佇列上。 */
+  /** 新增或更新一張卡，同時反映到當日佇列上。新卡屬於複習範圍外的本時不進佇列。 */
   upsert(card: Card): void;
   remove(id: string): void;
   /**
@@ -62,7 +62,8 @@ export function start(root: HTMLElement): void {
   const random = Math.random;
 
   let data = store.load();
-  let queue = buildQueue(data.cards, now(), random);
+  // 佇列只吃複習範圍內的卡。buildQueue() 因此完全不必知道單字本存在。
+  let queue = buildQueue(cardsInBooks(data.cards, data.scopes.review), now(), random);
   let revealed = false;
   let render: () => void = () => {};
 
@@ -116,10 +117,20 @@ export function start(root: HTMLElement): void {
       const index = data.cards.findIndex((existing) => existing.id === card.id);
       if (index === -1) {
         data.cards.push(card);
-        queue = [...queue, card];
+        // 加進複習範圍外的本時不進佇列，否則今天就會被問到一張「不在練的那本」的字。
+        if (data.scopes.review.includes(card.bookId)) queue = [...queue, card];
       } else {
         replaceInData(card);
-        queue = queue.map((queued) => (queued.id === card.id ? card : queued));
+        // 搬家搬出複習範圍時同樣要離開佇列，理由與上面新增那條一樣。
+        // 反向搬進範圍內則不補回去：那張卡未必今天到期，補進來等於憑空多出一張。
+        if (data.scopes.review.includes(card.bookId)) {
+          queue = queue.map((queued) => (queued.id === card.id ? card : queued));
+        } else {
+          const kept = queue.filter((queued) => queued.id !== card.id);
+          // 搬走的若是目前這張，下一張會遞補上來，不能沿用已掀開的狀態——與 remove() 同一個理由。
+          if (kept.length !== queue.length) revealed = false;
+          queue = kept;
+        }
       }
       persist();
     },
@@ -133,13 +144,20 @@ export function start(root: HTMLElement): void {
     },
 
     applyData(next) {
+      // 佇列的來源是「複習範圍內的那幾張卡」，那批人變了才重建——資料頁改完，
+      // 回到複習畫面看到的就是新的範圍；刪掉一本會連它的卡一起消失，也走同一條。
+      //
+      // 比對的是卡而不是「勾了哪幾本」：新增一本空的單字本雖然會自動進三組範圍，
+      // 但沒有一張卡因此改變，正在進行的複習不該被打斷——重建會重洗一次順序，
+      // 也會把評為「再次」而排回去的那幾張一起丟掉。
+      const before = cardsInBooks(data.cards, data.scopes.review);
       data = next;
-      // 刪掉一本會連它的卡一起消失，佇列裡那幾張不能留著。
-      // 少掉的若含目前這張，下一張會遞補上來，不能沿用已掀開的狀態——與 remove() 同一個理由。
-      const alive = new Set(data.cards.map((card) => card.id));
-      const kept = queue.filter((card) => alive.has(card.id));
-      if (kept.length !== queue.length) revealed = false;
-      queue = kept;
+      const after = cardsInBooks(data.cards, data.scopes.review);
+      if (!sameCards(before, after)) {
+        queue = buildQueue(after, now(), random);
+        // 目前這張可能已經不在了，下一張會遞補上來，不能沿用已掀開的狀態——與 remove() 同一個理由。
+        revealed = false;
+      }
       persist();
     },
 
@@ -192,7 +210,7 @@ export function start(root: HTMLElement): void {
   // 整份資料被換掉之後，佇列與已掀開的狀態都要重建。
   function reload(): void {
     data = store.load();
-    queue = buildQueue(data.cards, now(), random);
+    queue = buildQueue(cardsInBooks(data.cards, data.scopes.review), now(), random);
     revealed = false;
   }
 
@@ -225,6 +243,13 @@ export function start(root: HTMLElement): void {
 
   // 畫面先出來，雲端在背後追。沒登入的話這一步什麼都不做。
   cloud.begin(data);
+}
+
+/** 兩份卡片是不是同一批。順序不算：洗牌與勾選的先後都不是內容的改變。 */
+function sameCards(before: readonly Card[], after: readonly Card[]): boolean {
+  if (before.length !== after.length) return false;
+  const ids = new Set(before.map((card) => card.id));
+  return after.every((card) => ids.has(card.id));
 }
 
 function isTyping(target: EventTarget | null): boolean {

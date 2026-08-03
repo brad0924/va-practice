@@ -1,5 +1,6 @@
 import type { App } from '../app';
 import { newCard } from '../lib/review';
+import { assertTermAvailable, toMessage } from '../lib/storage';
 import type { Card } from '../lib/types';
 import { toMarkup, toPlainText, type KanjiRun, type ReadingCell } from '../lib/reading';
 import { askReading } from '../lib/gemini-reading';
@@ -8,7 +9,13 @@ import { el, button } from './dom';
 import { createToast } from './toast';
 import { renderTerm } from './reading-html';
 
-/** card 為 null 代表新增。 */
+/**
+ * 這次開 app 期間上一張卡選的那本，新增卡片時的預設值。
+ * 只活在記憶體：不進 storage、也不進備份——它是連續加字時的手感，不是使用者的資料。
+ */
+let lastBookId: string | null = null;
+
+/** card 為 null 代表新增。零本時進不來，「新增」入口會先把人導去建一本。 */
 export function editorView(app: App, card: Card | null, back: () => void): HTMLElement {
   const screen = el('div', 'screen');
 
@@ -30,6 +37,19 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   // 讀音格由這台機器持有，「儲存並繼續」要把它們清空，因此換一台空的就是清空——
   // 所以這裡不是 const。
   let editor = makeEditor();
+
+  // 單字本排在詞條之前：先決定這張卡放哪裡，再打內容。
+  // 編輯既有卡時改掉它就等於搬家，interval／ease／due 一律不動。
+  const bookSelect = el('select', 'field');
+  for (const book of app.data.books) {
+    const option = el('option', '', book.name);
+    option.value = book.id;
+    bookSelect.append(option);
+  }
+  // 上一張選的那本若已經被刪掉，find 找不到，退回清單第一本——與第一次進來同一個結果。
+  bookSelect.value = card
+    ? card.bookId
+    : app.data.books.find((book) => book.id === lastBookId)?.id ?? app.data.books[0]?.id ?? '';
 
   const termInput = el('input', 'field');
   termInput.type = 'text';
@@ -210,6 +230,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   const form = el('form', 'form');
   form.append(
+    labelled('單字本', bookSelect),
     labelled('詞條', termInput),
     el('div', 'labelled', el('span', 'label-text', '讀音'), readingRegion),
     el('div', 'labelled', el('span', 'label-text', '預覽'), preview),
@@ -242,9 +263,20 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       return null;
     }
     const text = result.text;
-    // 單字本下拉尚未做（見票 06），新卡暫時一律進清單第一本。
-    const bookId = app.data.books[0]?.id ?? '';
-    app.upsert(card ? { ...card, text, meaning } : newCard(crypto.randomUUID(), bookId, text, meaning));
+    // 詞條全域唯一：撞到已經有卡的詞時擋在這裡，與空欄同一個時機、同一行紅字。
+    // 訊息由資料存取模組給，它說得出那個詞現在在哪一本。
+    try {
+      assertTermAvailable(app.data, text, card?.id);
+    } catch (reason) {
+      error.textContent = toMessage(reason);
+      return null;
+    }
+    // 存成功才記住，下一張新卡就預設同一本——連續往同一本加字時不必每次重選。
+    const bookId = bookSelect.value;
+    lastBookId = bookId;
+    app.upsert(
+      card ? { ...card, bookId, text, meaning } : newCard(crypto.randomUUID(), bookId, text, meaning),
+    );
     return text;
   };
 
@@ -320,6 +352,6 @@ function noteWording(note: Note): { className: string; text: string } {
   }
 }
 
-function labelled(text: string, control: HTMLInputElement): HTMLElement {
+function labelled(text: string, control: HTMLElement): HTMLElement {
   return el('label', 'labelled', el('span', 'label-text', text), control);
 }

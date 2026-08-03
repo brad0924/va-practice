@@ -1,7 +1,9 @@
 import type { App } from '../app';
 import { toPlainText, toReadingText } from '../lib/reading';
 import { overdueDays, sortByDue, type SortDirection } from '../lib/review';
+import { cardsInBooks, setScope } from '../lib/storage';
 import type { Card } from '../lib/types';
+import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 
@@ -16,9 +18,28 @@ export function listView(app: App): HTMLElement {
       'div',
       'bar-side',
       button('bar-action', '資料', () => app.showData()),
-      button('bar-action', '新增', () => app.showEditor(null, () => app.showList())),
+      // 零本時開出來的編輯器沒有單字本可選，那張卡沒有地方放，先去建一本。
+      button('bar-action', '新增', () =>
+        app.data.books.length === 0 ? app.showData() : app.showEditor(null, () => app.showList()),
+      ),
     ),
   );
+
+  const main = el('main', 'panel');
+
+  if (app.data.books.length === 0) {
+    // 借 .form 的直排與間距，空狀態不必另外一套版面。
+    main.append(
+      el(
+        'div',
+        'form',
+        el('p', 'hint', '還沒有任何單字本。卡片要先有一本才放得進去。'),
+        el('div', 'form-actions', button('primary', '去建立單字本', () => app.showData())),
+      ),
+    );
+    screen.append(header, main);
+    return screen;
+  }
 
   const search = el('input', 'field search');
   search.type = 'search';
@@ -30,6 +51,8 @@ export function listView(app: App): HTMLElement {
 
   // 方向與展開狀態只活在這次畫面裡，離開卡片頁再回來就回到正序、六桶全收合，
   // 與搜尋框的行為一致。UI 偏好不進 storage.ts，那份資料整份會被備份到別台裝置。
+  // 底下那組單字本範圍是刻意的例外：它是「我現在在讀哪幾本」這種讀書狀態，
+  // 使用者明確要求跨裝置一致，因此存進 AppData（見 spec「範圍開關」）。
   let direction: SortDirection = 'asc';
   let expanded = new Set<BucketKey>();
   /** 搜尋前的收合狀態，清空搜尋框後還原。 */
@@ -51,10 +74,12 @@ export function listView(app: App): HTMLElement {
   };
 
   const refresh = () => {
-    const matches = filter(app.data.cards, search.value);
+    // 單字本篩選發生在搜尋與分桶之前，因此「共 N 張」的 N 是範圍內的張數，不是全 app 的。
+    const scoped = cardsInBooks(app.data.cards, app.data.scopes.list);
+    const matches = filter(scoped, search.value);
     count.textContent = searching()
-      ? `符合 ${matches.length} 張，共 ${app.data.cards.length} 張`
-      : `共 ${app.data.cards.length} 張`;
+      ? `符合 ${matches.length} 張，共 ${scoped.length} 張`
+      : `共 ${scoped.length} 張`;
     sort.textContent = direction === 'asc' ? '到期 ↑' : '到期 ↓';
     sort.setAttribute(
       'aria-label',
@@ -86,8 +111,18 @@ export function listView(app: App): HTMLElement {
   });
   refresh();
 
-  const toolbar = el('div', 'list-toolbar', count, sort);
-  const main = el('main', 'panel');
+  // 這一組範圍與複習、統計那兩組互不影響，改了只動這個畫面。
+  const books = bookFilter({
+    books: app.data.books,
+    selected: app.data.scopes.list,
+    variant: 'pill',
+    onChange: (ids) => {
+      app.applyData(setScope(app.data, 'list', ids));
+      refresh();
+    },
+  });
+
+  const toolbar = el('div', 'list-toolbar', count, books, sort);
   main.append(search, toolbar, rows);
 
   screen.append(header, main);
@@ -122,6 +157,9 @@ function row(app: App, card: Card): HTMLElement {
   entry.type = 'button';
   entry.addEventListener('click', open);
   entry.append(el('span', 'row-term', renderTerm(card.text, true)), el('span', 'row-meaning', card.meaning));
+  // 右欄由上而下：所屬的本、實際到期日。本名只顯示不可點——搬家在編輯器裡做。
+  const book = app.data.books.find((candidate) => candidate.id === card.bookId);
+  if (book) entry.append(el('span', 'row-book', book.name));
   // 桶名由標頭承擔，列上改印實際到期日；新卡沒有到期日，不長出右欄也不填佔位字元。
   // 用完整 YYYY-MM-DD：間隔沒有上限，「未來」桶必然含跨年的卡，省掉年份會分不出哪一年。
   if (card.due !== null) entry.append(el('span', 'row-due', card.due));
