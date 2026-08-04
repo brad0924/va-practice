@@ -1,6 +1,6 @@
 # docs/spec.md 補上時間桶這一段
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 ## 需求
