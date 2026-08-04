@@ -142,6 +142,72 @@ describe('讀音預填', () => {
   });
 });
 
+describe('AI 會不會動到讀音格（換欄鍵的避讓條件）', () => {
+  it('詞條打完、還沒失焦：按鍵的當下就要答得出「等一下會去問」', () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('大丈夫');
+
+    expect(editor.prefilling).toBe(true);
+    expect(ai.asked).toEqual([]);
+  });
+
+  it('正在問的期間也算', () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('大丈夫');
+    editor.prefill();
+
+    expect(editor.prefilling).toBe(true);
+  });
+
+  it('填好了就不算：讀音格已經有值，AI 不會再動它', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    const { later } = editor.prefill();
+    ai.reply([replyRun('焦', 'こ')]);
+    await later;
+
+    expect(editor.prefilling).toBe(false);
+  });
+
+  it('失敗了就不算：同一串不問第二次，讀音格從此安全', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    const { later } = editor.prefill();
+    ai.fail('連不上 Gemini');
+    await later;
+
+    expect(editor.prefilling).toBe(false);
+  });
+
+  it('沒設金鑰的人永遠不算', () => {
+    const editor = createReadingEditor({ ask: null });
+    editor.setTerm('大丈夫');
+
+    expect(editor.prefilling).toBe(false);
+  });
+
+  it('シンポジウム：沒有讀音格就沒有東西要避讓', () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('シンポジウム');
+
+    expect(editor.prefilling).toBe(false);
+  });
+
+  it('開舊卡：讀音已經填好，不算', () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ markup: '焦[こ]がす', ask: ai.ask });
+
+    expect(editor.prefilling).toBe(false);
+  });
+});
+
 describe('讀音格要不要重畫', () => {
   it('考え込む → 考え込んだ：只動詞尾，不重畫', () => {
     const editor = createReadingEditor({ ask: null });

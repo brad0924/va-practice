@@ -134,6 +134,8 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     input.autocapitalize = 'off';
     input.spellcheck = false;
     input.addEventListener('input', () => apply(editor.setReading(ri, ci, input.value)));
+    // 換欄那三支掛在這裡而不是外面：renderReading 會把讀音格整批換掉，掛在外面的會跟著沒。
+    bindField(input);
 
     cellEl.append(kanjiRow, input);
     return cellEl;
@@ -163,21 +165,59 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   // iPhone 上鍵盤還開著時直接點按鈕，blur 先發生、焦點跳走、畫面捲動，按鈕在 touchend
   // 前就移位了，那一下 click 不會觸發。三顆按鈕都會中，但只有「取消」白按沒有便宜可佔
   // （想離開卻被拉回輸入框、鍵盤又彈出來），所以只在它身上立旗子擋掉那次跳轉。
-  // 旗子由「焦點回到這兩欄」清掉——該跳的失焦前面必定有一次這樣的聚焦，因此不會留過夜。
+  // 旗子由「焦點回到任一必填格」清掉——該跳的失焦前面必定有一次這樣的聚焦，因此不會留過夜。
   let cancelling = false;
   cancel.addEventListener('pointerdown', () => {
     cancelling = true;
   });
 
+  /** 目前畫面上的讀音格，攤平後由左到右——順序與 editor.runs 一致，commit 給的序號也照這個數。 */
+  const readingInputs = (): HTMLInputElement[] => [
+    ...readingRegion.querySelectorAll<HTMLInputElement>('.reading-input'),
+  ];
+
+  /** 還空著＝還沒填完。三種必填格共用這一句，前提一與輪詢的終點判斷都看它。 */
+  const isEmpty = (field: HTMLInputElement) => field.value.trim() === '';
+
   /**
-   * 填完一欄就把焦點送到空的那一欄（ADR-0006）。iPhone 鍵盤上方那條橫條右端的「完了」
-   * 是純系統 UI，按下去網頁只收到 blur、沒有任何按鍵事件，這件事因此只能掛在失焦上。
-   * 也因為不在使用者手勢裡，焦點跳得動但鍵盤叫不回來——想留住鍵盤要按 ↵，見 jumpOnEnter。
-   *
-   * 「離開的這一欄有值」是不加就會壞掉的前提：少了它，兩欄都空時按打勾會在兩欄之間
-   * 來回彈，鍵盤永遠收不掉。
+   * 這一輪要不要把讀音格整段跳過（ADR-0006 的 AI 預填避讓）。離開詞條的這一刻讀音格
+   * 隨時會被回覆整批換掉，把人送進去等於送他去被蓋字——就算什麼都還沒打，光是重畫
+   * 就會讓游標和鍵盤一起沒掉，而「鍵盤留得住」正是 ↵ 這條路唯一的價值。
    */
-  const jumpToEmpty = (event: FocusEvent, from: HTMLInputElement, to: HTMLInputElement) => {
+  const avoidReading = (from: HTMLInputElement) => from === termInput && editor.prefilling;
+
+  /**
+   * 換欄：從 from 這一格往下找下一個還空著的必填格，到底繞回頭；找不到就回 null。
+   * 順序照畫面由上而下：詞條 → 讀音格（左到右）→ 釋義。
+   *
+   * 刻意不是「一律回到最上面那個空格」——那會把人往回帶，跟手指往下填表單的方向相反。
+   * 代價是中間還空的格子會被暫時跳過，繞完一圈才回來（ADR-0006）。
+   *
+   * 「離開的那一格必須有值」是前提，由呼叫端把關，這裡假設 from 已經填了。
+   */
+  const nextEmpty = (from: HTMLInputElement): HTMLInputElement | null => {
+    const cycle = avoidReading(from)
+      ? [termInput, meaningInput]
+      : [termInput, ...readingInputs(), meaningInput];
+    const at = cycle.indexOf(from);
+    // 找不到自己：讀音格在失焦的同一刻被重畫換掉了。無處可數，就不跳。
+    if (at < 0) return null;
+    for (let step = 1; step < cycle.length; step += 1) {
+      const field = cycle[(at + step) % cycle.length]!;
+      if (isEmpty(field)) return field;
+    }
+    return null;
+  };
+
+  /**
+   * 失焦那條路（ADR-0006）。iPhone 鍵盤上方那條橫條右端的「完了」是純系統 UI，按下去
+   * 網頁只收到 blur、沒有任何按鍵事件，這件事因此只能掛在失焦上。也因為不在使用者手勢裡，
+   * 焦點跳得動但鍵盤叫不回來——想留住鍵盤要按 ↵，見 jumpOnEnter。
+   *
+   * 「離開的這一格有值」是不加就會壞掉的前提：少了它，兩格都空時按打勾會來回彈，
+   * 鍵盤永遠收不掉。
+   */
+  const jumpToEmpty = (event: FocusEvent, from: HTMLInputElement) => {
     if (cancelling) return;
     // 焦點自己落到別處就不搶：另一個輸入框，或讀音區裡的任何東西——格子與拆／合的縫
     // 都算。少了這條功能會壞掉：新增卡片時釋義必定是空的，一碰讀音區就會被彈走，
@@ -185,46 +225,53 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     const next = event.relatedTarget;
     if (next instanceof HTMLInputElement) return;
     if (next instanceof HTMLElement && readingRegion.contains(next)) return;
-    if (from.value.trim() === '' || to.value.trim() !== '') return;
+    if (isEmpty(from)) return;
     // 這裡刻意不出紅字：使用者還沒說要儲存，紅字只留給真的按下儲存那一刻。
-    to.focus();
-  };
-
-  /** 由上而下第一個還空著的欄；兩欄都有值時回 null。只管詞條與釋義，讀音格不參與。 */
-  const firstEmpty = (): HTMLInputElement | null => {
-    if (termInput.value.trim() === '') return termInput;
-    if (meaningInput.value.trim() === '') return meaningInput;
-    return null;
+    nextEmpty(from)?.focus();
   };
 
   /**
-   * Enter 分兩段：還有空欄時只把游標送過去，不出紅字也不儲存；兩欄都有值才放行去存。
+   * Enter 分兩段：還有空格時只把游標送過去，不出紅字也不儲存；全部有值才放行去存。
    *
    * 手機九宮格右下角那顆 ↵ 走的就是這裡。它與收鍵盤的「完了」不同，是真按鍵——因此
    * 這支 handler 站在使用者手勢裡，`focus()` 帶得動鍵盤，跳過去之後可以直接接著打。
    *
    * 與兩顆儲存按鈕刻意不同調：按鈕是「我要存」，Enter 是「我要往下走」，紅字只留給前者。
-   * 只掛在詞條與釋義上，讀音格按 Enter 仍照舊送出表單。
    */
-  const jumpOnEnter = (event: KeyboardEvent) => {
+  const jumpOnEnter = (event: KeyboardEvent, from: HTMLInputElement) => {
     // 組字中的 Enter 是輸入法在確定候選字，不是使用者要往下走。
     if (event.key !== 'Enter' || event.isComposing) return;
-    const empty = firstEmpty();
-    if (empty === null) return;
+    // 前提一沒過就地停住：不跳，也不讓表單送出——從空格出發按 ↵ 本來就不該有事發生，
+    // 送出去反而會冒出一行「我要存」才該有的紅字。
+    if (isEmpty(from)) {
+      event.preventDefault();
+      return;
+    }
+    const to = nextEmpty(from);
+    if (to === null) {
+      // 避讓時「找不到空格」不等於全部填好——讀音格根本沒進候選，空的正是它們。
+      // 先填釋義再回頭打詞條的人（注音輸入法的典型順序）每張卡都會走到這裡，
+      // 放行送出只會換來一行紅字，那正是換欄鍵不該做的事。
+      if (avoidReading(from)) event.preventDefault();
+      return;
+    }
     event.preventDefault();
-    empty.focus();
+    to.focus();
   };
 
   const startEditing = () => {
     cancelling = false;
   };
 
-  for (const field of [termInput, meaningInput]) {
+  /** 三種必填格共用同一組：清防點空的旗子、↵ 換欄、✓（失焦）換欄。 */
+  const bindField = (field: HTMLInputElement) => {
     field.addEventListener('focus', startEditing);
-    field.addEventListener('keydown', jumpOnEnter);
-  }
-  termInput.addEventListener('blur', (event) => jumpToEmpty(event, termInput, meaningInput));
-  meaningInput.addEventListener('blur', (event) => jumpToEmpty(event, meaningInput, termInput));
+    field.addEventListener('keydown', (event) => jumpOnEnter(event, field));
+    field.addEventListener('blur', (event) => jumpToEmpty(event, field));
+  };
+
+  bindField(termInput);
+  bindField(meaningInput);
 
   const error = el('p', 'error');
 
@@ -250,10 +297,6 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     return null;
   };
 
-  /** 第 index 個讀音格的輸入框。攤平後的順序與 editor.runs 一致，commit 給的就是這個號碼。 */
-  const readingInput = (index: number): HTMLInputElement =>
-    readingRegion.querySelectorAll<HTMLInputElement>('.reading-input')[index]!;
-
   /** 兩顆按鈕共用的驗證與儲存。存好回這張卡的讀音標記，驗證沒過回 null 並留下錯誤那行。 */
   const saveCard = (): string | null => {
     const meaning = meaningInput.value.trim();
@@ -263,7 +306,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     if (!result.ok && result.reason === 'empty-term') return rejectBlank(termInput);
     if (!meaning) return rejectBlank(meaningInput);
     if (!result.ok && result.reason === 'empty-reading') {
-      return rejectBlank(readingInput(result.index));
+      return rejectBlank(readingInputs()[result.index]!);
     }
     // 讀音「填了但不是假名」不同路：列出每一條，游標不動——錯可能一次好幾個（ADR-0006）。
     if (!result.ok) {

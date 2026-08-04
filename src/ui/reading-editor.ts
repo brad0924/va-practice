@@ -55,6 +55,13 @@ export interface ReadingEditor {
   readonly runs: KanjiRun[];
   /** null 代表沒話講。 */
   readonly note: Note | null;
+  /**
+   * 讀音格接下來會不會被 AI 動到：正在問，或下一次 `prefill()` 就會去問。
+   *
+   * 換欄鍵靠它決定要不要整段跳過讀音格（ADR-0006 的避讓）。「會不會去問」比「正在問」多
+   * 一半：詢問是詞條失焦才觸發的，而按鍵發生在失焦之前——只看「正在問」第一次按永遠漏掉。
+   */
+  readonly prefilling: boolean;
   setTerm(raw: string): Change;
   setReading(ri: number, ci: number, value: string): Change;
   mergeAt(ri: number, seam: number): Change;
@@ -85,6 +92,17 @@ export function createReadingEditor(options: {
   const anyFilled = () => runs.some((run) => run.cells.some((cell) => cell.reading !== ''));
 
   /**
+   * 預填的五條守門。抽出來是因為 `prefilling` 也要看同一份清單——兩邊各寫一份會漂移，
+   * 漂移的下場是換欄鍵把游標送進讀音格、AI 的回覆再把使用者正在打的字蓋掉。
+   */
+  const willAsk = () =>
+    ask !== null &&
+    term.trim() !== '' &&
+    runs.length > 0 &&
+    !anyFilled() &&
+    term !== askedTerm;
+
+  /**
    * 詞條一改，上一次的提示就過期了——但改詞條會保留已填的讀音，
    * AI 填的假名還活著時「請確認」那行絕不能跟著消失，那是唯一擋得住讀音幻覺的東西。
    */
@@ -108,6 +126,9 @@ export function createReadingEditor(options: {
     },
     get note() {
       return note;
+    },
+    get prefilling() {
+      return note?.kind === 'asking' || willAsk();
     },
 
     setTerm(raw) {
@@ -156,9 +177,9 @@ export function createReadingEditor(options: {
      * 等回覆才做的事包成 Promise 交出去（那是 `later`）。
      */
     prefill() {
-      if (ask === null || term.trim() === '' || runs.length === 0) return silent();
-      // 已經填過的格子不覆蓋，開舊卡也因此不會觸發。
-      if (anyFilled() || term === askedTerm) return silent();
+      // 守門在 willAsk 裡：已經填過的格子不覆蓋（開舊卡也因此不會觸發）、沒金鑰全程靜默。
+      // 「沒金鑰」那條再問一次是為了型別——包在函式裡的檢查，編譯器看不出 ask 已經不是 null。
+      if (!willAsk() || ask === null) return silent();
 
       const asked = term;
       askedTerm = asked;
