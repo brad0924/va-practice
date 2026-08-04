@@ -236,16 +236,44 @@ describe('進出口', () => {
     expect(editor.commit()).toEqual({ ok: false, reason: 'empty-term' });
   });
 
-  it('儲存時同串混填混空，錯誤清單指出是哪一串', () => {
+  it('儲存時讀音全空，回報第一個空格的序號', () => {
     const editor = createReadingEditor({ ask: null });
-    editor.setTerm('帰省');
-    editor.setReading(0, 0, 'き');
+    editor.setTerm('大丈夫');
+
+    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-reading', index: 0 });
+  });
+
+  it('儲存時只填了第一格，序號指向第二格', () => {
+    const editor = createReadingEditor({ ask: null });
+    editor.setTerm('大丈夫');
+    editor.setReading(0, 0, 'だい');
+
+    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-reading', index: 1 });
+  });
+
+  it('儲存時讀音填了非假名，回錯誤清單而不是空格序號', () => {
+    const editor = createReadingEditor({ ask: null });
+    editor.setTerm('考');
+    editor.setReading(0, 0, 'kanga');
 
     expect(editor.commit()).toEqual({
       ok: false,
       reason: 'invalid',
-      errors: ['帰省 這串漢字的讀音要麼全部填、要麼全部留空'],
+      errors: ['考 的讀音要填假名'],
     });
+  });
+
+  it('開一張沒讀音的舊卡，什麼都沒改也存不回去', () => {
+    const editor = createReadingEditor({ markup: '仕事', ask: null });
+
+    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-reading', index: 0 });
+  });
+
+  it('儲存純假名詞條，沒有讀音格也存得下去', () => {
+    const editor = createReadingEditor({ ask: null });
+    editor.setTerm('ありがとう');
+
+    expect(editor.commit()).toEqual({ ok: true, text: 'ありがとう' });
   });
 
   it('儲存時組出標記字串，模組狀態不受影響', () => {

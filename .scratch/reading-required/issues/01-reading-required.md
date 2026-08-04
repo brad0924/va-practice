@@ -1,6 +1,6 @@
 # 讀音改成必填：詞條裡有漢字就一定要填讀音
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 需求
@@ -78,3 +78,13 @@ Type: enhancement
 ## Comments
 
 - 文件已先行更新：`CONTEXT.md` 的〈卡片〉〈讀音〉〈讀音格〉、`docs/spec.md` 的 user story 23 與〈讀音標記〉、新開 `docs/adr/0009-reading-required.md`。
+
+- 實作完成。「沒填」與「填錯」的分法：`Commit` 多一支 `{ reason: 'empty-reading'; index }`，`index` 是所有讀音格攤平後（跨串連號）的序號，畫面照號碼去 `readingRegion` 找第 index 個 `.reading-input`。序號由 `reading.ts` 新增的純函式 `firstEmptyReading()` 算，與 `validateDraft()` 分工：前者給位置、後者給訊息。`commit()` 裡沒填先報，讀音的假名錯誤排在它後面。
+
+- `validateDraft()` 的「沒填」訊息**一串只報一次**（不是逐格），因為那句話畫面根本不會顯示——空讀音走的是單一句紅字加游標那條路。
+
+- 「畫面（實測）」跑過的：讀音空的紅字與游標落點、`大丈夫` 只填第一格時游標落在第二格、釋義空時游標落在釋義（不是讀音格）、讀音填 `abc` 時紅字「焦 的讀音要填假名」且游標不動。四條都確認 `localStorage` 的卡數沒變。
+
+- 沒在瀏覽器跑的兩條與理由：「填好讀音存得進去」與「匯入含無讀音的備份」都會寫進使用者的真實資料（該裝置有 230 張卡且雲端備份是開著的），改由單元測試涵蓋——前者是 `reading-editor.test.ts` 的「儲存純假名詞條」與「儲存時組出標記字串」，後者是 `storage.ts` 一行未動、`storage.test.ts` 全綠。
+
+- 「編輯一張沒讀音的舊卡」那條實機也沒跑：該裝置 230 張卡沒有任何一張缺讀音。改成單元測試「開一張沒讀音的舊卡，什麼都沒改也存不回去」（`createReadingEditor({ markup: '仕事' })` → `commit()` 回 `empty-reading`），走的是同一條 `markup` 還原路徑。

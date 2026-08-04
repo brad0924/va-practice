@@ -190,7 +190,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     to.focus();
   };
 
-  /** 由上而下第一個還空著的欄；兩欄都有值時回 null。順序與 saveCard 的空白檢查一致。 */
+  /** 由上而下第一個還空著的欄；兩欄都有值時回 null。只管詞條與釋義，讀音格不參與。 */
   const firstEmpty = (): HTMLInputElement | null => {
     if (termInput.value.trim() === '') return termInput;
     if (meaningInput.value.trim() === '') return meaningInput;
@@ -243,21 +243,29 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   const toast = createToast();
 
-  /** 空欄擋下來：同一句紅字，游標落到該填的那一欄。 */
+  /** 空欄擋下來：同一句紅字，游標落到該填的那一欄。不指名是哪一格——游標已經指路。 */
   const rejectBlank = (field: HTMLInputElement): null => {
-    error.textContent = '詞條與釋義都要填。';
+    error.textContent = '詞條、讀音與釋義都要填。';
     field.focus();
     return null;
   };
+
+  /** 第 index 個讀音格的輸入框。攤平後的順序與 editor.runs 一致，commit 給的就是這個號碼。 */
+  const readingInput = (index: number): HTMLInputElement =>
+    readingRegion.querySelectorAll<HTMLInputElement>('.reading-input')[index]!;
 
   /** 兩顆按鈕共用的驗證與儲存。存好回這張卡的讀音標記，驗證沒過回 null 並留下錯誤那行。 */
   const saveCard = (): string | null => {
     const meaning = meaningInput.value.trim();
     const result = editor.commit();
-    // 詞條空白與釋義空白在這裡合成同一句，順序維持現狀：空白檢查先、讀音驗證後。
-    // 兩欄都空時焦點落在詞條——由上而下第一個該填的那欄。
+    // 三處「沒填」合成同一句紅字，游標落在第一個該填的地方。順序是詞條 → 釋義 → 讀音，
+    // 刻意不照畫面的由上而下（讀音夾在中間），讀音排最後是使用者選的（ADR-0009）。
     if (!result.ok && result.reason === 'empty-term') return rejectBlank(termInput);
     if (!meaning) return rejectBlank(meaningInput);
+    if (!result.ok && result.reason === 'empty-reading') {
+      return rejectBlank(readingInput(result.index));
+    }
+    // 讀音「填了但不是假名」不同路：列出每一條，游標不動——錯可能一次好幾個（ADR-0006）。
     if (!result.ok) {
       error.textContent = result.errors.join('；');
       return null;

@@ -9,6 +9,7 @@ import {
   mergeSeam,
   splitCellAt,
   validateDraft,
+  firstEmptyReading,
   acceptPrefill,
   type KanjiRun,
 } from './reading';
@@ -391,7 +392,7 @@ describe('儲存驗證 validateDraft', () => {
     expect(validateDraft(draft).length).toBeGreaterThan(0);
   });
 
-  it('同串全空通過', () => {
+  it('同串全空被擋，一串回一個錯', () => {
     const draft = {
       term: '今日中',
       runs: [
@@ -402,17 +403,91 @@ describe('儲存驗證 validateDraft', () => {
         ]),
       ],
     };
+    expect(validateDraft(draft)).toHaveLength(1);
+  });
+
+  it('同串全填通過', () => {
+    const draft = {
+      term: '今日中',
+      runs: [
+        run([
+          { kanji: '今', reading: 'こん' },
+          { kanji: '日', reading: 'にち' },
+          { kanji: '中', reading: 'ちゅう' },
+        ]),
+      ],
+    };
     expect(validateDraft(draft)).toEqual([]);
+  });
+
+  it('沒有漢字就沒有讀音格，一律通過', () => {
+    expect(validateDraft({ term: 'ありがとう', runs: [] })).toEqual([]);
+    expect(validateDraft({ term: 'テスト', runs: [] })).toEqual([]);
   });
 
   it('讀音含羅馬字被擋', () => {
     const draft = { term: '考', runs: [run([{ kanji: '考', reading: 'kanga' }])] };
-    expect(validateDraft(draft).length).toBeGreaterThan(0);
+    expect(validateDraft(draft)).toEqual(['考 的讀音要填假名']);
   });
 
   it('片假名加長音符通過', () => {
     const draft = { term: 'コ', runs: [run([{ kanji: 'コ', reading: 'コーヒー' }])] };
     expect(validateDraft(draft)).toEqual([]);
+  });
+});
+
+describe('第一個空讀音格 firstEmptyReading', () => {
+  const run = (start: number, cells: { kanji: string; reading: string }[]): KanjiRun => ({
+    start,
+    cells,
+  });
+
+  it('全空回第一格', () => {
+    const draft = {
+      term: '大丈夫',
+      runs: [
+        run(0, [
+          { kanji: '大', reading: '' },
+          { kanji: '丈', reading: '' },
+          { kanji: '夫', reading: '' },
+        ]),
+      ],
+    };
+    expect(firstEmptyReading(draft)).toBe(0);
+  });
+
+  it('填了第一格回第二格', () => {
+    const draft = {
+      term: '大丈夫',
+      runs: [
+        run(0, [
+          { kanji: '大', reading: 'だい' },
+          { kanji: '丈', reading: '' },
+          { kanji: '夫', reading: '' },
+        ]),
+      ],
+    };
+    expect(firstEmptyReading(draft)).toBe(1);
+  });
+
+  it('跨串連號，序號不因為換了一串而歸零', () => {
+    const draft = {
+      term: '書き下ろす',
+      runs: [
+        run(0, [{ kanji: '書', reading: 'か' }]),
+        run(2, [{ kanji: '下', reading: '' }]),
+      ],
+    };
+    expect(firstEmptyReading(draft)).toBe(1);
+  });
+
+  it('全部填好回 null', () => {
+    const draft = { term: '焦がす', runs: [run(0, [{ kanji: '焦', reading: 'こ' }])] };
+    expect(firstEmptyReading(draft)).toBeNull();
+  });
+
+  it('沒有讀音格回 null', () => {
+    expect(firstEmptyReading({ term: 'ありがとう', runs: [] })).toBeNull();
   });
 });
 
