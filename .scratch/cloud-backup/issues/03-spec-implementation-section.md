@@ -1,6 +1,6 @@
 # docs/spec.md 補上雲端備份，並訂正過期的 Out of Scope
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 ## 需求
