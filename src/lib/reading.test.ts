@@ -9,7 +9,6 @@ import {
   mergeSeam,
   splitCellAt,
   validateDraft,
-  firstEmptyReading,
   acceptPrefill,
   type KanjiRun,
 } from './reading';
@@ -378,7 +377,10 @@ describe('改詞條重算 rebuildRuns', () => {
 describe('儲存驗證 validateDraft', () => {
   const run = (cells: { kanji: string; reading: string }[]): KanjiRun => ({ start: 0, cells });
 
-  it('同串混填混空被擋', () => {
+  // 底下兩個空格案例測的是守門，不是使用者看得到的錯：畫面按儲存時必填格已經先擋過空格，
+  // 走到這裡代表輸入框與讀音格漂移了，這句紅字不會出現在畫面上。
+
+  it('同串混填混空被擋（守門，畫面走不到）', () => {
     const draft = {
       term: '今日中',
       runs: [
@@ -392,7 +394,7 @@ describe('儲存驗證 validateDraft', () => {
     expect(validateDraft(draft).length).toBeGreaterThan(0);
   });
 
-  it('同串全空被擋，一串回一個錯', () => {
+  it('同串全空被擋，一串回一個錯（守門，畫面走不到）', () => {
     const draft = {
       term: '今日中',
       runs: [
@@ -433,61 +435,6 @@ describe('儲存驗證 validateDraft', () => {
   it('片假名加長音符通過', () => {
     const draft = { term: 'コ', runs: [run([{ kanji: 'コ', reading: 'コーヒー' }])] };
     expect(validateDraft(draft)).toEqual([]);
-  });
-});
-
-describe('第一個空讀音格 firstEmptyReading', () => {
-  const run = (start: number, cells: { kanji: string; reading: string }[]): KanjiRun => ({
-    start,
-    cells,
-  });
-
-  it('全空回第一格', () => {
-    const draft = {
-      term: '大丈夫',
-      runs: [
-        run(0, [
-          { kanji: '大', reading: '' },
-          { kanji: '丈', reading: '' },
-          { kanji: '夫', reading: '' },
-        ]),
-      ],
-    };
-    expect(firstEmptyReading(draft)).toBe(0);
-  });
-
-  it('填了第一格回第二格', () => {
-    const draft = {
-      term: '大丈夫',
-      runs: [
-        run(0, [
-          { kanji: '大', reading: 'だい' },
-          { kanji: '丈', reading: '' },
-          { kanji: '夫', reading: '' },
-        ]),
-      ],
-    };
-    expect(firstEmptyReading(draft)).toBe(1);
-  });
-
-  it('跨串連號，序號不因為換了一串而歸零', () => {
-    const draft = {
-      term: '書き下ろす',
-      runs: [
-        run(0, [{ kanji: '書', reading: 'か' }]),
-        run(2, [{ kanji: '下', reading: '' }]),
-      ],
-    };
-    expect(firstEmptyReading(draft)).toBe(1);
-  });
-
-  it('全部填好回 null', () => {
-    const draft = { term: '焦がす', runs: [run(0, [{ kanji: '焦', reading: 'こ' }])] };
-    expect(firstEmptyReading(draft)).toBeNull();
-  });
-
-  it('沒有讀音格回 null', () => {
-    expect(firstEmptyReading({ term: 'ありがとう', runs: [] })).toBeNull();
   });
 });
 

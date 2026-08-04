@@ -289,25 +289,12 @@ function joinCells(cells: ReadingCell[]): ReadingCell {
 }
 
 /**
- * 第一個還沒填讀音的格是第幾格，全部填好回 null。
- * 序號是整份 draft 的讀音格攤平後的順序（跨串連號），畫面照這個號碼把游標送過去。
- * 與 `validateDraft` 分開：沒填要跳游標、填錯不跳，兩者的處理不同。
- */
-export function firstEmptyReading(draft: ReadingDraft): number | null {
-  let index = 0;
-  for (const run of draft.runs) {
-    for (const cell of run.cells) {
-      if (cell.reading === '') return index;
-      index += 1;
-    }
-  }
-  return null;
-}
-
-/**
  * 儲存時檢查：每一格都要填、讀音只能是假名。回傳錯誤訊息，全過為空。
- * 沒填的格子一串只報一次——畫面根本不顯示這句（改用單一句紅字加游標，見 ADR-0009），
- * 逐格報只是把同一件事講三遍。
+ *
+ * 「沒填」那段是道守門，不是給人看的：畫面按下儲存時 `required-fields.ts` 已經先擋過空格
+ * （單一句紅字加游標，見 ADR-0009），走到這裡還有空格代表輸入框與讀音格的內容漂移了。
+ * 少了這段，一張沒讀音的卡會靜默存進去，正是 ADR-0009 要擋的東西。
+ * 一串只報一次：反正不該發生，逐格報只是把同一件事講三遍。
  */
 export function validateDraft(draft: ReadingDraft): string[] {
   const errors: string[] = [];

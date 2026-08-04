@@ -295,44 +295,34 @@ describe('進出口', () => {
     expect(editor.runs).toEqual([{ start: 0, cells: [{ kanji: '焦', reading: 'こ' }] }]);
   });
 
-  it('儲存時詞條空白', () => {
-    const editor = createReadingEditor({ ask: null });
-    editor.setTerm('   ');
-
-    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-term' });
-  });
-
-  it('儲存時讀音全空，回報第一個空格的序號', () => {
-    const editor = createReadingEditor({ ask: null });
-    editor.setTerm('大丈夫');
-
-    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-reading', index: 0 });
-  });
-
-  it('儲存時只填了第一格，序號指向第二格', () => {
-    const editor = createReadingEditor({ ask: null });
-    editor.setTerm('大丈夫');
-    editor.setReading(0, 0, 'だい');
-
-    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-reading', index: 1 });
-  });
-
-  it('儲存時讀音填了非假名，回錯誤清單而不是空格序號', () => {
+  it('儲存時讀音填了非假名，回錯誤清單', () => {
     const editor = createReadingEditor({ ask: null });
     editor.setTerm('考');
     editor.setReading(0, 0, 'kanga');
 
+    expect(editor.commit()).toEqual({ ok: false, errors: ['考 的讀音要填假名'] });
+  });
+
+  // 空讀音格是道守門：畫面按儲存時必填格已經先擋過，走到 commit 代表輸入框與讀音格漂移了。
+  // 少了它，一張沒讀音的卡會靜默存進去（ADR-0009）。
+  it('讀音還空著就 commit：守門擋下，不會靜默存成沒讀音的卡', () => {
+    const editor = createReadingEditor({ ask: null });
+    editor.setTerm('大丈夫');
+    editor.setReading(0, 0, 'だい');
+
     expect(editor.commit()).toEqual({
       ok: false,
-      reason: 'invalid',
-      errors: ['考 的讀音要填假名'],
+      errors: ['大丈夫 這串漢字的讀音每一格都要填'],
     });
   });
 
   it('開一張沒讀音的舊卡，什麼都沒改也存不回去', () => {
     const editor = createReadingEditor({ markup: '仕事', ask: null });
 
-    expect(editor.commit()).toEqual({ ok: false, reason: 'empty-reading', index: 0 });
+    expect(editor.commit()).toEqual({
+      ok: false,
+      errors: ['仕事 這串漢字的讀音每一格都要填'],
+    });
   });
 
   it('儲存純假名詞條，沒有讀音格也存得下去', () => {

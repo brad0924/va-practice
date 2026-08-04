@@ -17,7 +17,6 @@ import {
   mergeSeam,
   splitCellAt,
   validateDraft,
-  firstEmptyReading,
   acceptPrefill,
   type KanjiRun,
   type ReadingDraft,
@@ -40,14 +39,10 @@ export type Note =
   | { kind: 'failed'; reason: string };
 
 /**
- * `empty-reading` 與 `invalid` 刻意分家：沒填要把游標送到那一格，填錯只出紅字、游標不動
- * （ADR-0009）。`index` 是讀音格攤平後的序號，畫面照號碼找輸入框。
+ * 「沒填」不在這裡：必填由 `required-fields.ts` 一手判，畫面按儲存時先問過它才會走到 commit。
+ * 這裡回的錯只有一種——填了但填錯（讀音不是假名），出紅字、游標不動（ADR-0009）。
  */
-export type Commit =
-  | { ok: true; text: string }
-  | { ok: false; reason: 'empty-term' }
-  | { ok: false; reason: 'empty-reading'; index: number }
-  | { ok: false; reason: 'invalid'; errors: string[] };
+export type Commit = { ok: true; text: string } | { ok: false; errors: string[] };
 
 export interface ReadingEditor {
   /** 目前的詞條原文，不含任何標記。 */
@@ -188,15 +183,11 @@ export function createReadingEditor(options: {
 
     commit() {
       const trimmed = term.trim();
-      if (trimmed === '') return { ok: false, reason: 'empty-term' };
       // 對齊 trim 後的詞條，讀音照漢字內容搬過來。模組自己的狀態不動——
       // 驗證沒過時使用者還留在畫面上，這裡改了就會跟輸入框裡的不一致。
       const draft: ReadingDraft = { term: trimmed, runs: rebuildRuns(trimmed, runs) };
-      // 沒填先報：它是三種欄位共用那條「還空著就要填」，與讀音填錯不同路。
-      const empty = firstEmptyReading(draft);
-      if (empty !== null) return { ok: false, reason: 'empty-reading', index: empty };
       const errors = validateDraft(draft);
-      if (errors.length > 0) return { ok: false, reason: 'invalid', errors };
+      if (errors.length > 0) return { ok: false, errors };
       return { ok: true, text: toMarkup(draft) };
     },
   };

@@ -5,6 +5,7 @@ import type { Card } from '../lib/types';
 import { toMarkup, toPlainText, type KanjiRun, type ReadingCell } from '../lib/reading';
 import { askReading } from '../lib/gemini-reading';
 import { createReadingEditor, type Change, type Note } from './reading-editor';
+import { createRequiredFields, type FieldRef } from './required-fields';
 import { el, button } from './dom';
 import { createToast } from './toast';
 import { renderTerm } from './reading-html';
@@ -171,48 +172,37 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     cancelling = true;
   });
 
-  /** 目前畫面上的讀音格，攤平後由左到右——順序與 editor.runs 一致，commit 給的序號也照這個數。 */
+  /** 目前畫面上的讀音格，攤平後由左到右——順序與 editor.runs 一致，必填格的序號也照這個數。 */
   const readingInputs = (): HTMLInputElement[] => [
     ...readingRegion.querySelectorAll<HTMLInputElement>('.reading-input'),
   ];
 
-  /** 還空著＝還沒填完。三種必填格共用這一句，前提一與輪詢的終點判斷都看它。 */
-  const isEmpty = (field: HTMLInputElement) => field.value.trim() === '';
+  // 「還空著」與兩條順序（換欄、儲存）全在這台機器裡，畫面只負責把輸入框翻成序號、
+  // 再把它回的序號翻回輸入框。值一律現取畫面上的字，因此讀音格重畫也不必重接。
+  const fields = createRequiredFields({
+    term: () => termInput.value,
+    readings: () => readingInputs().map((input) => input.value),
+    meaning: () => meaningInput.value,
+    prefilling: () => editor.prefilling,
+  });
 
-  /**
-   * 這一輪要不要把讀音格整段跳過（ADR-0006 的 AI 預填避讓）。離開詞條的這一刻讀音格
-   * 隨時會被回覆整批換掉，把人送進去等於送他去被蓋字——就算什麼都還沒打，光是重畫
-   * 就會讓游標和鍵盤一起沒掉，而「鍵盤留得住」正是 ↵ 這條路唯一的價值。
-   */
-  const avoidReading = (from: HTMLInputElement) => from === termInput && editor.prefilling;
+  /** 輸入框 → 必填格。讀音格在失焦的同一刻被重畫換掉時 indexOf 回 -1，必填格會當它是空的。 */
+  const refOf = (field: HTMLInputElement): FieldRef => {
+    if (field === termInput) return { kind: 'term' };
+    if (field === meaningInput) return { kind: 'meaning' };
+    return { kind: 'reading', index: readingInputs().indexOf(field) };
+  };
 
-  /**
-   * 換欄：從 from 這一格往下找下一個還空著的必填格，到底繞回頭；找不到就回 null。
-   * 順序照畫面由上而下：詞條 → 讀音格（左到右）→ 釋義。
-   *
-   * 刻意不是「一律回到最上面那個空格」——那會把人往回帶，跟手指往下填表單的方向相反。
-   * 代價是中間還空的格子會被暫時跳過，繞完一圈才回來（ADR-0006）。
-   *
-   * 避讓找不到空格時（＝釋義已經有值，唯一還空著的正是被移出候選的讀音格）就退讓，
-   * 改用完整的一圈再找一次。少了這一步 ↵ 會變成死鍵：既不跳、也因為焦點沒被移走而
-   * 連 AI 都不會開始問。退讓做在這裡，↵ 與 ✓ 兩條路自然共用同一個落點（ADR-0006）。
-   *
-   * 「離開的那一格必須有值」是前提，由呼叫端把關，這裡假設 from 已經填了。
-   */
-  const nextEmpty = (from: HTMLInputElement): HTMLInputElement | null => {
-    /** 從 from 起算，往下找這一圈裡第一個還空著的格子，到底繞回頭。 */
-    const nextEmptyIn = (cycle: HTMLInputElement[]): HTMLInputElement | null => {
-      const at = cycle.indexOf(from);
-      // 找不到自己：從讀音格出發，而它在失焦的同一刻被重畫換掉了。無處可數，就不跳。
-      if (at < 0) return null;
-      for (let step = 1; step < cycle.length; step += 1) {
-        const field = cycle[(at + step) % cycle.length]!;
-        if (isEmpty(field)) return field;
-      }
-      return null;
-    };
-    const avoided = avoidReading(from) ? nextEmptyIn([termInput, meaningInput]) : null;
-    return avoided ?? nextEmptyIn([termInput, ...readingInputs(), meaningInput]);
+  /** 必填格 → 輸入框。序號是必填格剛從畫面數出來的，一定找得到。 */
+  const nodeOf = (ref: FieldRef): HTMLInputElement => {
+    switch (ref.kind) {
+      case 'term':
+        return termInput;
+      case 'meaning':
+        return meaningInput;
+      case 'reading':
+        return readingInputs()[ref.index]!;
+    }
   };
 
   /**
@@ -231,9 +221,10 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     const next = event.relatedTarget;
     if (next instanceof HTMLInputElement) return;
     if (next instanceof HTMLElement && readingRegion.contains(next)) return;
-    if (isEmpty(from)) return;
     // 這裡刻意不出紅字：使用者還沒說要儲存，紅字只留給真的按下儲存那一刻。
-    nextEmpty(from)?.focus();
+    // 前提一沒過（stay）與全部有值（done）都不必做事——✓ 本來就不送出表單。
+    const jump = fields.nextEmpty(refOf(from));
+    if (jump.kind === 'move') nodeOf(jump.to).focus();
   };
 
   /**
@@ -247,17 +238,13 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   const jumpOnEnter = (event: KeyboardEvent, from: HTMLInputElement) => {
     // 組字中的 Enter 是輸入法在確定候選字，不是使用者要往下走。
     if (event.key !== 'Enter' || event.isComposing) return;
-    // 前提一沒過就地停住：不跳，也不讓表單送出——從空格出發按 ↵ 本來就不該有事發生，
-    // 送出去反而會冒出一行「我要存」才該有的紅字。
-    if (isEmpty(from)) {
-      event.preventDefault();
-      return;
-    }
-    const to = nextEmpty(from);
-    // 找不到空格只剩一種意思：真的全部有值。避讓那一種已經在 nextEmpty 裡退讓掉了。
-    if (to === null) return;
+    const jump = fields.nextEmpty(refOf(from));
+    // 全部有值才放行讓表單送出去存。
+    if (jump.kind === 'done') return;
+    // 剩下兩種都得攔：move 是要自己跳，stay 是前提一沒過——從空格出發按 ↵ 本來就不該
+    // 有事發生，送出去反而會冒出一行「我要存」才該有的紅字。
     event.preventDefault();
-    to.focus();
+    if (jump.kind === 'move') nodeOf(jump.to).focus();
   };
 
   const startEditing = () => {
@@ -300,15 +287,10 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   /** 兩顆按鈕共用的驗證與儲存。存好回這張卡的讀音標記，驗證沒過回 null 並留下錯誤那行。 */
   const saveCard = (): string | null => {
-    const meaning = meaningInput.value.trim();
+    // 三處「沒填」合成同一句紅字，游標落在第一個該填的地方。順序由必填格決定（ADR-0009）。
+    const blocking = fields.firstBlocking();
+    if (blocking !== null) return rejectBlank(nodeOf(blocking));
     const result = editor.commit();
-    // 三處「沒填」合成同一句紅字，游標落在第一個該填的地方。順序是詞條 → 釋義 → 讀音，
-    // 刻意不照畫面的由上而下（讀音夾在中間），讀音排最後是使用者選的（ADR-0009）。
-    if (!result.ok && result.reason === 'empty-term') return rejectBlank(termInput);
-    if (!meaning) return rejectBlank(meaningInput);
-    if (!result.ok && result.reason === 'empty-reading') {
-      return rejectBlank(readingInputs()[result.index]!);
-    }
     // 讀音「填了但不是假名」不同路：列出每一條，游標不動——錯可能一次好幾個（ADR-0006）。
     if (!result.ok) {
       error.textContent = result.errors.join('；');
@@ -323,6 +305,8 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       error.textContent = toMessage(reason);
       return null;
     }
+    // 存進去的釋義去掉頭尾空白；「還空著」那條已經由必填格擋過，這裡只是不留空白進資料。
+    const meaning = meaningInput.value.trim();
     // 存成功才記住，下一張新卡就預設同一本——連續往同一本加字時不必每次重選。
     const bookId = bookSelect.value;
     lastBookId = bookId;
