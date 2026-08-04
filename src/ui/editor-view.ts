@@ -193,20 +193,26 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
    * 刻意不是「一律回到最上面那個空格」——那會把人往回帶，跟手指往下填表單的方向相反。
    * 代價是中間還空的格子會被暫時跳過，繞完一圈才回來（ADR-0006）。
    *
+   * 避讓找不到空格時（＝釋義已經有值，唯一還空著的正是被移出候選的讀音格）就退讓，
+   * 改用完整的一圈再找一次。少了這一步 ↵ 會變成死鍵：既不跳、也因為焦點沒被移走而
+   * 連 AI 都不會開始問。退讓做在這裡，↵ 與 ✓ 兩條路自然共用同一個落點（ADR-0006）。
+   *
    * 「離開的那一格必須有值」是前提，由呼叫端把關，這裡假設 from 已經填了。
    */
   const nextEmpty = (from: HTMLInputElement): HTMLInputElement | null => {
-    const cycle = avoidReading(from)
-      ? [termInput, meaningInput]
-      : [termInput, ...readingInputs(), meaningInput];
-    const at = cycle.indexOf(from);
-    // 找不到自己：讀音格在失焦的同一刻被重畫換掉了。無處可數，就不跳。
-    if (at < 0) return null;
-    for (let step = 1; step < cycle.length; step += 1) {
-      const field = cycle[(at + step) % cycle.length]!;
-      if (isEmpty(field)) return field;
-    }
-    return null;
+    /** 從 from 起算，往下找這一圈裡第一個還空著的格子，到底繞回頭。 */
+    const nextEmptyIn = (cycle: HTMLInputElement[]): HTMLInputElement | null => {
+      const at = cycle.indexOf(from);
+      // 找不到自己：從讀音格出發，而它在失焦的同一刻被重畫換掉了。無處可數，就不跳。
+      if (at < 0) return null;
+      for (let step = 1; step < cycle.length; step += 1) {
+        const field = cycle[(at + step) % cycle.length]!;
+        if (isEmpty(field)) return field;
+      }
+      return null;
+    };
+    const avoided = avoidReading(from) ? nextEmptyIn([termInput, meaningInput]) : null;
+    return avoided ?? nextEmptyIn([termInput, ...readingInputs(), meaningInput]);
   };
 
   /**
@@ -248,13 +254,8 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       return;
     }
     const to = nextEmpty(from);
-    if (to === null) {
-      // 避讓時「找不到空格」不等於全部填好——讀音格根本沒進候選，空的正是它們。
-      // 先填釋義再回頭打詞條的人（注音輸入法的典型順序）每張卡都會走到這裡，
-      // 放行送出只會換來一行紅字，那正是換欄鍵不該做的事。
-      if (avoidReading(from)) event.preventDefault();
-      return;
-    }
+    // 找不到空格只剩一種意思：真的全部有值。避讓那一種已經在 nextEmpty 裡退讓掉了。
+    if (to === null) return;
     event.preventDefault();
     to.focus();
   };
