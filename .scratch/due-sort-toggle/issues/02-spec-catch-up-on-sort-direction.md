@@ -1,6 +1,6 @@
 # docs/spec.md 補上到期排序的方向切換
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 ## 需求
