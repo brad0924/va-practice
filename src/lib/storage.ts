@@ -10,7 +10,7 @@
  * 舊格式的相容也在這裡，且只在這裡：本機 localStorage、匯入備份檔、
  * 雲端拉下來的那一份走的都是 parseAppData()，改一處三條路都涵蓋到。
  *
- * 目前實作為瀏覽器本機儲存；日後若改接雲端服務，僅需替換此模組內部（見 ADR-0002）。
+ * 目前實作為瀏覽器本機儲存（見 ADR-0002）。
  */
 import type { AppData, Book, BookScopes, Card } from './types';
 import { DEFAULT_EASE, isDateKey } from './review';
