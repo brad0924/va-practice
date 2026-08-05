@@ -13,6 +13,7 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "devDependencies": {
+    "jsdom": "^30.0.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.7",
     "vite-plugin-pwa": "^1.0.3",

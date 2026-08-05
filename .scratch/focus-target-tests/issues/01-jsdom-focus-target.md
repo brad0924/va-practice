@@ -1,6 +1,6 @@
 # 焦點落點分類補上測試：只為這兩條裝 jsdom
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 現況
@@ -147,3 +147,28 @@ jsdom 30.0.1，探針全文見下方 Comments。
 ```
 
 探針 4 是自己對 `cancel` 呼叫 `focus()`，觀察 jsdom 會不會連帶發出 pointerdown——不會，只有 blur。
+
+### 實作時補的一條：`activeElement` 看不出「有沒有被搶」（2026-08-05）
+
+驗收條件原本寫成「焦點停在讀音格」，照字面用 `document.activeElement` 斷言。實作後把
+`editor-view.ts:222-223` 兩個 `if` 都拔掉重跑，七條**全部照樣綠**——那三條「不搶」是空的。
+
+原因是 `focus()` 的順序：先發 blur、等處理器跑完，才把新目標設成 `activeElement`。
+失焦處理器中途 `focus()` 搶走的那一下會被後面這步蓋回去，終點永遠是使用者點的那一個。
+事件序列看得到（探針，兩個 `if` 都拔掉時）：
+
+```
+term→讀音格   ["f:term","b:term","f:r0","f:r0"]     ← r0 被搶著聚焦了一次，然後又聚焦一次
+term→縫       ["f:term","b:term","f:r0","f:seam"]   ← 多出來的 f:r0 就是被搶的那一下
+term→釋義     ["f:term","b:term","f:r0","f:meaning"]
+```
+
+因此改成斷言「這一趟裡拿到 `focus` 事件的元素依序有誰」（`focusTrail`，捕獲階段接，
+`focus` 不冒泡）。拔掉驗證過：只拔第一個 `if` → 第三條紅；只拔第二個 → 第二條紅；
+兩個都拔 → 三條全紅。production code 最終一行未動。
+
+### 這張票看漏了 spec 的另外三句（2026-08-05）
+
+「這張票不做的事」只處理了 `docs/spec.md:105`，但真正被翻案的是 `:206`／`:208`／`:227`
+那三句「畫面本身不撰寫自動化測試」——`:208` 還點名了 jsdom。code review 才抓到。
+文件另開 `02-docs-for-jsdom-focus-target.md` 處理，本票的程式範圍不受影響。
