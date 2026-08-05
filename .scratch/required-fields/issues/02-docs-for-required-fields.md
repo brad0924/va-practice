@@ -1,6 +1,6 @@
 # 文件跟上必填格：詞彙、spec 的第五個模組、ADR-0006 的過期敘述
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 01
 
@@ -65,3 +65,19 @@ _Avoid_: 驗證器、必填欄位（太泛）、輪詢器（把手段寫進名�
 - 搜 `docs/` 與 `CONTEXT.md`，沒有任何一處在描述 `01` 刪掉的東西（`firstEmptyReading`、`Commit` 的 `empty-term` 與 `empty-reading`）。`.scratch/` 底下的舊票不在此列——那是決策紀錄，照慣例保留原樣。
 
 ## Comments
+
+### 實作完成（2026-08-05）
+
+五處全部照做。兩點與票上的字面不同，都記在這裡：
+
+- **互相提及不用 `[[必填格]]`。** 票上寫「用 `[[必填格]]` 的方式指過去（沿用現有條目互相提及的寫法）」，但 `CONTEXT.md` 與 `docs/agents/domain.md` 全檔一個 `[[ ]]` 都沒有——現有條目一律純文字提及（〈讀音編輯器〉本身就寫「該去讀音預填」）。括號那句是決勝負的，因此照現有寫法，在〈讀音編輯器〉補的是「哪一格還空著不歸它管，那是必填格的事——它的儲存只做假名檢查與組出讀音標記。」
+- **多改了一處數字：`docs/spec.md:199`「不在上面那四塊裡」→ 五塊。** 票列的是三處，但這一句指的是同一份接縫清單，驗收條件寫「沒有一處還停在四個」，涵蓋它。
+
+Review 後又修了兩處：
+
+- **票上寫的「AI 預填期間的避讓與退讓」改成「讀音預填期間」**（`docs/spec.md` 兩處）。`CONTEXT.md`〈讀音預填〉的 `_Avoid_` 明列「AI 標音（把手段寫進名字）」，`docs/agents/domain.md` 要求產出使用詞彙表的詞；而且 `docs/spec.md` 在這次之前一個 AI 都沒有，寫進去還得補中英文全名。改用正式詞兩個問題一起沒了，規則敘述一字不動。
+- **ADR-0006 結尾的「要動哪裡」補完**。原本只寫模組與畫面兩支 handler，照著做會剩三處死碼：`bindField` 裡掛它們的兩行、只服務它們的 `refOf`、只有 `jumpToEmpty` 在讀的 `cancelling` 旗子（連同取消鈕的 `pointerdown` 與 `startEditing`）——最後這個 ADR 自己在〈Considered Options〉就當成本套決定的一部分寫過。驗收第三條要的是「照著做真的能拿掉這整套」，補上才算數。同時點名 `nodeOf` 因為 `saveCard` 也在用而要留著。
+
+ADR-0006 結尾對照 `01` 落地後的程式驗過：`nextEmpty`（含 `avoidReading`）的唯一呼叫端就是 `editor-view.ts` 的 `jumpOnEnter` 與 `jumpToEmpty` 兩支，`firstBlocking` 是儲存那條路、不受影響，所以結尾寫的「要動兩個地方」照著做真的能拿掉這整套。
+
+`npm test` 320 綠、`npm run typecheck` 過（純文件改動，本來就不該有變化）。搜 `docs/` 與 `CONTEXT.md`：`firstEmptyReading`、`empty-term`、`empty-reading` 零命中。
