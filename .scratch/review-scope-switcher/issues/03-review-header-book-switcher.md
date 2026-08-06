@@ -1,6 +1,6 @@
 # 03 — 複習頁標題列加上單字本下拉，切換複習範圍
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 01, 02
 

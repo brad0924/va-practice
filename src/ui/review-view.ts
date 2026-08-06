@@ -1,6 +1,8 @@
 import type { App } from '../app';
+import { setScope } from '../lib/storage';
 import { currentCard, isComplete } from '../lib/review';
 import type { Rating } from '../lib/types';
+import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 import { hasJapaneseVoice, speak } from './speech';
@@ -12,63 +14,119 @@ const RATING_BUTTONS: { rating: Rating; label: string; key: string }[] = [
   { rating: 'easy', label: '簡單', key: '4' },
 ];
 
+/**
+ * 複習畫面。標題列中央有一顆單字本開關，改的是複習範圍那一組；資料頁單字本區
+ * 每一列的勾選框是同一組範圍的另一個入口，兩邊改的是同一個東西。
+ *
+ * 「複習中」與「今日份完成」是同一支函式畫的：頂部列建一次就不再動，`main` 與
+ * `footer` 由 refresh() 依 isComplete() 換內容。分成兩支的話，勾一勾剛好把佇列
+ * 勾空時得整頁重建，開著的選單會跟著收起來。
+ *
+ * 零本是另一件事，另有 noBooksView()——那時選單是空的，放上去就是顆死按鈕。
+ */
 export function reviewView(app: App): HTMLElement {
-  // 零本與「今天練完了」是兩件事，空狀態各說各的。這裡沒有任何單字本開關——
-  // 複習範圍在資料頁設（見票 05），答題時視線裡不放多餘的東西。
   if (app.data.books.length === 0) return noBooksView(app);
-  if (isComplete(app.queue)) return doneView(app);
-  const card = currentCard(app.queue)!;
 
   const screen = el('div', 'screen');
 
-  const header = el('header', 'bar');
-  header.append(
-    el('span', 'remaining', `剩餘 ${app.queue.length} 張`),
-    button('bar-action', '卡片', () => app.showList()),
-  );
+  const remaining = el('span', 'remaining');
 
-  const face = el('div', 'face');
-  face.append(el('div', 'term', renderTerm(card.text, app.revealed)));
+  // 選單展開期間快捷鍵讓路，見底下的 keyHandler。
+  let menuOpen = false;
 
-  if (app.revealed) {
-    face.append(el('div', 'meaning', card.meaning));
-    if (hasJapaneseVoice()) {
-      const speakButton = button('speak', '🔊 朗讀', () => speak(card.text));
-      speakButton.setAttribute('aria-label', '朗讀這個詞條');
-      face.append(speakButton);
-    }
-  }
+  // 只重畫 main 與 footer 而不整頁重建（不呼叫 app.showReview()），下拉才不會
+  // 每勾一本就收起來。app.applyData() 會保住正在看的那張卡，見 review.ts 的 rebuildQueue()。
+  const books = bookFilter({
+    books: app.data.books,
+    selected: app.data.scopes.review,
+    variant: 'pill',
+    onChange: (ids) => {
+      app.applyData(setScope(app.data, 'review', ids));
+      refresh();
+    },
+    onOpenChange: (open) => {
+      menuOpen = open;
+    },
+  });
+
+  const header = el('header', 'bar bar-centered');
+  header.append(remaining, books, button('bar-action', '卡片', () => app.showList()));
 
   const main = el('main', 'card');
-  main.append(
-    button('edit-here', '編輯', () => app.showEditor(card, () => app.showReview())),
-    face,
-  );
+  const footer = el('footer', 'actions');
 
+  // 掀答案與評分影響的也只有 main 與 footer，一併走 refresh()：規則一條走到底——
+  // 選單開著時，畫面上任何操作都不會弄丟選單。快捷鍵被閘門擋住，但滑鼠點得到底部的評分列。
   const reveal = () => {
     app.reveal();
-    app.showReview();
+    refresh();
   };
 
   const submit = (rating: Rating) => {
     app.rate(rating);
-    app.showReview();
+    refresh();
   };
 
-  const footer = el('footer', 'actions');
-  if (app.revealed) {
-    footer.classList.add('ratings');
-    for (const { rating, label, key } of RATING_BUTTONS) {
-      const node = button(`rating rating-${rating}`, label, () => submit(rating));
-      node.append(el('span', 'key-hint', key));
-      footer.append(node);
+  function refresh(): void {
+    const complete = isComplete(app.queue);
+    remaining.textContent = `剩餘 ${app.queue.length} 張`;
+    main.classList.toggle('done', complete);
+    footer.classList.toggle('ratings', !complete && app.revealed);
+
+    if (complete) {
+      main.replaceChildren(
+        el('div', 'done-mark', '✓'),
+        el('h1', 'done-title', '今日份完成'),
+        el('p', 'done-note', '到期的卡片都複習過了，明天再來。'),
+      );
+      footer.replaceChildren(button('secondary', '瀏覽全部卡片', () => app.showList()));
+      return;
     }
-  } else {
-    footer.append(button('primary', '顯示答案', reveal));
+
+    const card = currentCard(app.queue)!;
+
+    const face = el('div', 'face');
+    face.append(el('div', 'term', renderTerm(card.text, app.revealed)));
+    if (app.revealed) {
+      face.append(el('div', 'meaning', card.meaning));
+      if (hasJapaneseVoice()) {
+        const speakButton = button('speak', '🔊 朗讀', () => speak(card.text));
+        speakButton.setAttribute('aria-label', '朗讀這個詞條');
+        face.append(speakButton);
+      }
+    }
+
+    main.replaceChildren(
+      button('edit-here', '編輯', () => app.showEditor(card, () => app.showReview())),
+      face,
+    );
+
+    if (app.revealed) {
+      footer.replaceChildren(
+        ...RATING_BUTTONS.map(({ rating, label, key }) => {
+          const node = button(`rating rating-${rating}`, label, () => submit(rating));
+          node.append(el('span', 'key-hint', key));
+          return node;
+        }),
+      );
+    } else {
+      footer.replaceChildren(button('primary', '顯示答案', reveal));
+    }
   }
 
   // 電腦端：空白鍵掀開答案，數字鍵 1–4 對應四個評分。
   app.keyHandler = (event) => {
+    // 點開下拉之後焦點停在 toggle 按鈕上，isTyping() 只放行輸入框、擋不住這裡的空白鍵，
+    // 沒有這條會變成「想收起選單，結果答案被掀開」。收選單用 Esc，由 bookFilter 自己處理。
+    if (menuOpen) {
+      // 焦點在 <button> 上時空白鍵是原生的「按下這顆鈕」，會走到 toggle 自己的開合。
+      // 連這一下也吃掉，「選單開著時畫面上任何操作都不弄丟選單」才是一條規則走到底。
+      if (event.key === ' ') event.preventDefault();
+      return;
+    }
+    // 今日份完成時沒東西可按。合併之前這是 doneView 的 app.keyHandler = null。
+    if (isComplete(app.queue)) return;
+
     if (event.key === ' ') {
       event.preventDefault();
       if (!app.revealed) reveal();
@@ -82,6 +140,7 @@ export function reviewView(app: App): HTMLElement {
     }
   };
 
+  refresh();
   screen.append(header, main, footer);
   return screen;
 }
@@ -100,26 +159,6 @@ function noBooksView(app: App): HTMLElement {
 
   const footer = el('footer', 'actions');
   footer.append(button('primary', '去建立單字本', () => app.showData()));
-
-  app.keyHandler = null;
-  screen.append(header, main, footer);
-  return screen;
-}
-
-function doneView(app: App): HTMLElement {
-  const screen = el('div', 'screen');
-  const header = el('header', 'bar');
-  header.append(el('span', 'remaining', '剩餘 0 張'), button('bar-action', '卡片', () => app.showList()));
-
-  const main = el('main', 'card done');
-  main.append(
-    el('div', 'done-mark', '✓'),
-    el('h1', 'done-title', '今日份完成'),
-    el('p', 'done-note', '到期的卡片都複習過了，明天再來。'),
-  );
-
-  const footer = el('footer', 'actions');
-  footer.append(button('secondary', '瀏覽全部卡片', () => app.showList()));
 
   app.keyHandler = null;
   screen.append(header, main, footer);
