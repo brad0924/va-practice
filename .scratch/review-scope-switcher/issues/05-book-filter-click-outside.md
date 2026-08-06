@@ -1,6 +1,6 @@
 # 05 — 單字本開關點外面自動關閉
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 現況
@@ -129,3 +129,13 @@ function onOutside(event: PointerEvent): void {
 - 卡片列表：選單開著時點搜尋框，第一下只收選單、游標不進去（**已知代價，確認它就是這樣**）
 - 點 toggle 自己仍然是開關，連續勾好幾本選單不會自己收
 - **iPhone 實機**：選單開著時用手指捲動頁面，確認捲動沒有被 `preventDefault()` 擋住。規格上捲動由 `touch-action` 管、不歸 `preventDefault()`，但 Safari 的實際行為只能靠實機確認——**這是本票唯一沒有把握的地方**，若真的擋住捲動，改用 `pointerup` 或退回穿透都要重新談
+
+## Comments
+
+### 實作偏離：add／remove 收進 `refresh()`
+
+上面〈選單開才註冊，關就解除〉的片段只在 `onOutside` 內解除，走 toggle 或 Esc 關閉時沒有解除路徑。實作改成由 `refresh()` 開才掛、關就解除，三個關閉點都涵蓋，才真的做到「關起來時 `document` 上一個都沒有」；`addEventListener` 對同一個函式參考是冪等的，勾選時連叫幾次 `refresh()` 無害。
+
+### `isConnected` 的理由要更正（給 `04` 的 ADR-0011）
+
+本票寫「不加這三行的話，`02` 擔心的累積仍然成立，只是變慢很多」——這句在實作的形狀下站不住：殘留的監聽器會在下一次點外面時各自跑完 `refresh()` 而自我拆除，不會無限累積。那三行真正堵的是**畫面被換掉後，使用者在新畫面上的第一下被一顆看不見的選單 `preventDefault()` 吃掉，並對已經死掉的元件回報一次 `onOpenChange(false)`**。ADR-0011 請照這個說法寫，不要照抄「累積」。

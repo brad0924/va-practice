@@ -38,6 +38,13 @@ describe('bookFilter 的開合', () => {
   const escape = (from: HTMLElement) =>
     from.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
+  /** 回傳事件本身，好斷言那一下有沒有被 preventDefault() 吃掉。 */
+  function pointerDown(on: HTMLElement): PointerEvent {
+    const event = new PointerEvent('pointerdown', { bubbles: true, cancelable: true });
+    on.dispatchEvent(event);
+    return event;
+  }
+
   function mount(selected: string[] = ['b']) {
     const onChange = vi.fn();
     const onOpenChange = vi.fn();
@@ -130,5 +137,77 @@ describe('bookFilter 的開合', () => {
       toggle.click();
       toggle.click();
     }).not.toThrow();
+  });
+
+  it('沒傳 onOpenChange 時點外面不丟例外', () => {
+    const node = bookFilter({
+      books: BOOKS,
+      selected: ['b'],
+      variant: 'pill',
+      onChange: () => {},
+    });
+    document.body.replaceChildren(node);
+    const toggle = node.querySelector('button') as HTMLButtonElement;
+
+    expect(() => {
+      toggle.click();
+      pointerDown(document.body);
+    }).not.toThrow();
+  });
+
+  it('展開時點外面收起來並回報', () => {
+    const { toggle, menu, onOpenChange } = mount();
+    toggle.click();
+    onOpenChange.mockClear();
+    pointerDown(document.body);
+    expect(menu.hidden).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(onOpenChange.mock.calls).toEqual([[false]]);
+  });
+
+  it('點外面那一下被吃掉，不會變成後續的 click', () => {
+    const { toggle } = mount();
+    toggle.click();
+    expect(pointerDown(document.body).defaultPrevented).toBe(true);
+  });
+
+  it('點 toggle 自己或選單裡的勾選框都不算點外面', () => {
+    const { toggle, checks, menu, onOpenChange } = mount();
+    toggle.click();
+    onOpenChange.mockClear();
+    pointerDown(toggle);
+    pointerDown(checks()[1]);
+    expect(menu.hidden).toBe(false);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('收起狀態下點外面什麼都不回報', () => {
+    const { onOpenChange } = mount();
+    pointerDown(document.body);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('收起之後再點外面沒有任何反應，監聽器已經解除', () => {
+    const { toggle, onOpenChange } = mount();
+    toggle.click();
+    pointerDown(document.body);
+    onOpenChange.mockClear();
+    pointerDown(document.body);
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('選單開著時畫面被換掉，之後點外面不丟例外且監聽器自我拆除', () => {
+    const { node, toggle, menu, onOpenChange } = mount();
+    toggle.click();
+    onOpenChange.mockClear();
+    // 模擬 mount() 的 replaceChildren()：舊節點整棵被丟掉，沒有人叫監聽器下班。
+    node.remove();
+    expect(() => pointerDown(document.body)).not.toThrow();
+
+    // 拆掉了才對：把節點放回文件再點一次，已經沒有人理會這一下。
+    document.body.append(node);
+    pointerDown(document.body);
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(menu.hidden).toBe(false);
   });
 });

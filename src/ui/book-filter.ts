@@ -47,7 +47,7 @@ export function bookFilter({
   // 標籤與箭頭分開兩個元素：本名可以很長，只有它自己是一個元素時才截得斷。
   const label = el('span', 'book-filter-label');
   const mark = el('span', 'book-filter-mark');
-  // 開合只有這裡與底下的 Esc 兩個觸發點，兩處都是真的翻面才報；refresh() 的重畫不算。
+  // 開合有這裡、底下的 Esc 與點外面三個觸發點，都是真的翻面才報；refresh() 的重畫不算。
   const toggle = button(`book-filter-toggle ${variant}`, '', () => {
     open = !open;
     refresh();
@@ -60,6 +60,7 @@ export function bookFilter({
   /**
    * Esc 掛在自己節點上而不是 document：mount() 用 replaceChildren() 換畫面，
    * 元件沒有拆卸的時機可以解除監聽器，掛 document 會每重畫一次就多留一個。
+   * （底下的點外面躲不掉 document，那條改用「開才掛、關就解除」，見 onOutside。）
    * 代價是焦點跑到元件外面就收不起來——點開 toggle 之後焦點就在 toggle 上，
    * 勾選框也在節點內，正常操作全程都在範圍裡。
    */
@@ -73,6 +74,31 @@ export function bookFilter({
     toggle.focus();
     onOpenChange?.(false);
   });
+
+  /**
+   * 點外面收起來。看的是指標按在哪裡，不看焦點在誰手上：iOS Safari 點到不可聚焦的
+   * 空白處時按鈕不一定失焦，靠 focusout 判會收不起來。用 pointerdown 而不是 click，
+   * 順便避開 iOS Safari「點非互動元素時 click 不冒泡到 document」那個老問題。
+   *
+   * 這條掛在 document 上，與上面的 Esc 不同，靠的是 refresh() 開才掛、關就解除，
+   * 數量最多一個。
+   */
+  function onOutside(event: PointerEvent): void {
+    // 節點已經脫離文件：選單開著時畫面被 mount() 換掉了，沒有人叫這個監聽器下班
+    // （initSpeech 載完語音清單、雲端拉到新資料都會重畫）。少了這三行，使用者在新
+    // 畫面上的第一下會被一顆看不見的選單吃掉，還會對死掉的元件回報一次關閉。
+    if (!node.isConnected) {
+      document.removeEventListener('pointerdown', onOutside);
+      return;
+    }
+    if (node.contains(event.target as Node)) return;
+    // 這一下只用來收選單，不讓它變成後續的 mousedown／click——複習畫面上隨手一點
+    // 可能掀開答案，而那收不回去。監聽器由這裡的 refresh() 順手解除。
+    event.preventDefault();
+    open = false;
+    refresh();
+    onOpenChange?.(false);
+  }
 
   /** 一律照 books 的順序存回去，勾選的先後不影響存下來的樣子。 */
   function choose(wanted: Set<string>): void {
@@ -96,6 +122,10 @@ export function bookFilter({
     mark.textContent = open ? '▴' : '▾';
     toggle.setAttribute('aria-expanded', String(open));
     menu.hidden = !open;
+    // 三個觸發點都會走到這裡，開合狀態與監聽器就不會走散。重複掛同一個函式沒有作用，
+    // 解除沒掛上的也沒有作用，所以 refresh() 被勾選連續叫好幾次也不會出事。
+    if (open) document.addEventListener('pointerdown', onOutside);
+    else document.removeEventListener('pointerdown', onOutside);
 
     const all = chosen.length === books.length;
     menu.replaceChildren(
