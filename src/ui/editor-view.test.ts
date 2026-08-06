@@ -5,8 +5,8 @@
  *
  * 該往哪跳（避讓、退讓、繞回頭）全在 `required-fields.test.ts`，那些不必碰 DOM。
  * 留在這裡的只有「焦點自己落到誰身上」——`relatedTarget` 是純 DOM 事件，翻不成序號，
- * 因此這一個檔案（也只有這一個）要 jsdom。專案預設環境仍是 `node`，模組一旦 import DOM
- * 測試照樣爆，`docs/spec.md` 那條紀律的牙齒沒掉。
+ * 因此這個檔案要 jsdom（`book-filter.test.ts` 為了鍵盤與焦點也開了）。專案預設環境仍是
+ * `node`，模組一旦 import DOM 測試照樣爆，`docs/spec.md` 那條紀律的牙齒沒掉。
  *
  * 刻意不測的：
  * - `cancelling` 旗子與 `isComposing`：jsdom 不模擬手指按下去、也不模擬輸入法，
