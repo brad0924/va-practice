@@ -1,7 +1,7 @@
 import { cardsInBooks, createStore, type ImportResult } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
-import { buildQueue, rate as rateCard, type Queue } from './lib/review';
+import { buildQueue, currentCard, rebuildQueue, rate as rateCard, type Queue } from './lib/review';
 import type { AppData, Card, Rating } from './lib/types';
 import { initSpeech } from './ui/speech';
 import { createSyncStatus } from './ui/sync-status';
@@ -151,12 +151,14 @@ export function start(root: HTMLElement): void {
       // 但沒有一張卡因此改變，正在進行的複習不該被打斷——重建會重洗一次順序，
       // 也會把評為「再次」而排回去的那幾張一起丟掉。
       const before = cardsInBooks(data.cards, data.scopes.review);
+      const current = currentCard(queue);
       data = next;
       const after = cardsInBooks(data.cards, data.scopes.review);
       if (!sameCards(before, after)) {
-        queue = buildQueue(after, now(), random);
-        // 目前這張可能已經不在了，下一張會遞補上來，不能沿用已掀開的狀態——與 remove() 同一個理由。
-        revealed = false;
+        queue = rebuildQueue(after, current, now(), random);
+        // 隊首真的換人了才蓋回答案：目前這張仍在範圍內時連掀開狀態一起留住，
+        // 換掉的話下一張會遞補上來，不能沿用——與 remove() 同一個理由。
+        if (currentCard(queue)?.id !== current?.id) revealed = false;
       }
       persist();
     },

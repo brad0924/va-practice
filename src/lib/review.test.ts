@@ -6,6 +6,7 @@ import {
   rate,
   newCard,
   overdueDays,
+  rebuildQueue,
   sortByDue,
   DEFAULT_EASE,
   MIN_EASE,
@@ -68,6 +69,57 @@ describe('複習佇列', () => {
     expect(currentCard(empty)).toBeUndefined();
     expect(isComplete(empty)).toBe(true);
     expect(isComplete(buildQueue([card('a')], NOW, noFuzz))).toBe(false);
+  });
+});
+
+describe('換一批卡之後的佇列', () => {
+  it('正在看的那張仍在新的卡片集合裡且到期，就留在最前面', () => {
+    const cards = [card('a'), card('b'), card('c')];
+    const rebuilt = rebuildQueue(cards, card('c'), NOW, fixedRandom(0.99, 0.99, 0.99));
+    expect(currentCard(rebuilt)?.id).toBe('c');
+  });
+
+  it('留下的是新集合裡那一份，不是傳進來的那份', () => {
+    const cards = [card('a'), card('x', { meaning: '新的釋義' })];
+    const rebuilt = rebuildQueue(cards, card('x', { meaning: '舊的釋義' }), NOW, noFuzz);
+    expect(currentCard(rebuilt)?.meaning).toBe('新的釋義');
+  });
+
+  it('正在看的那張不在新的卡片集合裡，就照常重建', () => {
+    const cards = [card('a'), card('b')];
+    const rebuilt = rebuildQueue(cards, card('刪掉的'), NOW, fixedRandom(0.5, 0.5));
+    expect(rebuilt).toEqual(buildQueue(cards, NOW, fixedRandom(0.5, 0.5)));
+  });
+
+  it('正在看的那張已不到期，跟著被濾掉', () => {
+    const notDue = card('明天', { interval: 3, due: '2026-07-24' });
+    const rebuilt = rebuildQueue([card('a'), notDue], notDue, NOW, noFuzz);
+    expect(rebuilt.map((c) => c.id)).toEqual(['a']);
+  });
+
+  it('原本沒有正在看的那張，結果與 buildQueue 一致', () => {
+    const cards = [card('a'), card('b'), card('c')];
+    const rebuilt = rebuildQueue(cards, undefined, NOW, fixedRandom(0.3, 0.8, 0.1));
+    expect(rebuilt).toEqual(buildQueue(cards, NOW, fixedRandom(0.3, 0.8, 0.1)));
+  });
+
+  it('新的卡片集合為空，回傳空佇列', () => {
+    expect(rebuildQueue([], card('a'), NOW, noFuzz)).toEqual([]);
+  });
+
+  it('除了留下的那張，其餘仍照 buildQueue 洗過的順序排', () => {
+    const cards = [card('a'), card('b'), card('c'), card('d')];
+    const rebuilt = rebuildQueue(cards, card('c'), NOW, fixedRandom(0.7, 0.3, 0.9));
+    const shuffled = buildQueue(cards, NOW, fixedRandom(0.7, 0.3, 0.9));
+    expect(rebuilt.slice(1).map((c) => c.id)).toEqual(
+      shuffled.filter((c) => c.id !== 'c').map((c) => c.id),
+    );
+  });
+
+  it('留下的那張不會出現兩次', () => {
+    const cards = [card('a'), card('b'), card('c')];
+    const ids = rebuildQueue(cards, card('b'), NOW, fixedRandom(0.4, 0.6)).map((c) => c.id);
+    expect(ids.slice().sort()).toEqual(['a', 'b', 'c']);
   });
 });
 

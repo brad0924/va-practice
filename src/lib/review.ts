@@ -99,6 +99,24 @@ export function buildQueue(cards: readonly Card[], now: Date, random: () => numb
   return due;
 }
 
+/**
+ * 換一批卡之後的佇列。正在看的那張若仍然到期，就留在最前面，
+ * 其餘照常洗牌——換單字本範圍時不打斷手上這張。
+ *
+ * 留下的是 `cards` 裡的那一份而非傳進來的 `current`：後者可能是舊資料裡的那張。
+ */
+export function rebuildQueue(
+  cards: readonly Card[],
+  current: Card | undefined,
+  now: Date,
+  random: () => number,
+): Queue {
+  const rebuilt = buildQueue(cards, now, random);
+  const kept = current && rebuilt.find((card) => card.id === current.id);
+  if (!kept) return rebuilt;
+  return [kept, ...rebuilt.filter((card) => card.id !== kept.id)];
+}
+
 export function currentCard(queue: Queue): Card | undefined {
   return queue[0];
 }

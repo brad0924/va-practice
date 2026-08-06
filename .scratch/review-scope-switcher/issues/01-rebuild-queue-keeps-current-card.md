@@ -1,6 +1,6 @@
 # 01 — 佇列重建保留目前這張卡：規則抽進 review.ts
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 現況
