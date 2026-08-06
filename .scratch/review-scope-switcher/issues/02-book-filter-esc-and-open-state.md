@@ -1,6 +1,6 @@
 # 02 — 單字本開關自己吃 Esc，並向外回報開合
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 現況
