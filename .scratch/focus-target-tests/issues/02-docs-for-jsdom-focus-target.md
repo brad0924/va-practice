@@ -70,3 +70,13 @@ Blocked by: 01
 - 只讀 `docs/` 的人不會讀到一條與 repo 現況相反的規則。
 - `docs/spec.md` 的測試那一節說得出「`editor-view.test.ts` 為什麼准，下一個檔案憑什麼不准」。
 - `npm test` 與 `npm run typecheck` 不受影響（純文件改動）。
+
+## Comments
+
+### 例外已經變成兩個（`review-scope-switcher/02`）
+
+`.scratch/review-scope-switcher/issues/02-book-filter-esc-and-open-state.md` 又在
+`src/ui/book-filter.test.ts` 開了 jsdom（測單字本開關的 Esc 與開合回報），`05` 隨後在同一個檔案
+加了點外面收合的測試。因此〈一〉的「窄例外」方案裡那個**唯一例外**（`editor-view.ts`）已經
+不成立，例外現在有兩個，該方案要重新評估。（`review-scope-switcher/04` 只訂正了 `:208` 那句
+純邏輯清單的舉例，`:206` 與 `:227` 原封不動。）

@@ -1,6 +1,6 @@
 # 04 — 文件收尾：CONTEXT.md 佇列重建、docs/spec.md、ADR-0010、ADR-0011
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 01, 02, 03, 05
 
