@@ -14,7 +14,7 @@
           ".read": true,
           ".validate": "newData.hasChildren(['payload', 'updatedAt'])",
           "payload": {
-            ".validate": "newData.isString() && newData.val().length <= 2000000"
+            ".validate": "newData.isString() && newData.val().length <= 4194304"
           },
           "updatedAt": {
             ".validate": "newData.val() === now"

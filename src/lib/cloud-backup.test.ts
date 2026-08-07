@@ -1,5 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { createCloudBackup, CREDENTIALS_KEY, WRONG_PASSWORD, type CloudBackupHooks } from './cloud-backup';
+import {
+  createCloudBackup,
+  CLOUD_PAYLOAD_LIMIT,
+  CREDENTIALS_KEY,
+  TOO_LARGE,
+  WRONG_PASSWORD,
+  type CloudBackupHooks,
+} from './cloud-backup';
 import { deriveKeys, encrypt, decrypt } from './cloud-crypto';
 import { DATA_VERSION, type StorageLike } from './storage';
 import { DEFAULT_EASE } from './review';
@@ -22,6 +30,16 @@ function appData(mark: string, updatedAt = 0): AppData {
   };
 }
 
+/**
+ * 一份大到雲端收不下的資料。加密後轉成 base64 會膨脹約 4/3，
+ * 所以原始文字只要塞到上限那麼長，送上去的那串一定超過上限。
+ */
+function oversized(): AppData {
+  const data = appData('太多字了');
+  data.cards[0].text = 'x'.repeat(CLOUD_PAYLOAD_LIMIT);
+  return data;
+}
+
 /** 一台裝置的本機儲存。沿用 storage.test.ts 的寫法，模組只存一個鍵，不必分辨。 */
 function fakeStorage(initial?: string): StorageLike {
   let value = initial ?? null;
@@ -39,6 +57,13 @@ function fakeStorage(initial?: string): StorageLike {
 /** 記著憑證的儲存，用來模擬「上次開 app 已經登入過」。 */
 function signedInStorage(password = PASSWORD): StorageLike {
   return fakeStorage(JSON.stringify({ nickname: NICKNAME, password }));
+}
+
+/** 安全規則檔裡我們要核對的那一格。路徑相對於本檔，不受 vitest 從哪裡啟動影響。 */
+const RULES_FILE = new URL('../../.scratch/cloud-backup/firebase-rules.json', import.meta.url);
+
+interface RulesFile {
+  rules: { backups: { $key: { open: { payload: { '.validate': string } } } } };
 }
 
 /** 寫入雲端時送出去的那包。 */
@@ -370,5 +395,44 @@ describe('雲端備份', () => {
     // 離線時累積的那份也一樣，那才叫 pending 真的被清掉了。
     await cloud.signIn(NICKNAME, PASSWORD, appData('重新登入'));
     expect(server.requests.slice(quiet).every((sent) => sent.method === 'GET')).toBe(true);
+  });
+
+  it('卡片多到超過上限：說人話、沒送出任何東西，之後正常大小的那份照樣推得上去', async () => {
+    const server = fakeFirebase();
+    const storage = fakeStorage();
+    const { hooks, status, until } = fakeHooks(server.fetch, storage);
+    const cloud = createCloudBackup(hooks);
+    await cloud.signIn(NICKNAME, PASSWORD, appData('登入時的那份'));
+    const credentials = storage.getItem(CREDENTIALS_KEY);
+
+    const quiet = server.writes().length;
+    cloud.push(oversized());
+    await until(() => status.includes(TOO_LARGE));
+
+    // 超大的那份根本沒離開這台機器，雲端那筆原封不動。
+    expect(server.writes()).toHaveLength(quiet);
+    // 這句是使用者唯一的線索，少了它他會以為自己的卡出事了。
+    expect(TOO_LARGE).toContain('本機的卡片與進度完全不受影響');
+    // 被擋下來不等於被登出：憑證原封不動，下次開 app 照樣接得上雲端。
+    expect(storage.getItem(CREDENTIALS_KEY)).toBe(credentials);
+    expect(cloud.nickname()).toBe(NICKNAME);
+
+    // 刪掉幾張之後又評一張：同步沒有卡死，照常推得上去。
+    cloud.push(appData('刪掉之後又評的'));
+    await until(() => status.at(-1) === '');
+    expect(server.writes()).toHaveLength(quiet + 1);
+
+    // 超限不是網路問題，一次都不該走到那句離線提示。
+    expect(status).not.toContain(OFFLINE_NOTE);
+  });
+
+  it('客戶端的上限與安全規則是同一個數字', () => {
+    const rules = JSON.parse(readFileSync(RULES_FILE, 'utf8')) as RulesFile;
+
+    // 兩邊走鐘的話，客戶端會放行一份雲端其實收不下的資料，
+    // 使用者就會拿到那個沒人看得懂的狀態碼——這條測試就是為了擋這件事。
+    expect(rules.rules.backups.$key.open.payload['.validate']).toContain(
+      `length <= ${CLOUD_PAYLOAD_LIMIT}`,
+    );
   });
 });

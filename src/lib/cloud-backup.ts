@@ -26,12 +26,42 @@ export const CREDENTIALS_KEY = 'va-practice:cloud';
  */
 export const WRONG_PASSWORD = '暱稱或密碼不對';
 
+/**
+ * 單筆備份的大小上限，量的是加密後那串 base64 的字數——安全規則量的也是同一個東西。
+ * 兩邊必須是同一個數字：規則若比這裡嚴，超大的那份會被放行出去再被雲端擋下，
+ * 使用者拿到的就是一個沒人看得懂的狀態碼（`cloud-backup.test.ts` 有一條測試釘住這件事）。
+ *
+ * `ADR-0003` 記錄的每張卡約 155 bytes 量的也是推送後的大小（20 KB ÷ 132 張），
+ * 與這裡同一把尺，直接相除即可：約當 27,000 張卡，遠高於 JLPT 全級數的字彙量。
+ */
+export const CLOUD_PAYLOAD_LIMIT = 4_194_304;
+
+/**
+ * 三句話缺一不可：超過的是什麼、改用什麼、以及本機到底有沒有事。
+ * 最後一句最重要——不講的話，使用者會以為自己的卡出事了。
+ */
+export const TOO_LARGE =
+  '卡片數量已超過雲端備份的上限，這次沒有上傳。請到「資料」的手動備份匯出成檔案保存。本機的卡片與進度完全不受影響。';
+
 const OFFLINE_NOTE = '進度還沒上傳，恢復連線後會自動補上';
 
 class RejectedByCloud extends Error {
   constructor() {
     super(WRONG_PASSWORD);
   }
+}
+
+class TooLarge extends Error {
+  constructor() {
+    super(TOO_LARGE);
+  }
+}
+
+/** 推不上去的三種理由各有各的下一步，那行狀態字不能混為一談。 */
+function statusFor(error: unknown): string {
+  if (error instanceof RejectedByCloud) return WRONG_PASSWORD;
+  if (error instanceof TooLarge) return TOO_LARGE;
+  return OFFLINE_NOTE;
 }
 
 /** 雲端上任何人都讀得到的那一半：密文與伺服器時間戳。 */
@@ -100,6 +130,9 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
    */
   async function write(keys: CloudKeys, data: AppData, prev = keys.fingerprint): Promise<number> {
     const payload = await encrypt(keys.key, JSON.stringify(data));
+    // 送出去也是被安全規則擋下來，不如在這裡就攔住：省一趟白跑的網路，
+    // 也才有機會講一句人話——雲端回的只會是一個狀態碼。
+    if (payload.length > CLOUD_PAYLOAD_LIMIT) throw new TooLarge();
     const response = await hooks.fetch(`${DATABASE}/backups/${keys.path}.json`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -160,7 +193,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
     } catch (error) {
       // 複習流程不被打斷：不跳對話框，只留一行小狀態字，待推的那份留著。
       if (error instanceof RejectedByCloud) blocked = true;
-      hooks.onStatus(error instanceof RejectedByCloud ? WRONG_PASSWORD : OFFLINE_NOTE);
+      hooks.onStatus(statusFor(error));
     } finally {
       sending = false;
     }
@@ -187,7 +220,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
           await flush();
         } catch (error) {
           if (error instanceof RejectedByCloud) blocked = true;
-          hooks.onStatus(error instanceof RejectedByCloud ? WRONG_PASSWORD : OFFLINE_NOTE);
+          hooks.onStatus(statusFor(error));
         }
       })();
     },
