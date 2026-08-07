@@ -116,7 +116,15 @@ Type: enhancement
 
 **十四、不開新接縫，在 `src/ui/speech.ts` 內部分支。** 該模組對外只有 `initSpeech` / `hasJapaneseVoice` / `speak` 三支，`src/ui/review-view.ts` 的呼叫方式一字不改。模組內部先探測原生語音橋接是否存在：有就用原生，沒有就沿用現有的 Web Speech 路徑。
 
-**十五、iOS 上朗讀按鈕永遠可用。** 現行「找不到日文語音就隱藏按鈕」的行為是為 Web Speech 的不確定性而設計的。原生語音（`AVSpeechSynthesizer`）的日文語音是系統內建且離線可用，因此 `hasJapaneseVoice()` 在 iOS 上恆為真，按鈕不再時有時無。網頁版維持原行為。
+**十五、~~iOS 上朗讀按鈕永遠可用。~~ 訂正為：iOS 上朗讀要取用 enhanced 品質的語音。**
+
+原訂理由是「現行『找不到日文語音就隱藏按鈕』的行為是為 Web Speech 的不確定性而設計的，換原生後 `hasJapaneseVoice()` 恆為真，按鈕不再時有時無」。**實作票 01 的真機實測推翻了這個前提**：iOS WKWebView 裡 `hasJapaneseVoice()` 本來就回 `true`，按鈕正常顯示、也聽得到日文。「按鈕時有時無」在 iOS 上不是真實存在的問題。
+
+真正的問題是音質——接近機械音、重音不對。原因是 iOS 的 Web Speech 雖然底層也是 `AVSpeechSynthesizer`，卻只取得到 compact（壓縮）品質的語音，enhanced／premium 需要使用者自行到系統設定下載。因此決定十四（改用原生）依然成立，但動機從「為了有聲音」換成「為了聲音好聽」：原生實作要明確挑選 enhanced 品質。
+
+`hasJapaneseVoice()` 在 iOS 上恆為真仍然是改用原生後順帶得到的保證，只是不再是動機。網頁版維持原行為。
+
+**重音（高低アクセント）不列入驗收**：那對合成器是難題，原生同樣是從假名推測，換引擎不保證解決。
 
 **十六、朗讀的文字來源不變。** 仍是 `toReadingText()` 轉出的讀音文字，聽到的與卡片教的讀法一致——這是既有決定，原生實作照搬。
 
