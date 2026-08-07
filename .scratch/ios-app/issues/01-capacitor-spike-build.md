@@ -108,12 +108,34 @@ Capacitor 支援讓 WebView 直接指向線上網址（等於免送審熱更新�
    - **類型選 Explicit，不要 Wildcard。** Wildcard App ID 不能上架 App Store 或 TestFlight，也支援不了 App Groups、Push Notifications 這類 capability——選了等於現在就把票 05 的保險副本堵死。
    - **Capabilities 整片留空，一個都不勾。** 這張票不加任何功能。清單裡幾個最容易誤勾的：每日提醒（票 09）是本機排程的 Local Notification，**不需要 Push Notifications**；Keychain 存密碼與 iCloud 鑰匙圈同步（票 06）都不需要 entitlement，**不要勾 iCloud 或 Keychain Sharing**；原生語音（07）與觸覺（08）也都不需要。整個工程從頭到尾只會多勾一個 `App Groups`，那是票 05 的事。Capabilities 隨時可回頭改，且 CI 走 `-allowProvisioningUpdates` 自動簽章，多半會由 Xcode 依 entitlements 自動開啟。
 2. **在 App Store Connect 建立 app 記錄**，選上一步註冊的 Bundle ID。**這一步之後 Bundle ID 就綁死了。**
-3. **產一組 App Store Connect API Key**（Users and Access → Integrations → App Store Connect API，角色需 App Manager 以上），下載 `.p8`（**只能下載一次**）。
-4. **在 repo 設四個 Actions secrets**：
-   - `APP_STORE_CONNECT_KEY_ID`
-   - `APP_STORE_CONNECT_ISSUER_ID`
-   - `APP_STORE_CONNECT_PRIVATE_KEY`（`.p8` 的完整內容，含 BEGIN／END 兩行）
-   - `APPLE_TEAM_ID`（Membership 頁面的 Team ID）
+3. **產一組 App Store Connect API Key**（Users and Access → Integrations → App Store Connect API）。三個選項別選錯：
+   - **選 Team Keys，不要 Individual Keys。** Individual Key 綁在產生它的那個帳號上，權限跟著那個人的角色跑，人離開團隊金鑰就失效；Team Key 屬於團隊、權限是釘死的指定角色，也是 Apple 文件與各家 CI 教學的預設路線。現在雖然是一人團隊，兩者實質差不多，但沒有理由選一個以後會綁手的。
+   - **Access 選 App Manager。** Developer 不夠——CI 走 `-allowProvisioningUpdates` 自動簽章，需要能建立 distribution 憑證與 App Store provisioning profile，Developer 拿不到那個權限。也不必直接給 Admin，第一次跑若卡在簽章權限再往上升。
+   - **Name 填 `GitHub Actions - va-practice`**（28 字元，上限 30）。這個欄位純粹是給人看的標籤，Apple 不拿它做任何事，目的只有一個：日後要撤銷時一眼認得出是誰在用，別撤錯。
+
+   按下 Generate 之後這一頁有**三樣**東西要拿，別只顧著下載檔案：
+
+   | 要拿什麼 | 在哪 | 對應的 secret |
+   | --- | --- | --- |
+   | `.p8` 檔 | 清單列的 Download 連結，**只能下載一次**，關掉頁面就拿不回來 | `APP_STORE_CONNECT_PRIVATE_KEY` |
+   | Key ID | 清單列上，長得像 `A1B2C3D4E5` | `APP_STORE_CONNECT_KEY_ID` |
+   | Issuer ID | **頁面最上方**，UUID 格式 | `APP_STORE_CONNECT_ISSUER_ID` |
+
+   Issuer ID 最容易漏——它不在金鑰那一列，而是整頁最上面、所有金鑰共用的那一個。
+4. **在 repo 設四個 Actions secrets。** 位置：`https://github.com/brad0924/va-practice/settings/secrets/actions`（等同 repo → Settings → Secrets and variables → Actions）。按 **New repository secret**，填 Name 與 Secret，Add secret，重複四次。
+
+   | Name（大小寫需完全一致） | 填什麼 | 長相 |
+   | --- | --- | --- |
+   | `APP_STORE_CONNECT_KEY_ID` | 金鑰清單那一列的 Key ID | 10 碼英數，如 `A1B2C3D4E5` |
+   | `APP_STORE_CONNECT_ISSUER_ID` | 頁面最上方、所有金鑰共用的那個 | UUID，如 `69a6de70-xxxx-…` |
+   | `APP_STORE_CONNECT_PRIVATE_KEY` | `.p8` 檔的**完整內容** | 多行，見下 |
+   | `APPLE_TEAM_ID` | Apple Developer → 右上角帳號 → Membership details | 10 碼英數，如 `ABCDE12345` |
+
+   `.p8` 最容易搞砸。用純文字編輯器（記事本即可）打開 `AuthKey_XXXXX.p8`，全選複製貼上。**`-----BEGIN PRIVATE KEY-----` 與 `-----END PRIVATE KEY-----` 那兩行要一起貼**，不是只貼中間那串；不要自己加引號，GitHub 的欄位支援多行；不要用 Word 這類會自動改標點的編輯器開。
+
+   兩個之後會咬人的地方：**Name 打錯不會有明顯報錯**——GitHub 對不存在的 secret 只回空字串，workflow 會在很後面才用奇怪的方式失敗（通常是 `xcodebuild` 說找不到 team），所以名稱建議複製不要手打。**存進去就讀不回來了**，GitHub 只允許覆寫，因此 `.p8` 檔案自己要另外留一份。
+
+   > **public repo 的安全性**：外人看不到這些。值本身連你自己都讀不回；Settings 頁面需要 write 權限才進得去，訪客連 secret 名稱都看不到；log 中若意外出現會自動遮成 `***`。public repo 最經典的攻擊是「fork 後改 workflow 印出 secrets 再開 PR」，但**來自 fork 的 pull request 拿不到任何 secrets**，而且這支 workflow 是 `workflow_dispatch`，只能由有 write 權限的人手動觸發，外人按不到那個按鈕。唯一要記得的是 **public repo 的 Actions log 全世界可讀**——目前 workflow 不 echo 任何秘密，`.p8` 是直接寫進檔案。萬一金鑰真的外洩，到 App Store Connect 把它 Revoke 再產一把即可，攻擊者最多能上傳 build 到你的 TestFlight，拿不到 Apple ID 密碼、也送不了審。
 5. **手動觸發 `Build iOS and upload to TestFlight`**（Actions 頁面 → Run workflow）。
 6. 處理完成後，iPhone 裝 TestFlight app 即可安裝。Internal Testing 不經任何審查。
 
