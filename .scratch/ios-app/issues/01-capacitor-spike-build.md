@@ -104,15 +104,18 @@ Capacitor 支援讓 WebView 直接指向線上網址（等於免送審熱更新�
 
 #### 維護者待辦（只有你做得到）
 
-1. **在 App Store Connect 建立 app 記錄**，Bundle ID 填 `io.github.brad0924.vapractice`。
-2. **產一組 App Store Connect API Key**（Users and Access → Integrations → App Store Connect API，角色需 App Manager 以上），下載 `.p8`（**只能下載一次**）。
-3. **在 repo 設四個 Actions secrets**：
+1. **在 Apple Developer 註冊 App ID**（Certificates, Identifiers & Profiles → Identifiers → App IDs），填 `io.github.brad0924.vapractice`。兩個容易選錯的地方：
+   - **類型選 Explicit，不要 Wildcard。** Wildcard App ID 不能上架 App Store 或 TestFlight，也支援不了 App Groups、Push Notifications 這類 capability——選了等於現在就把票 05 的保險副本堵死。
+   - **Capabilities 整片留空，一個都不勾。** 這張票不加任何功能。清單裡幾個最容易誤勾的：每日提醒（票 09）是本機排程的 Local Notification，**不需要 Push Notifications**；Keychain 存密碼與 iCloud 鑰匙圈同步（票 06）都不需要 entitlement，**不要勾 iCloud 或 Keychain Sharing**；原生語音（07）與觸覺（08）也都不需要。整個工程從頭到尾只會多勾一個 `App Groups`，那是票 05 的事。Capabilities 隨時可回頭改，且 CI 走 `-allowProvisioningUpdates` 自動簽章，多半會由 Xcode 依 entitlements 自動開啟。
+2. **在 App Store Connect 建立 app 記錄**，選上一步註冊的 Bundle ID。**這一步之後 Bundle ID 就綁死了。**
+3. **產一組 App Store Connect API Key**（Users and Access → Integrations → App Store Connect API，角色需 App Manager 以上），下載 `.p8`（**只能下載一次**）。
+4. **在 repo 設四個 Actions secrets**：
    - `APP_STORE_CONNECT_KEY_ID`
    - `APP_STORE_CONNECT_ISSUER_ID`
    - `APP_STORE_CONNECT_PRIVATE_KEY`（`.p8` 的完整內容，含 BEGIN／END 兩行）
    - `APPLE_TEAM_ID`（Membership 頁面的 Team ID）
-4. **手動觸發 `Build iOS and upload to TestFlight`**（Actions 頁面 → Run workflow）。
-5. 處理完成後，iPhone 裝 TestFlight app 即可安裝。Internal Testing 不經任何審查。
+5. **手動觸發 `Build iOS and upload to TestFlight`**（Actions 頁面 → Run workflow）。
+6. 處理完成後，iPhone 裝 TestFlight app 即可安裝。Internal Testing 不經任何審查。
 
 > **`.github/workflows/ios-testflight.yml` 尚未實跑驗證過。** 沒有 Mac 也沒有你的憑證，我無法在此驗證它。第一次觸發很可能需要調整（最可能出問題的是自動簽章與 `xcrun altool` 的參數）。失敗時 workflow 會把 `.ipa` 留成 artifact，可退回手動用 Transporter 上傳。
 
