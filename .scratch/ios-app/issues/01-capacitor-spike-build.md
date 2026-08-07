@@ -104,13 +104,42 @@ Capacitor 支援讓 WebView 直接指向線上網址（等於免送審熱更新�
 
 #### 維護者待辦（只有你做得到）
 
+> **先認清「Name」有五個。** 這條路上有一堆長得像名字的欄位，實際跑一遍時在這裡卡了一輪，先列清楚：
+>
+> | 在哪個畫面 | 欄位 | 是什麼 | 公開？ | 能改？ |
+> | --- | --- | --- | --- | --- |
+> | Apple Developer → 註冊 App ID | Description | App ID 的內部標籤 | 否 | 能 |
+> | Apple Developer → API Key | Name | 金鑰的標籤 | 否 | 否 |
+> | App Store Connect → New App | **Name** | **App Store 商品頁上的名稱** | **是** | 能 |
+> | App Store Connect → New App | SKU | 內部編號 | 否 | **不能** |
+> | `capacitor.config.ts` | `appName` | 主畫面 icon 下那行字 | **是** | 能 |
+>
+> 只有標粗的兩個使用者看得到，其餘純內部，隨便填都不影響任何東西。
+
 1. **在 Apple Developer 註冊 App ID**（Certificates, Identifiers & Profiles → Identifiers → App IDs），填 `io.github.brad0924.vapractice`。兩個容易選錯的地方：
    - **類型選 Explicit，不要 Wildcard。** Wildcard App ID 不能上架 App Store 或 TestFlight，也支援不了 App Groups、Push Notifications 這類 capability——選了等於現在就把票 05 的保險副本堵死。
    - **Capabilities 整片留空，一個都不勾。** 這張票不加任何功能。清單裡幾個最容易誤勾的：每日提醒（票 09）是本機排程的 Local Notification，**不需要 Push Notifications**；Keychain 存密碼與 iCloud 鑰匙圈同步（票 06）都不需要 entitlement，**不要勾 iCloud 或 Keychain Sharing**；原生語音（07）與觸覺（08）也都不需要。整個工程從頭到尾只會多勾一個 `App Groups`，那是票 05 的事。Capabilities 隨時可回頭改，且 CI 走 `-allowProvisioningUpdates` 自動簽章，多半會由 Xcode 依 entitlements 自動開啟。
-2. **在 App Store Connect 建立 app 記錄**，選上一步註冊的 Bundle ID。**這一步之後 Bundle ID 就綁死了。**
+2. **在 App Store Connect 建立 app 記錄**（My Apps → 左上角 ＋ → New App）。**這一步一定要在跑 workflow 之前做完**——漏了的話 build 會一路簽章、匯出都成功，最後倒在上傳，錯誤訊息是 `Cannot determine the Apple ID from Bundle ID ...`（那個「Apple ID」指的是 App Store Connect 上那支 app 的數字 ID，不是登入帳號）。實測踩過這一顆。
+
+   | 欄位 | 填什麼 |
+   | --- | --- |
+   | Platforms | iOS |
+   | Name | App Store 商品名稱，**全球唯一**、30 字元，隨時可改。關鍵字放底下獨立的 Subtitle 欄位，不要塞進 Name（準則 2.3.7 禁止堆關鍵字） |
+   | Primary Language | Chinese (Traditional) |
+   | Bundle ID | 下拉選第 1 步註冊的 `io.github.brad0924.vapractice`。**選下去 Bundle ID 就綁死了** |
+   | SKU | `va-practice`。內部編號、不公開、**建立後不能改** |
+   | User Access | Full Access |
+
+   截圖、描述、隱私權政策那些**不用填**——那是送審才要的（票 04、11），TestFlight 不需要。
 3. **產一組 App Store Connect API Key**（Users and Access → Integrations → App Store Connect API）。三個選項別選錯：
    - **選 Team Keys，不要 Individual Keys。** Individual Key 綁在產生它的那個帳號上，權限跟著那個人的角色跑，人離開團隊金鑰就失效；Team Key 屬於團隊、權限是釘死的指定角色，也是 Apple 文件與各家 CI 教學的預設路線。現在雖然是一人團隊，兩者實質差不多，但沒有理由選一個以後會綁手的。
-   - **Access 選 App Manager。** Developer 不夠——CI 走 `-allowProvisioningUpdates` 自動簽章，需要能建立 distribution 憑證與 App Store provisioning profile，Developer 拿不到那個權限。也不必直接給 Admin，第一次跑若卡在簽章權限再往上升。
+   - **Access 選 Admin。沒有更低的選項可用。** Certificates, Identifiers & Profiles 在 API 上是一塊獨立的權限區，**只開放給 Admin**。App Manager 能管 app 記錄與上傳 build，卻拿不到 cloud-managed distribution 憑證——而 CI 走 `-allowProvisioningUpdates` 自動簽章，第一件事就是去建立 distribution 憑證。實測用 App Manager 跑，`xcodebuild archive` 會成功，倒在 `exportArchive`：
+     ```
+     error: exportArchive Cloud signing permission error
+     error: exportArchive No signing certificate "iOS Distribution" found
+     error: exportArchive No profiles for 'io.github.brad0924.vapractice' were found
+     ```
+     這裡沒有「剛好夠用」的中間值，最小權限原則在此撞到 Apple 的權限模型。改角色時先看金鑰那一列能不能 Edit：能改就直接改，Key ID 與 `.p8` 都不用換，GitHub secrets 一個都不用動。
    - **Name 填 `GitHub Actions - va-practice`**（28 字元，上限 30）。這個欄位純粹是給人看的標籤，Apple 不拿它做任何事，目的只有一個：日後要撤銷時一眼認得出是誰在用，別撤錯。
 
    按下 Generate 之後這一頁有**三樣**東西要拿，別只顧著下載檔案：
@@ -136,10 +165,10 @@ Capacitor 支援讓 WebView 直接指向線上網址（等於免送審熱更新�
    兩個之後會咬人的地方：**Name 打錯不會有明顯報錯**——GitHub 對不存在的 secret 只回空字串，workflow 會在很後面才用奇怪的方式失敗（通常是 `xcodebuild` 說找不到 team），所以名稱建議複製不要手打。**存進去就讀不回來了**，GitHub 只允許覆寫，因此 `.p8` 檔案自己要另外留一份。
 
    > **public repo 的安全性**：外人看不到這些。值本身連你自己都讀不回；Settings 頁面需要 write 權限才進得去，訪客連 secret 名稱都看不到；log 中若意外出現會自動遮成 `***`。public repo 最經典的攻擊是「fork 後改 workflow 印出 secrets 再開 PR」，但**來自 fork 的 pull request 拿不到任何 secrets**，而且這支 workflow 是 `workflow_dispatch`，只能由有 write 權限的人手動觸發，外人按不到那個按鈕。唯一要記得的是 **public repo 的 Actions log 全世界可讀**——目前 workflow 不 echo 任何秘密，`.p8` 是直接寫進檔案。萬一金鑰真的外洩，到 App Store Connect 把它 Revoke 再產一把即可，攻擊者最多能上傳 build 到你的 TestFlight，拿不到 Apple ID 密碼、也送不了審。
-5. **手動觸發 `Build iOS and upload to TestFlight`**（Actions 頁面 → Run workflow）。
+5. **手動觸發 `Build iOS and upload to TestFlight`**（Actions 頁面 → Run workflow）。`workflow_dispatch` 的按鈕**只有在 workflow 檔存在於 `main` 時才會出現**，這是 GitHub 的硬性行為；但按下去之後可在下拉選單挑任意分支，且會用那個分支上的 yml 與程式碼執行——因此 workflow 檔只需進 `main` 一次，之後要調整可以在 feature 分支上迭代。
 6. 處理完成後，iPhone 裝 TestFlight app 即可安裝。Internal Testing 不經任何審查。
 
-> **`.github/workflows/ios-testflight.yml` 尚未實跑驗證過。** 沒有 Mac 也沒有你的憑證，我無法在此驗證它。第一次觸發很可能需要調整（最可能出問題的是自動簽章與 `xcrun altool` 的參數）。失敗時 workflow 會把 `.ipa` 留成 artifact，可退回手動用 Transporter 上傳。
+> **`.github/workflows/ios-testflight.yml` 已於 2026-08-07 實跑通過**，從 build 到上傳 App Store Connect 全綠。寫的當下無法驗證（開發機是 Windows，也沒有維護者的憑證），實跑共踩兩顆釘子，都不是 workflow 本身的問題，而是 Apple 端的前置設定——已分別寫進上面第 3 步（API Key 角色必須是 Admin）與第 2 步（app 記錄必須先建）。workflow 檔本身一行未改。
 
 #### 待實測：八項災情
 
