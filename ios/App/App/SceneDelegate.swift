@@ -8,7 +8,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = CAPBridgeViewController()
+        // 這裡才是真正的掛載點。Info.plist 雖然指著 Main.storyboard，
+        // 但下面這一行會把 storyboard 建好的那個 root 整個換掉，
+        // 因此插件的註冊必須跟著 MainViewController 走這條路。
+        window?.rootViewController = MainViewController()
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)

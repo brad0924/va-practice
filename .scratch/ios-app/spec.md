@@ -92,7 +92,7 @@ Type: enhancement
 
 **五、`ADR-0002` 不推翻：localStorage 仍是唯一真相來源。** 所有讀寫路徑一字不改，`src/lib/storage.ts` 的同步介面 `StorageLike` 保持同步。否決「全面換成 Capacitor Preferences」：該 API 是非同步的，換過去等於把 `storage.ts`、`app.ts` 的 `persist()` 與整批既有測試改寫成等待語意，改動範圍與收益不成比例。
 
-**六、iOS 上另存一份唯讀的保險副本。** `app.ts` 的 `persist()` 在存完 localStorage 之後，額外把同一份資料寫進原生儲存（Capacitor Preferences，底層為 iOS UserDefaults）。這份副本**永遠不被當成資料來源讀取**，只有一個用途：啟動時發現 localStorage 沒有資料、而副本有，才把副本寫回 localStorage 並照常啟動。網頁版沒有這條支線。
+**六、iOS 上另存一份唯讀的保險副本。** `app.ts` 的 `persist()` 在存完 localStorage 之後，額外把同一份資料寫進原生儲存（~~Capacitor Preferences，底層為 iOS UserDefaults~~ — 訂正為 app target 內自寫的一支 Capacitor 插件，底層為 App Group 的 `UserDefaults`，理由見決定九）。這份副本**永遠不被當成資料來源讀取**，只有一個用途：啟動時發現 localStorage 沒有資料、而副本有，才把副本寫回 localStorage 並照常啟動。網頁版沒有這條支線。
 
 **七、保險副本的寫入沿用 `cloud-backup` 的 `pending` / `sending` 模式，不用計時器。** `persist()` 每答一張卡就會跑一次，不可每次都做一趟原生 I/O。做法直接照抄 `cloud-backup.ts` 的 `flush()`：同時只寫一份，寫入期間進來的變動一律覆蓋成「待寫的最新那一份」，上一趟回來後若 `pending` 已換人就再寫一次。因為寫的永遠是整份資料，被合併掉的中間那幾份沒有任何意義。
 
@@ -101,6 +101,12 @@ Type: enhancement
 **八、還原判斷發生在 `createStore()` 之前，是啟動流程的一部分。** `store.load()` 在 localStorage 空白時會自行初始化一份新資料，因此還原必須早於它，否則使用者會先看到一個空的 app。這使 iOS 的啟動流程多一個非同步的前置步驟，`src/main.ts` 需要相應調整；網頁版的啟動路徑不變。
 
 **九、這份副本同時是第二版 Widget 的資料來源。** 寫入時即指定 App Group，Widget 才讀得到。本 spec 只負責把資料寫進去，不實作任何讀取端。
+
+**寫入的手段從 `@capacitor/preferences` 換成自寫插件。** 實作票 05 查證官方插件的 iOS 原始碼，發現它的 `group` 參數**做不到 App Group**——那只是加在 key 前面的一段字首，底層一律寫進 `UserDefaults.standard`，也就是 app 私有的那一份，Widget 讀不到。官方文件也從未宣稱它支援 App Group。
+
+因此改為在 `ios/App/App/` 內自寫一支約 30 行、只有 `read` 與 `write` 兩支方法的 Capacitor 插件，直接用 `UserDefaults(suiteName:)`。這是「改掉不成立的前提」而不是「替驗收加例外」：決定九要的是 Widget 讀得到，換一個做得到的手段才叫達成。附帶好處是一個新的 npm 依賴都不必加。
+
+代價據實記錄：多三個原生檔案（插件、註冊用的 `CAPBridgeViewController` 子類、`App.entitlements`）與兩處既有檔案的小改（`Main.storyboard`、`project.pbxproj`），且開發機是 Windows，Swift 編不編得過只能等 CI，連 typo 都不例外。
 
 ### 雲端備份的密碼
 

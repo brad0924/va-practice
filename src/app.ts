@@ -1,6 +1,8 @@
 import { cardsInBooks, createStore, type ImportResult } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
+import { withSafetyCopy } from './lib/safety-copy';
+import { createNativeSafetyCopy } from './lib/safety-copy-native';
 import { buildQueue, currentCard, rebuildQueue, rate as rateCard, type Queue } from './lib/review';
 import type { AppData, Card, Rating } from './lib/types';
 import { initSpeech } from './ui/speech';
@@ -57,7 +59,9 @@ export interface App {
 }
 
 export function start(root: HTMLElement): void {
-  const store = createStore(localStorage);
+  // iOS 上的保險副本夾在 store 與 localStorage 之間，跟上每一次本機寫入。
+  // 網頁版拿到的是個什麼都不做的東西，這條路完全不發生。
+  const store = createStore(withSafetyCopy(localStorage, createNativeSafetyCopy()));
   const now = () => new Date();
   const random = Math.random;
 
