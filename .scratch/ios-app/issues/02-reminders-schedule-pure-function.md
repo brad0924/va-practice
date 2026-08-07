@@ -1,6 +1,6 @@
 # 02 — 提醒排程：算出未來各天的累積到期張數
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無，可立即開始
 
@@ -56,15 +56,27 @@ Blocked by: 無，可立即開始
 
 ## 驗收
 
-- [ ] `src/lib/reminders.ts` 存在，為純函式，當前時間以參數注入
-- [ ] 新增 `src/lib/reminders.test.ts`，以 `src/lib/review.test.ts` 為範本
-- [ ] 沒有卡時回空
-- [ ] 全部卡都在 7 天以後到期時，回空
-- [ ] 逾期卡在每一天都被計入
-- [ ] 新卡（`due` 為 `null`）從第一天起就被計入
-- [ ] 今日到期的卡從第一天起被計入
-- [ ] 結果中第 N 天的張數只增不減
-- [ ] 張數為 0 的日子不出現在結果裡
-- [ ] 邊界：恰好第 7 天到期的卡計入，第 8 天到期的不計入
-- [ ] 跨月與跨年的日期推進正確
-- [ ] 既有測試全數通過，且一個既有測試檔都沒被修改
+- [x] `src/lib/reminders.ts` 存在，為純函式，當前時間以參數注入
+- [x] 新增 `src/lib/reminders.test.ts`，以 `src/lib/review.test.ts` 為範本
+- [x] 沒有卡時回空
+- [x] 全部卡都在 7 天以後到期時，回空
+- [x] 逾期卡在每一天都被計入
+- [x] 新卡（`due` 為 `null`）從第一天起就被計入
+- [x] 今日到期的卡從第一天起被計入
+- [x] 結果中第 N 天的張數只增不減
+- [x] 張數為 0 的日子不出現在結果裡
+- [x] 邊界：恰好第 7 天到期的卡計入，第 8 天到期的不計入
+- [x] 跨月與跨年的日期推進正確
+- [x] 既有測試全數通過，且一個既有測試檔都沒被修改
+
+---
+
+### 2026-08-07 — 實作與 code-review
+
+介面定為 `forecastDueCounts(cards, now): { date: string; count: number }[]`。`date` 用與 `Card.due` 相同的 `YYYY-MM-DD`，票 09 要配 08:00 時再自行組 `Date`——本模組不決定時間點。天數 `FORECAST_DAYS = 7` 留成私有常數，沒有開成參數（決定二十已定死，不為尚未被要求的需求留鉤子）。
+
+雙軸審查後採納一項修正：**把 `review.ts` 的 `isDue()` 改為 export 並直接借用**。原本 `reminders.ts` 自己寫了 `card.due === null || card.due <= date`，等於把「新卡視為已到期」這條規則抄了第二份，靠註解維持一致；改成傳入未來日期呼叫同一支 `isDue()`，順帶也消掉了與 `review.ts` 私有 `addDays()` 逐字相同的那份重複。除這一個字之外，既有程式碼零改動，既有測試檔零改動，360 個測試全過。
+
+**駁回一項**：Standards 軸稱「沒有對應的 issue」——子代理找錯目錄，本票就在 `.scratch/ios-app/issues/`。
+
+**留給後續**：`CONTEXT.md` 的排程章節目前沒有「每日提醒」與「到期預估」的詞條。這是真實缺口，但補詞彙表屬於票 10（ADR-0012 與 CONTEXT 詞彙）的範圍，不在本票動手。

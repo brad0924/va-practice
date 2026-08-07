@@ -51,8 +51,8 @@ function addDays(date: Date, days: number): string {
   return toDateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() + days));
 }
 
-/** 新卡（尚無到期日）視為已到期。 */
-function isDue(card: Card, now: Date): boolean {
+/** 新卡（尚無到期日）視為已到期。傳入未來的日期即可問「那天為止到期了沒」。 */
+export function isDue(card: Card, now: Date): boolean {
   return card.due === null || card.due <= toDateKey(now);
 }
 
