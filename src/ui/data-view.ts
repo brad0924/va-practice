@@ -1,6 +1,8 @@
 import type { App } from '../app';
 import { toDateKey } from '../lib/review';
-import { toMessage } from '../lib/storage';
+import { toMessage, STORAGE_KEY } from '../lib/storage';
+import { CREDENTIALS_KEY } from '../lib/cloud-backup';
+import { isNative } from '../lib/safety-copy-native';
 import { el, button, download } from './dom';
 import { booksSection } from './books-section';
 
@@ -39,6 +41,8 @@ export function dataView(app: App): HTMLElement {
   const main = el('main', 'panel');
   // 單字本擺最上面：它是這一頁的主角，其餘三區都是設定好就很久不再碰的東西。
   main.append(booksSection(app), cloudSection(app), geminiSection(app), fileSection(app));
+  // 暫時的鷹架，驗完就拆（見 issue 13）。網頁版不長出來。
+  if (isNative()) main.append(probeSection());
 
   screen.append(header, main);
   return screen;
@@ -242,6 +246,42 @@ function fileSection(app: App): HTMLElement {
   );
   return section;
 }
+
+// ── 暫時的鷹架 ─────────────────────────────────────────────────
+// 以下整段連同 dataView() 裡那一行 if，在 issue 13 驗完之後要整個刪掉。
+// 它不是功能，只為了回答「保險副本到底有沒有在運作」——那件事在畫面上
+// 看不見，而寫入端與還原端的錯誤都被刻意吞掉，靜默失效與正常運作長得一模一樣。
+
+const PROBE_CONFIRM =
+  '這會清掉這台裝置上的卡片與進度，以及雲端備份的登入狀態，然後重新載入。\n\n' +
+  '保險副本不會被清掉——如果它有在運作，重新載入後卡片會自己回來。\n\n' +
+  '確定要繼續？';
+
+function probeSection(): HTMLElement {
+  const section = el('section', 'section');
+  section.append(
+    el('h2', 'section-title', '（暫時）驗證保險副本'),
+    el(
+      'p',
+      'hint',
+      '按下去只清掉本機那一份，不碰原生的保險副本。重新載入後卡片自己回來，' +
+        '就代表副本確實有在寫、也還原得回來。驗完這一區就會被拿掉。',
+    ),
+    button('danger', '清掉本機資料', () => {
+      if (!confirm(PROBE_CONFIRM)) return;
+      localStorage.removeItem(STORAGE_KEY);
+      // 憑證一起清掉，否則 cloud.begin() 會把資料整份拉回來，
+      // 而「雲端救回來的」與「副本救回來的」在畫面上分不出來。
+      localStorage.removeItem(CREDENTIALS_KEY);
+      // 不靠使用者自己關 app：滑掉多半只是切到背景，WebView 還活著，
+      // 再打開不會重跑 main.ts，還原那條路根本不會被走到。
+      location.reload();
+    }),
+  );
+  return section;
+}
+
+// ── 鷹架結束 ───────────────────────────────────────────────────
 
 function labelled(text: string, control: HTMLInputElement): HTMLElement {
   return el('label', 'labelled', el('span', 'label-text', text), control);
