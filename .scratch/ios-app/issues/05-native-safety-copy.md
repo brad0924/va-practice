@@ -1,6 +1,6 @@
 # 05 — 保險副本：寫入原生儲存，啟動時能還原
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 Blocked by: 01
 
@@ -50,13 +50,13 @@ Blocked by: 01
 
 ## 驗收
 
-- [ ] 複習、新增、編輯、刪除卡片之後，原生儲存裡有一份與 localStorage 內容一致的資料 — 需真機
+- [x] 複習、新增、編輯、刪除卡片之後，原生儲存裡有一份與 localStorage 內容一致的資料
 - [x] 連續快速操作（例如匯入一批單字）時，寫入被合併，不會每一次變動都送一趟
 - [x] 寫入期間又有新變動時，最後落地的是最新那一份，不是中途那一份
-- [ ] 清掉 WebView 的資料後重開 app，單字與進度完整還原，不是空的 app — 需真機
+- [x] 清掉 WebView 的資料後重開 app，單字與進度完整還原，不是空的 app
 - [x] 副本與 localStorage 都空白時，照常初始化成新使用者，不報錯
 - [x] 副本寫入失敗時，複習流程完全不被打斷（與雲端推送同一個立場）
-- [ ] 副本寫入時指定了 App Group — 程式碼上已指定，但需 CI build 與真機證實
+- [x] 副本寫入時指定了 App Group
 - [x] 網頁版的啟動流程與行為零變化
 - [x] 既有測試全數通過，且一個既有測試檔都沒被修改
 
@@ -186,3 +186,32 @@ spec 決定六寫的是「`persist()` 存完 localStorage 之後額外寫一份�
 最終：**376 個測試全過（15 檔）**，`tsc --noEmit` 乾淨，`cap sync ios` exit 0，`project.pbxproj` 重新 parse 過（四個 Swift 檔都在 Sources、兩個 configuration 都指到 entitlements），網頁版 build 照常產出 service worker 且 `base` 為 `/va-practice/`。
 
 **駁回一項**：Standards 軸建議替「網頁版拿到 no-op」補一條測試。不採納——spec 的測試決定明寫「原生橋接層不寫自動測試」，而那條測試只會斷言一個空函式什麼都沒做，是典型的恆真測試。
+
+### 2026-08-07 — 真機驗證通過，九條驗收全數成立
+
+用票 13 的暫時鷹架驗的：建幾張卡 → 按「清掉本機資料」（只清 localStorage 與雲端憑證，不碰副本）→ 畫面重新載入 → **卡片立刻回來了**。
+
+這一下同時證實了四件事，不只還原那一條：
+
+1. **寫入真的有發生**——副本裡確實有東西，否則不可能還原
+2. **還原真的有跑，而且早於 `store.load()`**——晚一步會先看到一個空的 app（決定八）
+3. **插件註冊成功**——修掉 `SceneDelegate` 那顆 bug 之後最擔心的一環，在此之前完全沒有證據
+4. **App Group 的 entitlement 在執行期是好的**——讀寫走的是同一個共用儲存
+
+雲端憑證一起被清掉是刻意的：不清的話 `cloud.begin()` 會把資料整份拉回來，而「雲端救的」與「副本救的」在畫面上分不出來，測了等於白測。
+
+#### 三條原本沒勾的驗收，現在的依據
+
+| 驗收 | 依據 |
+| --- | --- |
+| 原生儲存裡有一份與 localStorage 一致的資料 | 還原回來的內容與清掉前一致。四種操作（複習／新增／編輯／刪除）走的是 `store.save()` 同一條路，`withSafetyCopy` 夾在它與 localStorage 之間，沒有第二條路徑 |
+| 清掉 WebView 資料後重開 app 完整還原 | 直接驗到 |
+| 副本寫入時指定了 App Group | CI 簽章時 entitlement 被接受、profile 帶著 App Groups 產出，加上執行期讀寫 round-trip 成立 |
+
+#### 仍未證實的一件事，留給第二版
+
+**「Widget 真的讀得到這份資料」沒有被驗到**，也驗不到——Widget 還不存在。目前成立的是「寫入端指向 App Group 的共用儲存，且本 app 讀得回來」。第二版做 Widget 時若讀不到，回頭查的第一個地方是 `SafetyCopyPlugin.swift` 的 `appGroup` 常數與 `App.entitlements` 是否仍然一字不差。
+
+#### 順帶記錄一個與本票無關的 TestFlight 怪事
+
+build 3 上傳後狀態正常（`Ready to Submit`、INVITES 為 1），但無論如何都無法指派給 Internal Testing 群組，選單裡群組是反灰的。重新觸發 workflow 產出 build 4 之後一切正常。**原因未查明。** 若再發生，先去群組的 Settings 把自動發佈打開，不要手動跟它耗。
