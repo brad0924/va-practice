@@ -1,0 +1,203 @@
+<!doctype html>
+<!--
+  隱私權政策。App Store Connect 的必填欄位需要一個公開網址，這頁就是那個網址。
+
+  刻意放在 public/ 而不是多開一個 Vite 進入點：它跟 app 沒有任何往來，
+  不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。
+  樣式直接內嵌，色票抄自 src/styles.css，好讓它跟 app 看起來是同一家的。
+
+  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts——
+  這頁寫的每一句都是那幾支程式實際的行為，不是宣示。刻意不寫 localStorage 的鍵名之類的實作細節：
+  對讀者沒幫助，改名了也沒有任何測試會抓到這頁過期。
+-->
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#141821" />
+    <link rel="icon" href="icon-192.png" />
+    <title>隱私權政策 — JLPT 單字複習</title>
+    <style>
+      :root {
+        --bg: #141821;
+        --surface: #1e2430;
+        --line: #333d4e;
+        --text: #eef2f8;
+        --muted: #93a0b4;
+        --accent: #6ea8ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px 20px 48px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Hiragino Sans', 'Noto Sans TC', system-ui, sans-serif;
+        line-height: 1.75;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      main {
+        max-width: 46rem;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 4px;
+      }
+
+      h2 {
+        font-size: 1.15rem;
+        margin: 32px 0 8px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+      }
+
+      .updated {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin: 0 0 24px;
+      }
+
+      ul {
+        padding-left: 1.3em;
+      }
+
+      li {
+        margin-bottom: 6px;
+      }
+
+      strong {
+        color: var(--accent);
+      }
+
+      .callout {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin: 16px 0;
+      }
+
+      code {
+        font-size: 0.9em;
+        color: var(--muted);
+      }
+
+      footer {
+        margin-top: 40px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>隱私權政策</h1>
+      <p class="updated">JLPT 單字複習 · 最後更新：2026 年 8 月 7 日</p>
+
+      <p>
+        JLPT 單字複習（以下稱「本 app」）不蒐集、不儲存、也不販售任何可以識別你身分的個人資料。
+        本頁說明本 app 到底碰了哪些資料、放在哪裡、以及什麼情況下才會有東西離開你的裝置。
+      </p>
+
+      <h2>資料放在哪裡</h2>
+      <p>
+        你建立的單字本、卡片、複習進度與各項設定，全部存在你這台裝置本機的瀏覽器儲存空間裡。
+        本 app 沒有帳號系統，不要求你註冊，也不會向你索取電子郵件、電話或姓名。
+        除了下面兩節明確列出的情況以外，你的資料不會離開這台裝置。
+      </p>
+
+      <h2>雲端備份（選用，預設關閉）</h2>
+      <p>
+        雲端備份讓你在自己的多台裝置之間搬運進度。要用才會啟用；沒有啟用時，本 app 一個備份請求都不會發出。
+      </p>
+      <ul>
+        <li>
+          <strong>端對端加密。</strong>資料在你的裝置上就已經加密完成（AES-GCM，一種業界標準的對稱加密法），
+          加密金鑰由你的密碼經 PBKDF2（Password-Based Key Derivation Function 2，以密碼派生金鑰的標準演算法）
+          當場算出，只存在你的裝置記憶體中，從不上傳。
+        </li>
+        <li>
+          <strong>伺服器端只有密文。</strong>備份儲存於 Google Firebase Realtime Database。
+          伺服器上只有一段加密後的內容、兩段由密碼派生、無法反推回密碼的驗證值（用來確認來覆寫的人握有正確密碼），
+          以及一個更新時間戳。存放位置以你的暱稱的雜湊值標示，暱稱原文本身也不會以明文送出。
+          伺服器與其管理者都無法閱讀你備份的內容。
+        </li>
+        <li>
+          <strong>密碼留在這台裝置上。</strong>為了讓 app 下次打開就能自動接續備份，你輸入的暱稱與密碼會存在
+          本機儲存空間裡，而且是明文。這不會讓你多損失什麼——能翻到那格的人，本來就讀得到同一台裝置上的全部卡片與進度。
+          它同樣不會上傳，也不會出現在你匯出的備份檔裡。
+        </li>
+        <li>
+          <strong>沒有帳號、不收集聯絡方式。</strong>暱稱與密碼都由你自取，只用來認出「這是同一個人的備份」，
+          不對應到任何真實身分，我們也不會拿它跟其他資料比對。
+        </li>
+      </ul>
+      <div class="callout">
+        <strong>密碼遺失無法復原。</strong>正因為加密金鑰只由你的密碼產生、從不離開你的裝置，
+        任何人（包含本 app 的開發者）都沒有備用鑰匙。密碼一旦忘記，那份雲端備份就永久無法解開，也無法重設。
+      </div>
+
+      <h2>Gemini 讀音預填（選用，預設關閉）</h2>
+      <p>
+        編輯卡片時，本 app 可以代為填入漢字的假名讀音。這個功能<strong>預設關閉</strong>，
+        必須由你自行填入一把 Google Gemini 的 API（Application Programming Interface，應用程式介面）金鑰才會啟用。
+      </p>
+      <ul>
+        <li>
+          <strong>沒設定金鑰時完全不發生。</strong>只要你沒有填入金鑰，本 app 不會為了讀音向 Google 發出任何請求，
+          讀音格一律留白給你自己填。
+        </li>
+        <li>
+          <strong>金鑰只存在這台裝置。</strong>金鑰單獨存放在本機儲存空間，既不會進入雲端備份，
+          也不會出現在你匯出的備份檔裡。換一台裝置就要重新設定一次。
+        </li>
+        <li>
+          <strong>只送出那個詞條。</strong>啟用後，本 app 會把你正在編輯的那個日文詞條、連同一段固定的作答指示，
+          送給 Google 的 Gemini API 換取讀音。送出的內容僅止於此，不包含你的釋義、複習進度或其他卡片。
+        </li>
+        <li>
+          <strong>不經過任何第三方伺服器。</strong>請求由你的裝置直接送到 Google 的 Gemini API，
+          中間沒有我們的伺服器、也沒有任何轉送服務經手。用的是你自己申請的金鑰、走你自己的額度，
+          這段請求受 Google 的隱私權政策規範。
+        </li>
+      </ul>
+
+      <h2>不收集分析數據、不含第三方追蹤</h2>
+      <p>
+        本 app 不含任何分析工具、廣告 SDK（Software Development Kit，軟體開發套件）或追蹤程式碼。
+        我們不記錄你打開了幾次、複習了幾張、按了哪個按鈕，也不使用 cookie 追蹤你，
+        更不會把任何資料分享或販售給第三方。除了上述兩項由你主動啟用的功能之外，本 app 不會把你的任何資料送往別處。
+        （網頁版由 GitHub Pages 托管，載入頁面這件事本身會如同你瀏覽任何網站一樣，讓該主機看到你的
+        IP（Internet Protocol，網際網路協定）位址；我們不接觸、也不保留這類紀錄。）
+      </p>
+
+      <h2>資料的刪除</h2>
+      <p>
+        本機資料由你完全掌握：清除瀏覽器對本站的儲存空間、或從裝置上移除本 app，資料即一併消失。
+        在「資料」畫面按下「停止同步」，這台裝置就不再備份到雲端，本機的卡片與進度完整保留。
+        目前 app 內沒有提供刪除雲端那份備份的按鈕，那段密文會繼續留在伺服器上；
+        由於它只有你的密碼解得開，我們無從閱讀，也不會用於任何用途。
+      </p>
+
+      <h2>本政策的變更</h2>
+      <p>本政策如有更新，會直接反映在本頁上，並更新頁首的日期。</p>
+
+      <footer>
+        <a href="./">← 回到 JLPT 單字複習</a>
+      </footer>
+    </main>
+  </body>
+</html>

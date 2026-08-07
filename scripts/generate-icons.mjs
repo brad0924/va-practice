@@ -10,7 +10,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const SIZES = [192, 512];
+// 192／512 給 PWA 的主畫面圖示，1024 是 App Store Connect 的必填素材。
+const SIZES = [192, 512, 1024];
 const SAMPLES = 4; // 每個像素邊長取樣數，用來做邊緣平滑
 
 const BACKGROUND = [76, 110, 245];
