@@ -164,7 +164,13 @@ Type: enhancement
 
 **三十二、Gemini 讀音預填維持原狀，一行不改。** 它預設關閉、需使用者自行設定金鑰才啟用，不影響核心功能，也不會成為審查的阻礙。
 
-**三十三、iOS 的 build 與上傳第一版由人工在 Mac 上執行，不做 CI。** 既有的 GitHub Actions 只負責網頁版部署，不動它。iOS 的自動化在送審流程穩定之前沒有價值。
+**三十三、iOS 的 build 與上傳走 GitHub Actions 的 macOS runner，手動觸發。**
+
+原訂「人工在 Mac 上執行，不做 CI」，前提是有一台 Mac 可用。實作票 01 執行時發現前提不成立——維護者的開發機是 Windows，手上沒有 Mac，照原決定執行的結果不是省事，是這張票永遠做不完。因此改掉前提本身，而不是替它加一個例外。
+
+新的做法：`.github/workflows/ios-testflight.yml`，`workflow_dispatch` 手動觸發，在 macOS runner 上跑 `npm run sync:ios` 加 `xcodebuild`，簽章後上傳 TestFlight。三個支撐這個決定的事實：public repo 的標準 macOS runner 不計費；Capacitor 8 改用 Swift Package Manager，不再需要 CocoaPods，因此 `npx cap add ios` 與 `npx cap sync` 在 Windows 上就能跑完；TestFlight 的 Internal Testing 不經任何審查，上傳處理完即可安裝。
+
+「不綁在 push 上」這一點維持原決定的精神：每跑一次就佔用一個 TestFlight build number，自動化沒有價值。既有的網頁版部署 workflow 不動，只在 `paths-ignore` 補上 `ios/**`。
 
 ### 文件
 
@@ -202,14 +208,15 @@ Type: enhancement
 
 - **主畫面／鎖定畫面 Widget**。第二版。本 spec 只把資料寫進 App Group，不實作任何讀取端。
 - **Android**。Capacitor 支援，但本專案不需要，且會使每個原生決定都得考慮第二個平台。
-- **iOS 的 CI／自動送審**（決定三十三）。
+- **iOS 的自動送審**。build 與上傳 TestFlight 走 CI 但需手動觸發，送審一律人工（決定三十三）。
 - **任何畫面的重寫或視覺改版**。包含捲動手感、轉場動畫、原生元件替換。WebView 的手感就是這一版的手感。
 - **網頁版的任何行為變更**。
 - **提醒時間的自訂**（決定二十二）。
 - **Gemini 讀音預填的任何改動**（決定三十二）。
 - **雲端備份改為逐張合併的同步**。`CONTEXT.md` 已將「同步」列入 `_Avoid_`，本工程不動這個立場。
 - **Firebase 匿名登入或後端改造**。評估後選擇接受風險（決定二十六）。
-- **Apple Developer Program 的申請**與 **App 名稱、Bundle ID 的決定**——需由維護者本人處理，不是實作票。
+- **Apple Developer Program 的申請**——需由維護者本人處理，不是實作票。
+- ~~**App 名稱、Bundle ID 的決定**~~ — 訂正：走 TestFlight 就必須先在 App Store Connect 建立 app 記錄，而建立時指定的 Bundle ID 之後無法變更，因此已於實作票 01 提前定案為 `io.github.brad0924.vapractice`，主畫面顯示名稱 `JLPT 單字`。App Store 上架用的商品名稱仍可隨時改，留給票 11。
 
 ## 補充
 

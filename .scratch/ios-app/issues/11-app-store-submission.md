@@ -18,13 +18,15 @@ Blocked by: 03, 04, 05, 06, 07, 08, 09, 10
 
 - **Apple Developer Program 會籍**（US$99/年，審核可能要數天，宜及早申請）
 - **App 名稱**（App Store 上不可與他人重複）
-- **Bundle ID**
+- ~~**Bundle ID**~~ — 已於票 01 定案為 `io.github.brad0924.vapractice`（走 TestFlight 必須先建 app 記錄，Bundle ID 因此提前綁死）
 
 ## 決定
 
-### build 由人工在 Mac 上執行，不做 CI
+### ~~build 由人工在 Mac 上執行，不做 CI~~ — 訂正：走 CI，手動觸發
 
-既有的 GitHub Actions 只負責網頁版部署，**不動它**。iOS 的自動化在送審流程穩定之前沒有價值。
+訂正於票 01。原決定的前提是「有 Mac 可人工 build」，但維護者的開發機是 Windows 且無 Mac，前提不成立。
+
+現況：`.github/workflows/ios-testflight.yml` 在 macOS runner 上 build 並上傳 TestFlight，`workflow_dispatch` 手動觸發。「不綁在 push 上」維持原決定的精神——每跑一次就佔一個 build number，自動化沒有價值。網頁版的部署 workflow 只在 `paths-ignore` 補了 `ios/**`，行為不變。**送審一律人工**，這張票的送審步驟不進 CI。
 
 ### 資料揭露要照實填
 

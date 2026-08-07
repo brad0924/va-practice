@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:ios": "tsc --noEmit && vite build --mode ios",
+    "sync:ios": "npm run build:ios && cap sync ios",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -13,10 +15,15 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "jsdom": "^30.0.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.7",
     "vite-plugin-pwa": "^1.0.3",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0"
   }
 }
