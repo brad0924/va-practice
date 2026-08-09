@@ -232,9 +232,19 @@ function fileSection(app: App): HTMLElement {
     el(
       'div',
       'data-actions',
-      button('secondary', '匯出備份', () =>
-        download(app.exportBackup(), `jlpt-cards-${toDateKey(app.now())}.json`, 'application/json'),
-      ),
+      button('secondary', '匯出備份', async () => {
+        try {
+          await download(
+            app.exportBackup(),
+            `jlpt-cards-${toDateKey(app.now())}.json`,
+            'application/json',
+          );
+        } catch (error) {
+          // 只有原生那條路（iOS 的分享單）丟得出東西來，網頁版走不到這裡。
+          status.textContent = `匯出失敗：${toMessage(error)}`;
+          status.classList.add('error');
+        }
+      }),
       button('secondary', '匯入備份', () => file.click()),
     ),
     file,
