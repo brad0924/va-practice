@@ -1,4 +1,4 @@
-import { cardsInBooks, createStore, type ImportResult } from './lib/storage';
+import { cardsInBooks, createStore, type ImportResult, type StorageLike } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { withSafetyCopy } from './lib/safety-copy';
@@ -58,7 +58,11 @@ export interface App {
   keyHandler: ((event: KeyboardEvent) => void) | null;
 }
 
-export function start(root: HTMLElement): void {
+/**
+ * `cloudStorage` 是雲端備份記暱稱與密碼的地方。網頁版遞的是 localStorage，
+ * iOS 遞的是 Keychain 撐起來的那一個（見 `main.ts`）——雲端備份自己不必知道差別。
+ */
+export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   // iOS 上的保險副本夾在 store 與 localStorage 之間，跟上每一次本機寫入。
   // 網頁版拿到的是個什麼都不做的東西，這條路完全不發生。
   const store = createStore(withSafetyCopy(localStorage, createNativeSafetyCopy()));
@@ -72,7 +76,7 @@ export function start(root: HTMLElement): void {
   let render: () => void = () => {};
 
   const cloud = createCloudBackup({
-    storage: localStorage,
+    storage: cloudStorage,
     // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
     fetch: fetch.bind(window),
     onPulled(json, updatedAt) {

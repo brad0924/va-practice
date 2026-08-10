@@ -1,7 +1,7 @@
 import UIKit
 import Capacitor
 
-/// 只為了註冊 `SafetyCopyPlugin` 而存在。
+/// 只為了註冊住在 app 自己這個 target 裡的那幾支插件而存在。
 ///
 /// Capacitor 6 之後，住在 app 自己這個 target 裡的插件不會被自動掃描到——
 /// 自動註冊只涵蓋 `cap sync` 從 node_modules 找到的那些。因此得自己在 bridge
@@ -12,5 +12,6 @@ import Capacitor
 class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SafetyCopyPlugin())
+        bridge?.registerPluginInstance(KeychainPlugin())
     }
 }

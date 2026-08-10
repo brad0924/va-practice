@@ -18,6 +18,7 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A5C0F1020000000000000502 /* SafetyCopyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F1010000000000000501 /* SafetyCopyPlugin.swift */; };
 		A5C0F1040000000000000504 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F1030000000000000503 /* MainViewController.swift */; };
+		A5C0F1070000000000000507 /* KeychainPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F1060000000000000506 /* KeychainPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,7 @@
 		A5C0F1010000000000000501 /* SafetyCopyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetyCopyPlugin.swift; sourceTree = "<group>"; };
 		A5C0F1030000000000000503 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		A5C0F1050000000000000505 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		A5C0F1060000000000000506 /* KeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +76,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				A5C0F1030000000000000503 /* MainViewController.swift */,
 				A5C0F1010000000000000501 /* SafetyCopyPlugin.swift */,
+				A5C0F1060000000000000506 /* KeychainPlugin.swift */,
 				A5C0F1050000000000000505 /* App.entitlements */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -170,6 +173,7 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				A5C0F1040000000000000504 /* MainViewController.swift in Sources */,
 				A5C0F1020000000000000502 /* SafetyCopyPlugin.swift in Sources */,
+				A5C0F1070000000000000507 /* KeychainPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
