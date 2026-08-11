@@ -1,6 +1,6 @@
 # 06 — 雲端備份的密碼改存 Keychain，換裝置自動帶走
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 Blocked by: 01, 05
 
@@ -40,12 +40,12 @@ Keychain 降低了忘記密碼的機率，但沒有消除它——使用者可�
 
 ## 驗收
 
-- [ ] iOS 上登入雲端備份後，憑證存進 Keychain 而非 localStorage
-- [ ] Keychain 項目標記為可同步到 iCloud 鑰匙圈
-- [ ] 關掉 app 再開，仍是登入狀態，會自動拉雲端資料
-- [ ] 「停止同步」後，Keychain 裡的憑證確實被清掉，重開仍是未登入
-- [ ] 換密碼後，新憑證正確寫回 Keychain
-- [ ] 未啟用 iCloud 鑰匙圈的裝置上，功能正常運作，只是不同步
+- [x] iOS 上登入雲端備份後，憑證存進 Keychain 而非 localStorage
+- [x] Keychain 項目標記為可同步到 iCloud 鑰匙圈
+- [x] 關掉 app 再開，仍是登入狀態，會自動拉雲端資料
+- [x] 「停止同步」後，Keychain 裡的憑證確實被清掉，重開仍是未登入
+- [x] 換密碼後，新憑證正確寫回 Keychain
+- [ ] 未啟用 iCloud 鑰匙圈的裝置上，功能正常運作，只是不同步（**驗不到，改由文件支撐，見下方 Comments**）
 - [x] `src/lib/cloud-backup.ts` 一行未改
 - [x] 網頁版的憑證仍存 localStorage，行為零變化
 - [x] 設定雲端備份的畫面明說「密碼遺失無法復原」，並指向匯出備份
@@ -111,3 +111,39 @@ Keychain 的 API 是非同步的，`StorageLike` 是同步的。做法照決定�
 1. 手動觸發 `Build iOS and upload to TestFlight`。
 2. 真機驗那六條：登入 → 關掉 app 再開仍登入 → 換密碼 → 停止同步後重開仍未登入 → 沒開 iCloud 鑰匙圈的裝置上照常運作 → 換裝置（或另一台同 Apple ID 的裝置）密碼自動帶到。
 3. 編不過的話把 Actions 的 log 貼回來——前幾趟很可能是在打 Swift 編譯錯誤，不是在測功能。
+
+### 2026-08-11 — 真機驗證：五條通過，第六條驗不到
+
+CI 那一趟乾淨：`KeychainPlugin.swift` 編進去了、0 個 error、`ARCHIVE`／`EXPORT`／`UPLOAD` 全部 SUCCEEDED，且 CI 打出來的 JS 與本機 build 是同一個 hash。**兩個未證實的假設中，「Keychain 不需要多勾任何 capability」這一個成立了**——真機上沒有出現 `-34018`，App ID 一個 capability 都沒有補勾。
+
+前五條在真機上通過，包含最強的那一條：**第二台裝置全新安裝後，密碼真的自己跟著到了**。這同時證實了項目確實帶著可同步的標記，並且真的透過 iCloud 鑰匙圈同步出去了。
+
+順帶記錄一個當初沒想到的觀察：**驗收第二條的「標記」那一半，其實同一台裝置就驗得到**。讀取時的查詢條件帶著 `kSecAttrSynchronizable`，它只找得到可同步的那一批，所以「滑掉重開仍是已登入」就已經證明標記蓋上了。第二台裝置驗的是另一件事——同步真的發生。
+
+#### 第六條為什麼驗不到
+
+維護者的 iPhone **關不掉 iCloud 鑰匙圈**：開關按得下去，轉圈圈約兩分鐘後自動彈回開啟——是「請求失敗後回滾」，不是被限制鎖住。原因未查明，懷疑與進階資料保護有關，但那是 Apple 那一端的事。
+
+而且就算關成功了，驗到的也只是「這台關掉之後還能用」，與「從來沒開過鑰匙圈的裝置」情境並不完全相同。
+
+#### 改由文件支撐，以及證據等級
+
+查證的結果一致地支持原假設，但**要說清楚這是推論不是引用**：
+
+- Apple DTS（Quinn）的說法是「用 `kSecAttrSynchronizable`，**如果使用者啟用了 iCloud 鑰匙圈**，項目就會透過 iCloud 同步」——句型講的是「同步與否取決於使用者的設定」，不是「存不存得進去取決於它」
+- Apple 支援文件寫「之後把 iCloud 鑰匙圈打開，密碼會再同步到裝置上」——那些密碼在打開之前顯然已經存在本機
+- **但沒有任何一份 Apple 文件白紙黑字寫「鑰匙圈關閉時 `SecItemAdd` 照樣成功」**
+
+來源：[Apple Developer Forums 676891](https://developer.apple.com/forums/thread/676891)、[Set up iCloud Keychain](https://support.apple.com/en-us/109016)、[Secure keychain syncing](https://support.apple.com/guide/security/secure-keychain-syncing-sec0a319b35f/web)
+
+#### 推錯的話會怎樣
+
+最壞的後果是那些使用者**每次重開 app 要重新登入一次**，卡片與進度一張都不會少——不是資料損失。風險被框在這個範圍內，因此這張票以 `done` 收掉，不卡在一台找不到的裝置上。
+
+日後若真有使用者回報「每次開 app 都要重新登入」，第一個要查的就是這裡。
+
+### 2026-08-11 — 這張票的驗證過程生出了票 14
+
+第二台裝置全新安裝時，**問都沒問就把整份雲端資料拉了下來**。機制上完全正確（決定十要的就是這個），但它把「不必重新輸入密碼」做成了「不必表示同意」。
+
+那是設計問題不是缺陷，已開 `14-ask-before-first-cloud-pull.md` 處理，並在該票訂正決定十：**密碼跟著走，但同意不跟著走**。
