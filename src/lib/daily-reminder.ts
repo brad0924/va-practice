@@ -14,8 +14,11 @@ import { toDateKey } from './review';
 import type { StorageLike } from './storage';
 import type { Card } from './types';
 
-/** 沒設過時幾點叫。與票 09 寫死的那個時刻相同，升級的人不會感覺到差別。 */
-export const DEFAULT_REMINDER_TIME = '06:00';
+/**
+ * 沒設過時幾點叫。**只對「時間那一格從來沒被設過」的裝置生效**——設過的人
+ * 讀到的是自己那個值，改這裡動不到他。
+ */
+export const DEFAULT_REMINDER_TIME = '08:00';
 
 /** `HH:MM`，24 小時制。`<input type="time">` 給出來的正是這個形狀。 */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -31,7 +34,8 @@ const REMINDER_STORAGE_KEY = 'va-practice:reminder';
  * 把設好的時間一起洗掉、回來得重設一次很怪（見票 18 的訂正）。
  *
  * 分開的另一個好處是相容處理變成零行：票 09 留下的裝置上開關那一格仍是 `'on'`，
- * 時間那一格不存在，讀不到就用預設的 06:00——正是升級前的行為。
+ * 時間那一格不存在，讀不到就用預設值。（那些裝置因此跟著預設值走——票 18 把預設
+ * 改回 08:00 時，它們也一起從 06:00 變成 08:00。這是刻意的，見票 18 的訂正。）
  */
 const REMINDER_TIME_KEY = 'va-practice:reminder-time';
 
@@ -90,7 +94,7 @@ export interface DailyReminderHooks {
 export interface DailyReminder {
   /** 這台裝置有沒有開每日提醒。 */
   enabled(): boolean;
-  /** 幾點叫，`HH:MM`。沒設過時是 06:00。 */
+  /** 幾點叫，`HH:MM`。沒設過時是 `DEFAULT_REMINDER_TIME`。 */
   time(): string;
   /**
    * 改成幾點叫，並依新時間整批重排。關著時只記下來，不白跑一趟原生。
@@ -216,7 +220,7 @@ export function createDailyReminder({ native, storage, plan }: DailyReminderHook
   }
 
   /**
-   * 幾點叫。存進去的東西壞掉時退回預設值——排出一個看不懂的時刻比不排更糟，
+   * 幾點叫。沒設過、或存進去的東西壞掉時退回預設值——排出一個看不懂的時刻比不排更糟，
    * 而使用者從畫面上完全看不出哪裡不對。
    *
    * 寫入端已經擋掉不成形的值，因此這一道守的是**別人留下的東西**：更早的版本、
@@ -257,7 +261,7 @@ export function createDailyReminder({ native, storage, plan }: DailyReminderHook
     time: readTime,
 
     setTime(time) {
-      // 不成形的東西進不了那一格。放它進去的話 `time()` 讀出來會退回 06:00，
+      // 不成形的東西進不了那一格。放它進去的話 `time()` 讀出來會退回預設值，
       // 而畫面上顯示的是使用者剛送進來的那個——看到的與排出去的從此各說各話。
       if (!TIME_PATTERN.test(time)) return;
       storage.setItem(REMINDER_TIME_KEY, time);

@@ -247,7 +247,7 @@ function reminderSection(app: App): HTMLElement | null {
   time.value = reminder.time();
 
   // 「提醒時間」與時間格是開關那句話的後半，讀起來是一句：
-  // 「每天提醒我，提醒時間 06:00」。刻意不塞進開關那個 <label> 裡——
+  // 「每天提醒我，提醒時間 08:00」。刻意不塞進開關那個 <label> 裡——
   // 塞進去的話點時間格會順手把開關關掉。
   const timeRow = el('label', 'reminder-time', el('span', 'toggle-label', '提醒時間'), time);
 
