@@ -3,6 +3,9 @@ import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
 import { el, button, download } from './dom';
 import { booksSection } from './books-section';
+// 暫時的鷹架（票 15），驗完連同 voiceProbeSection() 一起拆掉。
+import { isNative } from '../lib/safety-copy-native';
+import { describeNativeVoices } from '../lib/speech-native';
 
 /**
  * 最後一句不是客套話：密碼同時是加密金鑰，遺失即無法復原是機制決定的（見 ADR-0003）。
@@ -45,6 +48,8 @@ export function dataView(app: App): HTMLElement {
   const main = el('main', 'panel');
   // 單字本擺最上面：它是這一頁的主角，其餘三區都是設定好就很久不再碰的東西。
   main.append(booksSection(app), cloudSection(app), geminiSection(app), fileSection(app));
+  // 暫時的鷹架（票 15），驗完就拆。網頁版看不到這一區。
+  if (isNative()) main.append(voiceProbeSection());
 
   screen.append(header, main);
   return screen;
@@ -255,6 +260,31 @@ function fileSection(app: App): HTMLElement {
     ),
     file,
     status,
+  );
+  return section;
+}
+
+/**
+ * 暫時的鷹架（票 15），驗完就拆：把這支手機看得到的日文語音印在畫面上。
+ *
+ * 開發機是 Windows，看不到 Safari 的除錯器，「有哪幾顆語音、挑到哪一顆」
+ * 在畫面上完全看不見。平台判斷因此短暫地出現在畫面層，違反本 repo 的立場——
+ * 明知故犯，因為它要被拆掉；包成正式接縫反而會讓人忘記拆（同票 13 的處理方式）。
+ */
+function voiceProbeSection(): HTMLElement {
+  const report = el('p', 'hint');
+  // 報告是逐行的，要保住換行；只改這一個元素，不動共用的樣式表。
+  report.style.whiteSpace = 'pre-wrap';
+  report.style.wordBreak = 'break-all';
+
+  const section = el('section', 'section');
+  section.append(
+    el('h2', 'section-title', '語音診斷（暫時）'),
+    button('secondary', '查語音', async () => {
+      report.textContent = '查詢中…';
+      report.textContent = await describeNativeVoices();
+    }),
+    report,
   );
   return section;
 }

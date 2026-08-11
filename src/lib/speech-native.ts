@@ -12,9 +12,11 @@
  */
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
-/** 原生那一端只有一支方法。挑語音、選語速、中斷前一次都在那邊，這裡只遞文字。 */
+/** 原生那一端的方法。挑語音、選語速、中斷前一次都在那邊，這裡只遞文字。 */
 interface SpeechPlugin {
   speak(options: { text: string }): Promise<void>;
+  /** 暫時的鷹架（票 15），驗完就拆。 */
+  describeVoices(): Promise<{ report: string }>;
 }
 
 const plugin = registerPlugin<SpeechPlugin>('Speech');
@@ -34,4 +36,18 @@ export function createNativeSpeak(): Speak | null {
     // 失敗也吞掉——使用者能做的只有再按一次，而跳一個錯誤出來只會打斷複習。
     void plugin.speak({ text }).catch(() => {});
   };
+}
+
+/**
+ * 暫時的鷹架（票 15），驗完就拆：把這支手機上的日文語音狀況要回來，印在畫面上。
+ *
+ * 存在的理由只有一個：開發機是 Windows，看不到 Safari 的除錯器。
+ * 失敗時把錯誤原文交回去顯示——這支東西的用途正是看清楚出了什麼事，不該吞。
+ */
+export async function describeNativeVoices(): Promise<string> {
+  try {
+    return (await plugin.describeVoices()).report;
+  } catch (error) {
+    return `查不到：${error instanceof Error ? error.message : String(error)}`;
+  }
 }
