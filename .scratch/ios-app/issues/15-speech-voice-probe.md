@@ -105,3 +105,36 @@ Swift 那一半照樣一行都沒被執行過。
 2. 「資料」畫面按「語音診斷」，截圖回報
 3. 依上方「怎麼用」的表格判斷下一步，結果寫回本票與票 07
 4. 驗完發一次 build 拆掉鷹架（三個檔案都要）
+
+### 2026-08-11 — 診斷結果：兩個猜測都錯了，而且解釋了「聽起來一樣」
+
+真機按下「語音診斷」印出來的：
+
+```
+當前語言：cmn-TW
+系統預設：O-ren (Enhanced)／enhanced 增強／ja-JP／com.apple.ttsbundle.siri_O-ren_ja-JP_premium
+實際挑到：O-ren (Enhanced)／enhanced 增強／ja-JP／com.apple.ttsbundle.siri_O-ren_ja-JP_premium
+清單共 11 顆日文語音：
+・Kyoko (Enhanced)／enhanced 增強／ja-JP／com.apple.voice.enhanced.ja-JP.Kyoko
+・Kyoko／compact 壓縮／ja-JP／com.apple.voice.compact.ja-JP.Kyoko
+・Eddy／Flo／Grandma／Grandpa／Reed／Rocko／Sandy／Shelley（8 顆 eloquence，全 compact）
+・O-ren (Enhanced)／enhanced 增強／ja-JP／com.apple.ttsbundle.siri_O-ren_ja-JP_premium
+```
+
+#### 本票「現況」裡的三個未知，全部有答案了
+
+1. **O-ren 拿得到。** 本票寫「強烈懷疑拿不到——Siri 那批第三方 app 取不到」，**猜錯了**。它就在清單裡，identifier 是 `com.apple.ttsbundle.siri_O-ren_ja-JP_premium`，而且被挑到了。
+2. **`AVSpeechSynthesisVoice(language:)` 確實反映使用者的選擇。** 使用者在設定裡選 O-ren，系統預設回的就是 O-ren。決定一的那個「建在未經證實的假設上」的風險**沒有發生**，規則可以留下。
+3. **這支手機有 enhanced，沒有 premium。** 兩顆 enhanced（Kyoko、O-ren），其餘九顆全是 compact。
+
+#### 順帶解釋了票 07 那個「聽起來一樣」
+
+票 07 的規則是「全清單品質最高」，同分時 Swift 的 `max(by:)` 保留**先出現**的那個——依上面的清單順序，票 07 的 build 挑到的是 **Kyoko (Enhanced)**。
+
+而網頁版的 `speech.ts` 挑的是「清單裡第一顆 `ja` 開頭的語音」，在同一支手機上**極可能也是 Kyoko (Enhanced)**。兩邊同一顆語音，聲音當然一樣——回報的現象因此完全說得通，不是任何一端壞掉。
+
+這也是本票的規則改動帶來的實質差別：**現在挑的是 O-ren，與網頁版不再是同一顆**。A／B 比對要重做一次才算數。
+
+#### 還沒收掉的一條
+
+「音質明顯比 Web Speech 自然」（票 07 驗收）仍待重驗。若重比之後**還是一樣**，那要懷疑的就不是實作，而是 spec 決定十五的前提本身——屆時可以再加一段探針，把 Web Speech 那側 `speechSynthesis.getVoices()` 看到的清單也印出來，直接比對兩邊挑到的是不是同一顆。
