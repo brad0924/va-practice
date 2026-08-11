@@ -607,6 +607,25 @@ button {
   font-size: 0.85rem;
 }
 
+/* 勾選框加一行字，整列都可以點。高度給滿一個指節，手機上才好按。 */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--tap);
+}
+
+.toggle-check {
+  flex: 0 0 auto;
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent);
+}
+
+.toggle-label {
+  font-size: 1rem;
+}
+
 .hint {
   color: var(--muted);
   font-size: 0.8rem;

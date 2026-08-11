@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { REMINDER_HOUR } from '../lib/daily-reminder';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
 import { el, button, download } from './dom';
@@ -32,6 +33,18 @@ const GEMINI_HINT =
   '並確認該專案沒有啟用計費——一旦啟用，免費額度就會消失，之後每次呼叫都從第一個字開始計費。' +
   '金鑰只留在這台裝置，不會上傳雲端，也不會出現在匯出的備份檔裡。';
 
+/** 三件事講清楚：什麼時候會叫、什麼時候不叫、以及這個開關只管這一台。 */
+const REMINDER_HINT =
+  '有卡到期的日子才會叫你，一張都沒有就不吵；當天複習完之後，那天剩下的提醒也不會再出現。' +
+  '這個開關只影響這台裝置，不會上傳雲端，也不會出現在匯出的備份檔裡。';
+
+/**
+ * 權限被拒絕時說實話：不假裝提醒有在運作，也不再問第二次——系統本來就不會再跳，
+ * 唯一能改的地方是設定 app，因此直接指過去（見 spec 決定二十四）。
+ */
+const REMINDER_DENIED =
+  '通知權限是關的，提醒送不出來。請到「設定 → JLPT 單字 → 通知」允許通知後，再回來打開這個開關。';
+
 export function dataView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
@@ -43,8 +56,12 @@ export function dataView(app: App): HTMLElement {
   );
 
   const main = el('main', 'panel');
-  // 單字本擺最上面：它是這一頁的主角，其餘三區都是設定好就很久不再碰的東西。
-  main.append(booksSection(app), cloudSection(app), geminiSection(app), fileSection(app));
+  // 單字本擺最上面：它是這一頁的主角，其餘幾區都是設定好就很久不再碰的東西。
+  // 提醒緊接在 Gemini 金鑰之後：兩者同樣是「只管這一台裝置」的偏好，擺在一起。
+  main.append(booksSection(app), cloudSection(app), geminiSection(app));
+  const reminder = reminderSection(app);
+  if (reminder) main.append(reminder);
+  main.append(fileSection(app));
 
   screen.append(header, main);
   return screen;
@@ -206,6 +223,71 @@ function geminiSection(app: App): HTMLElement {
   });
 
   section.append(form);
+  return section;
+}
+
+/**
+ * 每日提醒的開關。**只有原生殼裡才長出這一區**——網頁版 `app.reminder` 為 null，
+ * 這裡直接回 null，「資料」畫面上一個字都不會多。
+ *
+ * 開起來要先過通知權限那一關，因此不像其他幾區按了就重畫：就地把勾回彈、
+ * 把原因寫在底下，使用者才看得懂剛剛發生了什麼事。
+ */
+function reminderSection(app: App): HTMLElement | null {
+  const reminder = app.reminder;
+  if (reminder === null) return null;
+
+  const check = el('input', 'toggle-check');
+  check.type = 'checkbox';
+  check.checked = reminder.enabled();
+
+  const status = el('p', 'status');
+
+  function deny(): void {
+    check.checked = false;
+    status.textContent = REMINDER_DENIED;
+    status.classList.add('error');
+  }
+
+  // 先照記著的狀態畫，再去問通知權限還在不在——使用者可能剛從系統設定把它關掉，
+  // 而一個亮著卻收不到提醒的開關正是決定二十四禁止的假象。
+  if (check.checked) {
+    void reminder.verify().then((live) => {
+      if (!live) deny();
+    });
+  }
+
+  check.addEventListener('change', () => {
+    status.textContent = '';
+    status.classList.remove('error');
+    if (!check.checked) {
+      reminder.disable();
+      return;
+    }
+
+    // 系統對話框跳出來的期間先鎖住，免得連點兩下變成兩次請求。
+    check.disabled = true;
+    void reminder.enable().then((granted) => {
+      check.disabled = false;
+      // 被拒絕時勾自己彈回去：使用者寧可看到「你關掉了通知權限」，
+      // 也不要以為提醒在運作卻永遠收不到。
+      if (!granted) deny();
+    });
+  });
+
+  const section = el('section', 'section');
+  section.append(
+    el('h2', 'section-title', '每日提醒'),
+    el(
+      'label',
+      'toggle',
+      check,
+      // 時間只有 REMINDER_HOUR 一個出處，改它的時候不必記得回來改這句話。
+      el('span', 'toggle-label', `每天早上 ${REMINDER_HOUR}:00 提醒我`),
+    ),
+    el('p', 'hint', REMINDER_HINT),
+    status,
+  );
   return section;
 }
 

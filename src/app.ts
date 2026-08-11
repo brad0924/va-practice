@@ -4,6 +4,8 @@ import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { withSafetyCopy } from './lib/safety-copy';
 import { createNativeSafetyCopy } from './lib/safety-copy-native';
 import { createNativeHaptic } from './lib/haptics-native';
+import { planReminders, type DailyReminder } from './lib/daily-reminder';
+import { createNativeDailyReminder } from './lib/daily-reminder-native';
 import { buildQueue, currentCard, rebuildQueue, rate as rateCard, type Queue } from './lib/review';
 import type { AppData, Card, Rating } from './lib/types';
 import { initSpeech } from './ui/speech';
@@ -25,6 +27,11 @@ export interface App {
   readonly cloud: CloudBackup;
   /** 使用者自備的 Gemini 金鑰。只留在這台裝置，不上雲也不進匯出檔。 */
   readonly gemini: GeminiKey;
+  /**
+   * 每日提醒。**網頁版為 null**——那裡沒有系統通知這條支線，
+   * 「資料」畫面因此連這個開關都不會長出來。
+   */
+  readonly reminder: DailyReminder | null;
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
@@ -78,6 +85,13 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   let revealed = false;
   let render: () => void = () => {};
 
+  // 每日提醒。吃的必須與 buildQueue() 同一批卡（複習範圍內的那些），否則通知上的
+  // 數字與使用者打開 app 看到的對不起來——因此這裡刻意與上面那一行並排。
+  // 網頁版拿到的是 null，底下每一個呼叫點都是 `reminder?.`，那條路完全不發生。
+  const reminder = createNativeDailyReminder(localStorage, () =>
+    planReminders(cardsInBooks(data.cards, data.scopes.review), now()),
+  );
+
   const cloud = createCloudBackup({
     storage: cloudStorage,
     // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
@@ -110,6 +124,7 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     },
     cloud,
     gemini: createGeminiKey(localStorage),
+    reminder,
     now,
 
     reveal() {
@@ -229,6 +244,9 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     data = store.load();
     queue = buildQueue(cardsInBooks(data.cards, data.scopes.review), now(), random);
     revealed = false;
+    // 整份資料被換掉也是一次資料變動。這條路（匯入單字、整份匯入、雲端拉下來）
+    // 不經過 persist()，漏掉的話「匯入一批單字後數字立刻正確」就不成立。
+    reminder?.refresh();
   }
 
   function replaceInData(card: Card): void {
@@ -239,6 +257,10 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   function persist(): void {
     store.save(data);
     cloud.push(data);
+    // 資料一變就整批重排：先清掉全部已登記的，再依最新資料重新登記。
+    // 「複習完就不再被叫」與「改了複習範圍數字跟著改」因此走的是同一條路徑，
+    // 不需要任何個別取消的邏輯。
+    reminder?.refresh();
   }
 
   // 先解除上一個畫面的鍵盤處理器，再建立新畫面——順序反過來的話，
@@ -260,6 +282,10 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
 
   // 畫面先出來，雲端在背後追。沒登入的話這一步什麼都不做。
   cloud.begin(data);
+
+  // 排的是未來 7 天，因此每開一次 app 就把窗口往前推一次——只靠資料變動觸發的話，
+  // 一個「開了 app 卻沒複習」的人會在第 8 天之後完全收不到提醒。沒開提醒時不做事。
+  reminder?.refresh();
 }
 
 /** 兩份卡片是不是同一批。順序不算：洗牌與勾選的先後都不是內容的改變。 */
