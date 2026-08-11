@@ -609,6 +609,11 @@ button {
   gap: 0.375rem;
 }
 
+/* `display: flex` 比瀏覽器內建的 `[hidden]` 強，不寫這條藏不起來（提醒時間那一列要藏）。 */
+.labelled[hidden] {
+  display: none;
+}
+
 .label-text {
   color: var(--muted);
   font-size: 0.85rem;

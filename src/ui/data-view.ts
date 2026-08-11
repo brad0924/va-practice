@@ -1,5 +1,4 @@
 import type { App } from '../app';
-import { REMINDER_HOUR } from '../lib/daily-reminder';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
 import { el, button, download } from './dom';
@@ -241,10 +240,30 @@ function reminderSection(app: App): HTMLElement | null {
   check.type = 'checkbox';
   check.checked = reminder.enabled();
 
+  // 原生的時間欄位：iOS 上叫出來的是系統那個滾輪，長得跟其他 app 裡的一樣，
+  // 也自動跟著系統的 12／24 小時制走。自己做一個只會比它差（見票 18）。
+  const time = el('input', 'field');
+  time.type = 'time';
+  time.value = reminder.time();
+
+  const timeRow = labelled('提醒時間', time);
+
+  /**
+   * 時間欄位跟著開關走：關著的時候那一格沒有意義，長在那裡只會讓人以為關著也會叫
+   * （見票 18）。四條路（初次畫、關掉、開起來、被拒絕）都呼叫這一支而不是各自
+   * 設一次——漏掉其中一條就會出現「關著卻看得到時間欄位」。
+   */
+  function syncTimeRow(): void {
+    timeRow.hidden = !check.checked;
+  }
+
+  syncTimeRow();
+
   const status = el('p', 'status');
 
   function deny(): void {
     check.checked = false;
+    syncTimeRow();
     status.textContent = REMINDER_DENIED;
     status.classList.add('error');
   }
@@ -261,6 +280,7 @@ function reminderSection(app: App): HTMLElement | null {
     status.textContent = '';
     status.classList.remove('error');
     if (!check.checked) {
+      timeRow.hidden = true;
       reminder.disable();
       return;
     }
@@ -271,20 +291,29 @@ function reminderSection(app: App): HTMLElement | null {
       check.disabled = false;
       // 被拒絕時勾自己彈回去：使用者寧可看到「你關掉了通知權限」，
       // 也不要以為提醒在運作卻永遠收不到。
-      if (!granted) deny();
+      if (!granted) {
+        deny();
+        return;
+      }
+      timeRow.hidden = false;
     });
+  });
+
+  time.addEventListener('change', () => {
+    // 時間欄位是可以被清空的（值變成空字串）。那不是一個時刻，不能存進去——
+    // 把記著的那個填回去，畫面與存的東西才不會各說各話。
+    if (time.value === '') {
+      time.value = reminder.time();
+      return;
+    }
+    reminder.setTime(time.value);
   });
 
   const section = el('section', 'section');
   section.append(
     el('h2', 'section-title', '每日提醒'),
-    el(
-      'label',
-      'toggle',
-      check,
-      // 時間只有 REMINDER_HOUR 一個出處，改它的時候不必記得回來改這句話。
-      el('span', 'toggle-label', `每天早上 ${REMINDER_HOUR}:00 提醒我`),
-    ),
+    el('label', 'toggle', check, el('span', 'toggle-label', '每天提醒我')),
+    timeRow,
     el('p', 'hint', REMINDER_HINT),
     status,
   );

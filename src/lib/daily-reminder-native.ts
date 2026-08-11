@@ -36,7 +36,7 @@ const plugin = registerPlugin<DailyReminderPlugin>('DailyReminder');
  */
 export function createNativeDailyReminder(
   storage: StorageLike,
-  plan: () => readonly ScheduledReminder[],
+  plan: (time: string) => readonly ScheduledReminder[],
 ): DailyReminder | null {
   if (!Capacitor.isNativePlatform()) return null;
 

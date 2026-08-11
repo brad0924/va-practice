@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createDailyReminder,
   planReminders,
+  DEFAULT_REMINDER_TIME,
   type ReminderPermission,
   type ScheduledReminder,
 } from './daily-reminder';
@@ -106,7 +107,7 @@ function setup(permission: ReminderPermission = 'prompt', cards: Card[] = [card(
   const reminder = createDailyReminder({
     native,
     storage,
-    plan: () => planReminders(source, NOW),
+    plan: (time) => planReminders(source, NOW, time),
   });
   return {
     native,
@@ -121,11 +122,11 @@ function setup(permission: ReminderPermission = 'prompt', cards: Card[] = [card(
 
 describe('planReminders', () => {
   it('一張都不會到期時回空——沒有任何一則要登記', () => {
-    expect(planReminders([], NOW)).toEqual([]);
+    expect(planReminders([], NOW, DEFAULT_REMINDER_TIME)).toEqual([]);
   });
 
   it('每一則都排在當天早上 6:00', () => {
-    const plan = planReminders([card('新卡')], NOW);
+    const plan = planReminders([card('新卡')], NOW, DEFAULT_REMINDER_TIME);
 
     expect(plan).toHaveLength(7);
     expect(plan.map((one) => one.hour)).toEqual([6, 6, 6, 6, 6, 6, 6]);
@@ -133,14 +134,14 @@ describe('planReminders', () => {
   });
 
   it('年月日拆開帶出去，月份是 1–12 而不是 0–11', () => {
-    const plan = planReminders([card('新卡')], NOW);
+    const plan = planReminders([card('新卡')], NOW, DEFAULT_REMINDER_TIME);
 
     expect(plan[0]).toMatchObject({ year: 2026, month: 7, day: 24 });
     expect(plan[6]).toMatchObject({ year: 2026, month: 7, day: 30 });
   });
 
   it('跨月與跨年的日期推進正確', () => {
-    const across = planReminders([card('新卡')], new Date('2026-12-29T09:00:00'));
+    const across = planReminders([card('新卡')], new Date('2026-12-29T09:00:00'), DEFAULT_REMINDER_TIME);
 
     expect(across.map((one) => [one.year, one.month, one.day])).toEqual([
       [2026, 12, 30],
@@ -154,7 +155,7 @@ describe('planReminders', () => {
   });
 
   it('內文寫明當天的到期張數', () => {
-    const plan = planReminders([card('新卡'), dueIn(3), dueIn(4)], NOW);
+    const plan = planReminders([card('新卡'), dueIn(3), dueIn(4)], NOW, DEFAULT_REMINDER_TIME);
 
     expect(plan.map((one) => one.body)).toEqual([
       '今天有 1 張到期',
@@ -168,7 +169,7 @@ describe('planReminders', () => {
   });
 
   it('一張都沒到期的日子不登記，有卡的那幾天才排', () => {
-    const plan = planReminders([dueIn(5)], NOW);
+    const plan = planReminders([dueIn(5)], NOW, DEFAULT_REMINDER_TIME);
 
     expect(plan.map((one) => [one.month, one.day])).toEqual([
       [7, 28],
@@ -178,7 +179,7 @@ describe('planReminders', () => {
   });
 
   it('同一批裡的識別碼不重複', () => {
-    const plan = planReminders([card('新卡')], NOW);
+    const plan = planReminders([card('新卡')], NOW, DEFAULT_REMINDER_TIME);
 
     expect(new Set(plan.map((one) => one.id)).size).toBe(plan.length);
   });
@@ -195,7 +196,7 @@ describe('今天那一則', () => {
   const AFTER = new Date('2026-07-23T09:00:00');
 
   it('提醒時間還沒到、今天還有卡沒複習完時，今天那一則排得出來', () => {
-    const plan = planReminders([card('新卡')], BEFORE);
+    const plan = planReminders([card('新卡')], BEFORE, DEFAULT_REMINDER_TIME);
 
     expect(plan[0]).toMatchObject({ year: 2026, month: 7, day: 23, hour: 6, body: '今天有 1 張到期' });
     // 今天多一則，加上未來 7 天。
@@ -204,35 +205,201 @@ describe('今天那一則', () => {
 
   it('今天的卡複習完了就不排——那才是「複習完了」該有的樣子', () => {
     // 今天一張都不到期，最快的一張是明天。
-    const plan = planReminders([dueIn(1, BEFORE)], BEFORE);
+    const plan = planReminders([dueIn(1, BEFORE)], BEFORE, DEFAULT_REMINDER_TIME);
 
     expect(plan[0]).toMatchObject({ month: 7, day: 24 });
     expect(plan).toHaveLength(7);
   });
 
   it('提醒時間已經過了就不排，即使今天還有卡——排一個過去的時刻沒有意義', () => {
-    const plan = planReminders([card('新卡')], AFTER);
+    const plan = planReminders([card('新卡')], AFTER, DEFAULT_REMINDER_TIME);
 
     expect(plan[0]).toMatchObject({ month: 7, day: 24 });
     expect(plan).toHaveLength(7);
   });
 
   it('剛好卡在 6:00 那一刻算已經過了，不排今天', () => {
-    const plan = planReminders([card('新卡')], new Date('2026-07-23T06:00:00'));
+    const plan = planReminders([card('新卡')], new Date('2026-07-23T06:00:00'), DEFAULT_REMINDER_TIME);
 
     expect(plan[0]).toMatchObject({ month: 7, day: 24 });
   });
 
   it('5:59 還算沒到，排得出來', () => {
-    const plan = planReminders([card('新卡')], new Date('2026-07-23T05:59:00'));
+    const plan = planReminders([card('新卡')], new Date('2026-07-23T05:59:00'), DEFAULT_REMINDER_TIME);
 
     expect(plan[0]).toMatchObject({ month: 7, day: 23 });
   });
 
   it('多出來的今天那一則不會撞到別人的識別碼', () => {
-    const plan = planReminders([card('新卡')], BEFORE);
+    const plan = planReminders([card('新卡')], BEFORE, DEFAULT_REMINDER_TIME);
 
     expect(new Set(plan.map((one) => one.id)).size).toBe(plan.length);
+  });
+});
+
+/**
+ * 時間變成參數之後，上面那兩道閘門仍然是同一套規則，只是拿來比的那個數字換人。
+ * 這幾條驗的正是「換人了嗎」——寫死 6:00 的話它們會轉紅。
+ */
+describe('設定的提醒時間', () => {
+  it('每一則都排在設定的那個時刻，不是寫死的 6:00', () => {
+    // 現在是 09:00，設 22:30 的話今天那一則也排得出來，因此是 8 則而不是 7 則。
+    const plan = planReminders([card('新卡')], NOW, '22:30');
+
+    expect(plan).toHaveLength(8);
+    expect(new Set(plan.map((one) => one.hour))).toEqual(new Set([22]));
+    expect(new Set(plan.map((one) => one.minute))).toEqual(new Set([30]));
+  });
+
+  it('個位數的時與分不會被補零弄錯，07:05 就是 7 點 5 分', () => {
+    const plan = planReminders([card('新卡')], NOW, '07:05');
+
+    expect(plan[0]).toMatchObject({ hour: 7, minute: 5 });
+  });
+
+  it('今天那一則的閘門跟著設定走：設 22:30，現在 09:00 還沒到，排得出來', () => {
+    const plan = planReminders([card('新卡')], NOW, '22:30');
+
+    expect(plan[0]).toMatchObject({ month: 7, day: 23, hour: 22, minute: 30 });
+    expect(plan).toHaveLength(8);
+  });
+
+  it('設 05:00 而現在 09:00 已經過了，今天那一則不排', () => {
+    const plan = planReminders([card('新卡')], NOW, '05:00');
+
+    expect(plan[0]).toMatchObject({ month: 7, day: 24 });
+    expect(plan).toHaveLength(7);
+  });
+
+  it('分鐘也算數：現在 09:00，設 09:01 還沒到、設 09:00 算已經過了', () => {
+    expect(planReminders([card('新卡')], NOW, '09:01')[0]).toMatchObject({ day: 23 });
+    expect(planReminders([card('新卡')], NOW, '09:00')[0]).toMatchObject({ day: 24 });
+  });
+});
+
+describe('提醒時間的設定值', () => {
+  it('沒設過時是 06:00——與票 09 寫死的那個時刻相同', () => {
+    const { reminder } = setup();
+
+    expect(reminder.time()).toBe('06:00');
+  });
+
+  it('設過之後記在本機，重開 app 仍然記得', async () => {
+    const { reminder, storage, native } = setup('granted');
+
+    await reminder.enable();
+    await native.finish();
+    reminder.setTime('22:30');
+    await native.settle();
+    await native.finish();
+
+    expect(reminder.time()).toBe('22:30');
+    // 同一份 storage 重建一個，等同重開 app。
+    const again = createDailyReminder({ native, storage, plan: () => [] });
+    expect(again.time()).toBe('22:30');
+  });
+
+  it('關掉開關再打開，記得的是上次設的時間，不會跳回 06:00', async () => {
+    const { reminder, native } = setup('granted');
+
+    await reminder.enable();
+    await native.finish();
+    reminder.setTime('22:30');
+    await native.settle();
+    await native.finish();
+
+    reminder.disable();
+    await native.finish();
+    expect(reminder.time()).toBe('22:30');
+
+    await reminder.enable();
+    await native.finish();
+    expect(reminder.time()).toBe('22:30');
+  });
+
+  it('改了時間就依新時間整批重排，不必重開 app', async () => {
+    const { reminder, native } = setup('granted');
+
+    await reminder.enable();
+    await native.finish();
+    expect(native.applied[0]?.[0]?.hour).toBe(6);
+
+    reminder.setTime('22:30');
+    await native.settle();
+    await native.finish();
+
+    expect(native.applied[1]?.[0]?.hour).toBe(22);
+    expect(native.applied[1]?.[0]?.minute).toBe(30);
+  });
+
+  it('提醒關著時改時間只是記下來，不為沒開提醒的人白跑一趟原生', async () => {
+    const { reminder, native } = setup('granted');
+
+    reminder.setTime('22:30');
+    await native.settle();
+
+    expect(reminder.time()).toBe('22:30');
+    expect(native.outstanding()).toBe(0);
+    expect(native.applied).toEqual([]);
+  });
+
+  it('時間不進使用者的資料：自己占一格，與卡片那一份無關', async () => {
+    const { reminder, storage, native } = setup('granted');
+
+    await reminder.enable();
+    await native.finish();
+    reminder.setTime('22:30');
+    await native.settle();
+    await native.finish();
+
+    expect(storage.getItem('va-practice:data')).toBeNull();
+    expect(storage.getItem('va-practice:reminder-time')).toBe('22:30');
+  });
+
+  /**
+   * 票 09 的裝置上開關那一格存的是 `'on'`、時間那一格根本不存在。
+   * 讀不到就用預設值，因此升級後的行為與升級前一模一樣——這是零行的相容處理。
+   */
+  it('票 09 留下的裝置升級後照常在 06:00 被叫', () => {
+    const native = fakeNative('granted');
+    const storage = fakeStorage();
+    storage.setItem('va-practice:reminder', 'on');
+
+    const reminder = createDailyReminder({ native, storage, plan: () => [] });
+
+    expect(reminder.enabled()).toBe(true);
+    expect(reminder.time()).toBe('06:00');
+  });
+
+  it('不成形的時間進不去，記著的那個不受影響', async () => {
+    const { reminder, storage, native } = setup('granted');
+
+    await reminder.enable();
+    await native.finish();
+    reminder.setTime('22:30');
+    await native.settle();
+    await native.finish();
+
+    reminder.setTime('');
+    reminder.setTime('25:99');
+    reminder.setTime('晚上十點');
+    await native.settle();
+
+    expect(reminder.time()).toBe('22:30');
+    expect(storage.getItem('va-practice:reminder-time')).toBe('22:30');
+    // 沒有東西改變，也就不該有任何一趟重排。
+    expect(native.outstanding()).toBe(0);
+  });
+
+  it('存進去的東西壞掉時退回 06:00，不會排出一個看不懂的時刻', () => {
+    const native = fakeNative('granted');
+    const storage = fakeStorage();
+    storage.setItem('va-practice:reminder', 'on');
+    storage.setItem('va-practice:reminder-time', '25:99');
+
+    const reminder = createDailyReminder({ native, storage, plan: () => [] });
+
+    expect(reminder.time()).toBe('06:00');
   });
 });
 

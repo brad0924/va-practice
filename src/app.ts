@@ -88,8 +88,9 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   // 每日提醒。吃的必須與 buildQueue() 同一批卡（複習範圍內的那些），否則通知上的
   // 數字與使用者打開 app 看到的對不起來——因此這裡刻意與上面那一行並排。
   // 網頁版拿到的是 null，底下每一個呼叫點都是 `reminder?.`，那條路完全不發生。
-  const reminder = createNativeDailyReminder(localStorage, () =>
-    planReminders(cardsInBooks(data.cards, data.scopes.review), now()),
+  // 幾點叫由提醒自己記著並遞進來，這裡不去讀那一格——兩邊各讀各的就有機會讀到不一樣的答案。
+  const reminder = createNativeDailyReminder(localStorage, (time) =>
+    planReminders(cardsInBooks(data.cards, data.scopes.review), now(), time),
   );
 
   const cloud = createCloudBackup({
