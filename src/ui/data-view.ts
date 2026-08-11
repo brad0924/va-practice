@@ -242,7 +242,7 @@ function reminderSection(app: App): HTMLElement | null {
 
   // 原生的時間欄位：iOS 上叫出來的是系統那個滾輪，長得跟其他 app 裡的一樣，
   // 也自動跟著系統的 12／24 小時制走。自己做一個只會比它差（見票 18）。
-  const time = el('input', 'field');
+  const time = el('input', 'field time');
   time.type = 'time';
   time.value = reminder.time();
 

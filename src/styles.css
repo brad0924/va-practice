@@ -305,6 +305,21 @@ button {
   outline-offset: -1px;
 }
 
+/* 時間只有「06:00」那麼寬，欄位就長那麼寬——`.field` 的滿寬是給打字用的欄位的。
+   iOS 上這不只是好看的問題：`<input type="time">` 有自己的內建寬度，被拉滿寬時
+   它會把版面撐出容器，整個畫面因此可以左右晃（見票 18 的修正）。
+
+   三條各有各的工作，缺一不可：
+   - `align-self`：`.labelled` 是 column flex，不寫這條子元素會被拉滿寬，改 `width` 也沒用
+   - `width`：蓋掉 `.field` 的 `100%`，改用欄位自己的內建寬度
+   - `max-width`：唯一真的夾得住的那道。表單元件的內建寬度是硬的，容器再窄它也不縮
+     （實測把容器壓到 60px 時仍超出 44px），只有這條會讓它跟著容器縮 */
+.field.time {
+  align-self: flex-start;
+  width: auto;
+  max-width: 100%;
+}
+
 .count,
 .status {
   color: var(--muted);
