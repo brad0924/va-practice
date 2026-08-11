@@ -1,6 +1,6 @@
 # 16 — 連點兩下會把畫面放大
 
-Status: needs-triage
+Status: ready-for-human
 Type: bug
 Blocked by: 01
 
@@ -22,7 +22,17 @@ Capacitor 預設就有「禁止縮放」（`zoomEnabled` 預設 `false`），但
 
 卡片、列表、任何地方連點兩下都不該放大。只擋按鈕的話會出現「為什麼這裡不會、那裡會」這種沒人解釋得清的差別。
 
-## 待決定（這張票卡在這裡）
+### 修法：共用樣式表加 `touch-action: manipulation`，網頁版一起修掉
+
+（2026-08-11 由維護者定案，原文見下方〈當時的三個選項〉）
+
+`src/styles.css` 既有的 `*` 規則加一行 `touch-action: manipulation`。這個值的語意正好切在需要的位置上——保留捲動與雙指縮放，只拿掉連點兩下。
+
+**掛在 `*` 而不是 `html`**：手勢判定會從被點到的元素往上找祖先，但在捲動容器的邊界停住。這一頁有五處 `overflow-y: auto` 的捲動容器（`.card`、`.panel`、`.book-filter-menu`、`.skip-list`、`.modal-rows`），只掛根元素會漏掉容器內部的元素。
+
+**spec 的硬約束已正式修訂**：「網頁版的行為一字不改」改為「**網頁版不出現任何行為回歸**」。理由與新界線寫在 `../spec.md` 開頭的〈訂正（2026-08-11，票 16）〉，那裡是唯一權威出處，本票不複述。ADR-0012 尚未建立（票 10 未做），因此紀錄先留在 spec。
+
+### 當時的三個選項
 
 **要不要動到網頁版？** 三個選項，代價不同：
 
@@ -43,7 +53,24 @@ Capacitor 預設就有「禁止縮放」（`zoomEnabled` 預設 `false`），但
 ## 驗收
 
 - [ ] iPhone 上連點兩下（按鈕、卡片、列表任一處）畫面不再放大
-- [ ] 雙指撐開放大仍然可用
+- [ ] iPhone 上的捲動手感不變（`manipulation` 只該拿掉連點兩下，捲動不該受影響）
 - [ ] 連按兩次朗讀的中斷行為不變
-- [ ] 依「待決定」的結果，網頁版該變的變、該不變的一字不變
-- [ ] 既有測試全數通過，且一個既有測試檔都沒被修改
+- [ ] ~~雙指撐開放大仍然可用~~ → 訂正為**手機 Safari 開網頁版時雙指撐開放大仍然可用**。原文在 iPhone app 上永遠通不過，且與本票第 17 行自己的結論相牴觸，理由見 Comments
+- [x] 依定案的結果，網頁版該變的變、該不變的一字不變 — 唯一的變化是連點兩下不再放大（定案要的就是這個），其餘零改動：本票只碰 `src/styles.css` 一個宣告，沒有動任何 `.ts`
+- [x] 既有測試全數通過，且一個既有測試檔都沒被修改 — 428 tests / 19 files 全綠，`tsc --noEmit` 與 `vite build` 皆通過，`dist` 產物確認含 `touch-action:manipulation`
+
+## Comments
+
+### 2026-08-11 — 程式面完成，Status 停在 `ready-for-human`
+
+`src/styles.css` 的 `*` 規則加了 `touch-action: manipulation`，連同 spec 硬約束的修訂，一共三個檔案、34 行。剩下的四條驗收都要拿 iPhone 才做得到，開發機是 Windows，因此不自行勾選。
+
+### 2026-08-11 — code review 抓到一條驗收自己打自己
+
+原驗收寫「雙指撐開放大仍然可用」，但本票第 17 行早就查證出**這支 app 的雙指放大是關的**。兩句話擺在同一張票裡，其中一句必為假。
+
+再查一次原始碼確認第 17 行是對的：`CAPInstanceDescriptor.m:40` 把 `_zoomingEnabled` 預設為 `NO`，`capacitor.config.ts` 沒有覆寫它，於是 `CAPBridgeViewController.swift:322` 成立，scrollView 的 delegate 被指給 `WebViewDelegationHandler`，`scrollViewWillBeginZooming` 一開始縮放就把 `pinchGestureRecognizer` 關掉。**iOS app 的雙指放大確實是關的，這與本票的改動無關，改動前後都一樣。**
+
+因此那條驗收改成只針對網頁版。`touch-action: manipulation` 不碰雙指這件事仍然成立，只是在 iOS 上沒有東西可以留給它。
+
+**順帶暴露一件本票管不到的事**：當初否決「viewport 關掉整個縮放」的理由是「這是一個背漢字的 app，想放大看筆畫是合理需求」——那個需求在 iOS 上**現在就已經滿足不了**了。要不要在 iOS app 打開雙指縮放（`zoomEnabled: true`），是一個獨立的產品決定，且本票「不做的事」明文禁止在這裡動它。留給維護者決定要不要另開票。
