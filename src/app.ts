@@ -3,6 +3,7 @@ import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { withSafetyCopy } from './lib/safety-copy';
 import { createNativeSafetyCopy } from './lib/safety-copy-native';
+import { createNativeHaptic } from './lib/haptics-native';
 import { buildQueue, currentCard, rebuildQueue, rate as rateCard, type Queue } from './lib/review';
 import type { AppData, Card, Rating } from './lib/types';
 import { initSpeech } from './ui/speech';
@@ -66,6 +67,8 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   // iOS 上的保險副本夾在 store 與 localStorage 之間，跟上每一次本機寫入。
   // 網頁版拿到的是個什麼都不做的東西，這條路完全不發生。
   const store = createStore(withSafetyCopy(localStorage, createNativeSafetyCopy()));
+  // 評分時震的那一下。網頁版拿到的是空的，因此底下 rate() 不必問「這是不是 iPhone」。
+  const haptic = createNativeHaptic();
   const now = () => new Date();
   const random = Math.random;
 
@@ -114,6 +117,10 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     },
 
     rate(rating) {
+      // 觸覺接在這裡而不是按鈕上：滑鼠與鍵盤兩條路都經過這支，行為因此一致，
+      // 而畫面層一個字都不必為觸覺改（見 spec 決定二十五）。
+      // 擺在最前面是為了立刻震——存檔與推雲端慢不慢，跟手指的回饋無關。
+      haptic();
       const result = rateCard(queue, rating, now(), random);
       queue = result.queue;
       revealed = false;

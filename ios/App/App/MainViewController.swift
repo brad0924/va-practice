@@ -14,5 +14,6 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(SafetyCopyPlugin())
         bridge?.registerPluginInstance(KeychainPlugin())
         bridge?.registerPluginInstance(SpeechPlugin())
+        bridge?.registerPluginInstance(HapticsPlugin())
     }
 }
