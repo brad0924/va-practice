@@ -1,6 +1,6 @@
 # 07 — 原生日文語音：朗讀按鈕在 iOS 上永遠可用
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: enhancement
 Blocked by: 01
 
@@ -58,3 +58,63 @@ Blocked by: 01
 - [ ] `src/ui/review-view.ts` 一行未改
 - [ ] 網頁版行為零變化：沒有日文語音的瀏覽器上，按鈕仍然隱藏
 - [ ] 既有測試全數通過，且一個既有測試檔都沒被修改
+
+## Comments
+
+### 2026-08-11 — 落地的東西
+
+| 檔案 | 是什麼 |
+| --- | --- |
+| `src/ui/speech.ts` | 多一條原生分支。對外仍是 `initSpeech`／`hasJapaneseVoice`／`speak` 三支，一支都沒多 |
+| `src/lib/speech-native.ts` | 唯一碰 Capacitor 的檔案。網頁版恆回 `null`，呼叫端因此不必判斷平台 |
+| `ios/App/App/SpeechPlugin.swift` | 原生那一端，只有 `speak` 一支 |
+| `MainViewController.swift`、`project.pbxproj` | 多註冊一支插件、把新的 Swift 檔掛進編譯清單 |
+
+`src/ui/review-view.ts` **一行未改**——這正是決定十四不開新接縫要的效果。
+
+### 為什麼 Capacitor 那一段不寫在 `speech.ts` 裡
+
+沿用 `safety-copy-native.ts`、`keychain-native.ts`、`download-native.ts` 已經立下的分界：碰 Capacitor 的東西一律關在 `src/lib/*-native.ts`，其餘的照常在 vitest 裡跑得動。`speech.ts` 本身不新增測試（票裡明講不補），但讓它繼續維持「不 import 原生東西」這個性質，成本是一個檔案，換來的是這條界線不出現例外。
+
+決定十四說的「在 `speech.ts` 內部分支」仍然成立：**判斷走哪一條的那個 if 就在 `speech.ts` 裡**，`speech-native.ts` 只回答「有沒有原生語音」。
+
+### 原生那一端只做三件原生才做得到的事
+
+念什麼由 TypeScript 決定——`speak()` 先跑 `toReadingText()`，再把讀音文字遞過去（決定十六）。挑語音、選語速、中斷前一次留在 Swift，因為那三件事只有 `AVSpeechSynthesizer` 答得出來。
+
+- **挑語音**：日文語音依 `quality` 取最大值。rawValue 由差到好是 `.default`（compact）、`.enhanced`、`.premium`，因此取最大就是取最好。**沒有寫死 enhanced**：使用者沒下載時清單裡只有 compact，寫死會落到 nil、變成用系統當前語言念日文，比機械音更糟。清單真的空了才退回 `AVSpeechSynthesisVoice(language: "ja-JP")`。
+- **語速**：`AVSpeechUtteranceDefaultSpeechRate * 0.9`。兩把尺不同——`AVSpeechUtterance` 的正常速度是 0.5 而不是 1.0，直接填 0.9 會快到聽不清楚。
+- **中斷**：`stopSpeaking(at: .immediate)`，連按兩次不會疊在一起念。
+
+### 沒碰音訊類別（AVAudioSession）
+
+因此**靜音鍵切到靜音時聽不到朗讀**。這與改動前的 Web Speech 在同一支 app 裡的行為一致——底層本來就是同一台合成器、同一個預設類別，所以不是這次改動造成的退步。要讓它蓋過靜音鍵得把類別改成 `.playback`，那是票裡沒要求的事，先不做。真機驗收時若覺得該改，開一張新票。
+
+### 誠實的分界：原生那一半一行都沒被執行過
+
+與票 05、06、12 同一個處境，開發機是 Windows，沒有 Xcode。能在本機做到的驗證只有這些：
+
+| 驗的東西 | 怎麼驗的 | 結果 |
+| --- | --- | --- |
+| 全部測試 | `npm test` | ✅ 391 過（18 檔） |
+| 既有測試零修改、也沒新增測試檔 | `git status` | ✅ 測試檔一個都沒動 |
+| typecheck | `tsc --noEmit` | ✅ 乾淨 |
+| 網頁版 build | `npm run build` | ✅ `base` 仍為 `/va-practice/`，service worker 照常產出 |
+| iOS build | `npm run build:ios` | ✅ 過 |
+| `project.pbxproj` 沒被改壞 | 用 `xcode` 套件實際 parse | ✅ 六個 Swift 檔都在 Sources，兩個 configuration 仍指到 entitlements |
+| `cap sync ios` | 實跑 | ✅ exit 0 |
+
+**Swift 編不編得過只能等 CI**，連 typo 都不例外。
+
+`npm run sync:ios` 一樣把 `Package.swift` 的路徑改成反斜線（票 12 記過的那個 Windows 老問題），已手動改回正斜線。
+
+### 維護者待辦
+
+1. 手動觸發 `Build iOS and upload to TestFlight`
+2. 真機上驗這幾條：
+   - **音質 A／B 比對**（本票的實質目的）。先在「設定 → 輔助使用 → 朗讀內容 → 語音 → 日文」下載 enhanced／premium，再與改動前比。**沒下載的話聽起來會與改動前一樣**——那不是壞掉，是系統上只有 compact
+   - 連按兩次朗讀，前一次會被切斷
+   - 飛航模式下照常出聲
+   - 純假名與外來語詞條念得出來
+   - 朗讀按鈕始終顯示
+3. 網頁版隨手點一次朗讀，確認行為沒變

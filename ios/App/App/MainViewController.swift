@@ -13,5 +13,6 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SafetyCopyPlugin())
         bridge?.registerPluginInstance(KeychainPlugin())
+        bridge?.registerPluginInstance(SpeechPlugin())
     }
 }
