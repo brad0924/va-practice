@@ -246,7 +246,10 @@ function reminderSection(app: App): HTMLElement | null {
   time.type = 'time';
   time.value = reminder.time();
 
-  const timeRow = labelled('提醒時間', time);
+  // 「提醒時間」與時間格是開關那句話的後半，讀起來是一句：
+  // 「每天提醒我，提醒時間 06:00」。刻意不塞進開關那個 <label> 裡——
+  // 塞進去的話點時間格會順手把開關關掉。
+  const timeRow = el('label', 'reminder-time', el('span', 'toggle-label', '提醒時間'), time);
 
   /**
    * 時間欄位跟著開關走：關著的時候那一格沒有意義，長在那裡只會讓人以為關著也會叫
@@ -280,7 +283,7 @@ function reminderSection(app: App): HTMLElement | null {
     status.textContent = '';
     status.classList.remove('error');
     if (!check.checked) {
-      timeRow.hidden = true;
+      syncTimeRow();
       reminder.disable();
       return;
     }
@@ -295,7 +298,7 @@ function reminderSection(app: App): HTMLElement | null {
         deny();
         return;
       }
-      timeRow.hidden = false;
+      syncTimeRow();
     });
   });
 
@@ -312,8 +315,13 @@ function reminderSection(app: App): HTMLElement | null {
   const section = el('section', 'section');
   section.append(
     el('h2', 'section-title', '每日提醒'),
-    el('label', 'toggle', check, el('span', 'toggle-label', '每天提醒我')),
-    timeRow,
+    // 兩塊並排成一句話。逗號留在開關那半，換行時斷在它後面才讀得順。
+    el(
+      'div',
+      'reminder-line',
+      el('label', 'toggle', check, el('span', 'toggle-label', '每天提醒我，')),
+      timeRow,
+    ),
     el('p', 'hint', REMINDER_HINT),
     status,
   );

@@ -309,14 +309,12 @@ button {
    iOS 上這不只是好看的問題：`<input type="time">` 有自己的內建寬度，被拉滿寬時
    它會把版面撐出容器，整個畫面因此可以左右晃（見票 18 的修正）。
 
-   三條各有各的工作，缺一不可：
-   - `align-self`：`.labelled` 是 column flex，不寫這條子元素會被拉滿寬，改 `width` 也沒用
-   - `width`：蓋掉 `.field` 的 `100%`，改用欄位自己的內建寬度
-   - `max-width`：唯一真的夾得住的那道。表單元件的內建寬度是硬的，容器再窄它也不縮
-     （實測把容器壓到 60px 時仍超出 44px），只有這條會讓它跟著容器縮 */
+   `width` 蓋掉 `.field` 的 `100%`，改用欄位自己的內建寬度；`min-width` 與 `max-width`
+   才是真的夾得住的那兩道——表單元件的內建寬度是硬的，容器再窄它也不縮（實測把容器
+   壓到 60px 時仍超出 44px），這兩條會讓它跟著容器縮。 */
 .field.time {
-  align-self: flex-start;
   width: auto;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -624,8 +622,28 @@ button {
   gap: 0.375rem;
 }
 
-/* `display: flex` 比瀏覽器內建的 `[hidden]` 強，不寫這條藏不起來（提醒時間那一列要藏）。 */
-.labelled[hidden] {
+/* 開關與提醒時間並排成一句話：「每天提醒我，提醒時間 06:00」。
+   窄螢幕上塞不下時，時間那一塊整塊換到下一行，不會把版面撐開。 */
+.reminder-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 「提醒時間」與時間格之間那一點空隙。字級與顏色跟著開關那句話走
+   （用的是同一個 .toggle-label），兩塊才讀得成同一句。
+
+   `min-width: 0` 是讓底下 `.field.time` 的 `max-width: 100%` 真的有東西可夾：
+   不寫的話這一塊本身縮不到比內容窄，實測容器壓到 60px 時仍會溢出 68px。 */
+.reminder-time {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* `display: flex` 比瀏覽器內建的 `[hidden]` 強，不寫這條藏不起來。 */
+.reminder-time[hidden] {
   display: none;
 }
 
