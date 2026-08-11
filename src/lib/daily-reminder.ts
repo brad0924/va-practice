@@ -9,7 +9,8 @@
  * `keychain.ts` 同一個立場。接上 Capacitor 那一端的接線在 `daily-reminder-native.ts`。
  * 網頁版完全沒有這條支線。
  */
-import { forecastDueCounts } from './reminders';
+import { dueCountToday, forecastDueCounts, type DueForecast } from './reminders';
+import { toDateKey } from './review';
 import type { StorageLike } from './storage';
 import type { Card } from './types';
 
@@ -94,17 +95,36 @@ export interface DailyReminder {
   refresh(): void;
 }
 
+/** 排程這一刻，今天的提醒時間到了沒。到了或過了就不排今天那一則。 */
+function beforeReminderTime(now: Date): boolean {
+  return now.getHours() * 60 + now.getMinutes() < REMINDER_HOUR * 60 + REMINDER_MINUTE;
+}
+
 /**
- * 把未來各天的到期預估翻成一批要登記的通知，每一則排在當天早上 6:00。
+ * 把各天的到期預估翻成一批要登記的通知，每一則排在當天早上 6:00。
  *
- * 哪幾天要排、各幾張，全部來自 `forecastDueCounts()`：張數為 0 的日子在那一層
- * 就已經被濾掉，因此「今天一張都沒到期就不要吵我」這條規則這裡不必再寫一次。
+ * **今天那一則有兩道閘門**，兩者缺一都不排：提醒時間還沒到（排一個已經過去的時刻
+ * 沒有意義），且今天還有卡沒複習完。後者是免費的——複習完的卡到期日被推到未來，
+ * `dueCountToday()` 自然就數不到它，歸零的日子本來就不登記。
+ *
+ * 這兩道閘門把「該叫」與「不該叫」分了開來：早上 6 點前打開 app 但沒複習，
+ * 那則提醒仍然會響；複習完了才不響。舊版無條件不排今天，兩者一律不響——
+ * 前者是漏叫，而且從外面看跟後者一模一樣（見 spec 決定二十的訂正）。
+ *
+ * 未來那幾天的張數為 0 時同樣不排，那一層在 `forecastDueCounts()` 就濾掉了。
  *
  * 年月日拆開帶出去而不是交一個日期字串：讓原生那側直接組出當地時間的觸發時刻，
  * 中間不多一層解析，也就不多一層時區的疑慮。
  */
 export function planReminders(cards: readonly Card[], now: Date): ScheduledReminder[] {
-  return forecastDueCounts(cards, now).map((day, index) => {
+  const days: DueForecast[] = [];
+  if (beforeReminderTime(now)) {
+    const today = dueCountToday(cards, now);
+    if (today > 0) days.push({ date: toDateKey(now), count: today });
+  }
+  days.push(...forecastDueCounts(cards, now));
+
+  return days.map((day, index) => {
     const [year, month, dayOfMonth] = day.date.split('-').map(Number);
     return {
       id: index + 1,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { forecastDueCounts } from './reminders';
+import { dueCountToday, forecastDueCounts } from './reminders';
 import { DEFAULT_EASE, toDateKey } from './review';
 import type { Card } from './types';
 
@@ -99,5 +99,33 @@ describe('未來各天的累積到期張數', () => {
       '2027-01-03',
       '2027-01-04',
     ]);
+  });
+});
+
+describe('今天還剩幾張到期', () => {
+  it('沒有卡時是 0', () => {
+    expect(dueCountToday([], NOW)).toBe(0);
+  });
+
+  it('新卡與逾期卡都算，未來到期的不算', () => {
+    const cards = [card('新卡'), card('上週', { interval: 3, due: '2026-07-16' }), dueIn(1), dueIn(5)];
+    expect(dueCountToday(cards, NOW)).toBe(2);
+  });
+
+  it('今日到期的算進去', () => {
+    expect(dueCountToday([card('今天', { interval: 3, due: '2026-07-23' })], NOW)).toBe(1);
+  });
+
+  it('複習完就歸零：到期日被推到未來之後就不算它了', () => {
+    const before = card('剛複習完', { interval: 3, due: '2026-07-23' });
+    expect(dueCountToday([before], NOW)).toBe(1);
+    // 評分之後 due 被推到未來，這正是「今天複習完了」在這一層的樣子。
+    expect(dueCountToday([{ ...before, due: '2026-07-26' }], NOW)).toBe(0);
+  });
+
+  it('與預估的第一天對得起來：今天不算的卡，未來才會被算進去', () => {
+    const cards = [dueIn(1)];
+    expect(dueCountToday(cards, NOW)).toBe(0);
+    expect(forecastDueCounts(cards, NOW)[0]).toEqual({ date: '2026-07-24', count: 1 });
   });
 });

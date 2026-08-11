@@ -184,6 +184,58 @@ describe('planReminders', () => {
   });
 });
 
+/**
+ * 今天那一則的兩道閘門。這幾條分開的是「該叫」與「不該叫」——
+ * 舊版無條件不排今天，因此「開了 app 但沒複習」與「複習完了」從外面看一模一樣。
+ */
+describe('今天那一則', () => {
+  /** 同一天的早上 5:00，提醒時間之前。 */
+  const BEFORE = new Date('2026-07-23T05:00:00');
+  /** 同一天的早上 9:00，提醒時間之後。 */
+  const AFTER = new Date('2026-07-23T09:00:00');
+
+  it('提醒時間還沒到、今天還有卡沒複習完時，今天那一則排得出來', () => {
+    const plan = planReminders([card('新卡')], BEFORE);
+
+    expect(plan[0]).toMatchObject({ year: 2026, month: 7, day: 23, hour: 6, body: '今天有 1 張到期' });
+    // 今天多一則，加上未來 7 天。
+    expect(plan).toHaveLength(8);
+  });
+
+  it('今天的卡複習完了就不排——那才是「複習完了」該有的樣子', () => {
+    // 今天一張都不到期，最快的一張是明天。
+    const plan = planReminders([dueIn(1, BEFORE)], BEFORE);
+
+    expect(plan[0]).toMatchObject({ month: 7, day: 24 });
+    expect(plan).toHaveLength(7);
+  });
+
+  it('提醒時間已經過了就不排，即使今天還有卡——排一個過去的時刻沒有意義', () => {
+    const plan = planReminders([card('新卡')], AFTER);
+
+    expect(plan[0]).toMatchObject({ month: 7, day: 24 });
+    expect(plan).toHaveLength(7);
+  });
+
+  it('剛好卡在 6:00 那一刻算已經過了，不排今天', () => {
+    const plan = planReminders([card('新卡')], new Date('2026-07-23T06:00:00'));
+
+    expect(plan[0]).toMatchObject({ month: 7, day: 24 });
+  });
+
+  it('5:59 還算沒到，排得出來', () => {
+    const plan = planReminders([card('新卡')], new Date('2026-07-23T05:59:00'));
+
+    expect(plan[0]).toMatchObject({ month: 7, day: 23 });
+  });
+
+  it('多出來的今天那一則不會撞到別人的識別碼', () => {
+    const plan = planReminders([card('新卡')], BEFORE);
+
+    expect(new Set(plan.map((one) => one.id)).size).toBe(plan.length);
+  });
+});
+
 describe('開關的狀態', () => {
   it('預設是關的', () => {
     const { reminder } = setup();

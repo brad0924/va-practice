@@ -1,8 +1,12 @@
 /**
- * 每日提醒的排程來源：未來各天分別會積到幾張到期卡。
+ * 每日提醒的排程來源：哪一天會積到幾張到期卡。
+ *
+ * 兩支：`dueCountToday()` 回答今天還剩幾張，`forecastDueCounts()` 回答未來各天。
+ * 拆成兩支而不是一支吃一個天數範圍——今天要不要提醒多一道「時間過了沒」的閘門，
+ * 那是呼叫端的事（見 `daily-reminder.ts`），本模組一律只回答數字。
  *
  * 與 `review.ts` 同樣的紀律——不取用系統時鐘、不碰任何原生 API，
- * 當前時間一律以參數注入。登記系統通知是呼叫端的事，本模組只回答數字。
+ * 當前時間一律以參數注入。登記系統通知是呼叫端的事。
  */
 import { isDue, toDateKey } from './review';
 import type { Card } from './types';
@@ -20,6 +24,17 @@ export interface DueForecast {
 
 function addDays(now: Date, days: number): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+}
+
+/**
+ * 今天還剩幾張到期。與複習佇列是同一批卡——`buildQueue()` 也是拿 `isDue()` 篩的，
+ * 差別只在它會洗牌而這裡只數個數。因此「複習完了」在這裡天然地就是 0：
+ * 評完分那張卡的到期日被推到未來，下次再問就不算它了。
+ *
+ * 吃的必須是與 `buildQueue()` 同一批卡（複習範圍內的），範圍過濾由呼叫端負責。
+ */
+export function dueCountToday(cards: readonly Card[], now: Date): number {
+  return cards.filter((card) => isDue(card, now)).length;
 }
 
 /**
