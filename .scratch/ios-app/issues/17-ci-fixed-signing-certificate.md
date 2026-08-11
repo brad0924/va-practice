@@ -82,14 +82,99 @@ match 是這個問題的業界標準解，但它要多一個工具、多一個�
 
 **這張票是 `ready-for-human` 而不是 `ready-for-agent`，因為第一步只有你做得到。** 憑證與密碼不會、也不應該經過 agent 的手；下面每一步都是你自己執行、自己貼進 GitHub。
 
-1. **撤掉後台那些空殼的 `Apple Development` 憑證**（私鑰早就沒了，撤掉零損失）。
-2. **用 OpenSSL 產私鑰與 CSR**，把 CSR 上傳到 Certificates → ＋ → **Apple Distribution**，下載 `.cer`。
-3. **合成 `.p12`**，設一個密碼。
-4. **下載對應的 provisioning profile**（App Store 用途，綁 `io.github.brad0924.vapractice`，要含 App Groups）。
-5. **把三樣東西加進 GitHub secrets**：`.p12`（base64）、`.p12` 的密碼、provisioning profile（base64）。
-6. 完成後回報 secret 的名字，agent 才改得動 workflow。
+> **底下的 OpenSSL 指令在維護者這台 Windows 上實跑驗證過**（2026-08-11，OpenSSL 3.2.4），
+> 用自簽憑證冒充 Apple 回傳的 `.cer` 走完整條路，`.p12` 產得出來也讀得回去。
+> 唯一沒驗到的是 Apple 後台那幾步與 macOS 端的匯入。
 
-具體指令等動工時再給——先確定要走這條路。
+### 開始之前：openssl 在哪
+
+**PowerShell 找不到 `openssl`**，它是 Git for Windows 附帶的，只在 **Git Bash** 裡有。下面帶 `$` 的指令**一律在 Git Bash 執行**（在檔案總管空白處按右鍵 → Open Git Bash here）。
+
+這台機器上的實際位置是 `…/git_local/mingw64/bin/openssl.exe`，Git Bash 會自己找到，不必打全路徑。
+
+找一個**你自己記得住、而且不在這個 repo 裡**的資料夾來做（產出的私鑰絕對不能進版控）。
+
+### 1. 撤掉後台那些空殼的 `Apple Development` 憑證
+
+[Certificates](https://developer.apple.com/account/resources/certificates/list) → 把 `Apple Development` 那些全撤掉。它們的私鑰隨著歷次 CI runner 銷毀了，誰也用不了，**撤掉零損失**，也不影響已上傳的 TestFlight build（那些是 distribution 簽的）。
+
+`iOS Distribution` 與 `Distribution Managed` 兩張**不要動**。
+
+### 2. 產私鑰與憑證請求（CSR）
+
+```bash
+# -subj 開頭那個斜線會被 Git Bash 當成路徑轉換掉，這一行不能省
+export MSYS_NO_PATHCONV=1
+
+openssl genrsa -out ios_distribution.key 2048
+openssl req -new -key ios_distribution.key -out ios_distribution.csr \
+  -subj "/emailAddress=giliguala@gmail.com/CN=Brad/C=TW"
+
+# 確認 subject 長對了
+openssl req -in ios_distribution.csr -noout -subject
+```
+
+`ios_distribution.key` 就是**私鑰**，這整件事的重點。它一旦弄丟，就得從第 2 步重來一次。
+
+### 3. 拿 CSR 去 Apple 換憑證
+
+Certificates → ＋ → 選 **Apple Distribution**（不是 Development、也不是 Developer ID）→ 上傳 `ios_distribution.csr` → Continue → Download，得到 `ios_distribution.cer`。
+
+### 4. 把 `.cer` 與私鑰合成 `.p12`
+
+Apple 給的 `.cer` 是 DER 格式，要先轉成 PEM 才能跟私鑰打包：
+
+```bash
+openssl x509 -inform DER -in ios_distribution.cer -out ios_distribution.pem
+
+# -legacy 不能省，見下方說明
+openssl pkcs12 -export -legacy \
+  -inkey ios_distribution.key \
+  -in ios_distribution.pem \
+  -name "Apple Distribution" \
+  -out ios_distribution.p12
+```
+
+會問你兩次密碼，**自己設一組並記下來**，第 6 步要用。
+
+> **`-legacy` 為什麼不能省**：OpenSSL 3.x 預設用比較新的加密方式打包 PKCS12，而 macOS 的 `security import` 對它的支援時好時壞。加上 `-legacy` 產出的是舊式（MAC 為 SHA-1）的封裝，那是 macOS 一定讀得懂的。實跑驗證過確實會產出 `MAC: sha1`。
+
+驗一下讀得回來：
+
+```bash
+openssl pkcs12 -legacy -in ios_distribution.p12 -info -nodes | head -5
+```
+
+### 5. 下載 provisioning profile
+
+[Profiles](https://developer.apple.com/account/resources/profiles/list) → ＋ → Distribution 底下選 **App Store Connect** → App ID 選 `io.github.brad0924.vapractice` → 憑證選**第 3 步剛建的那張** → 取個名字 → Download，得到 `.mobileprovision`。
+
+**憑證一定要選對那張。** 選到 `Distribution Managed` 那張的話，CI 手上的私鑰對不上 profile，簽章會失敗。
+
+### 6. 轉成 base64 貼進 GitHub secrets
+
+GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShell 執行**（`-NoNewline` 不能省，多一個換行會讓 CI 那端解不開）：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\ios_distribution.p12")) | Set-Content ".\p12.b64" -NoNewline
+[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\<你的檔名>.mobileprovision")) | Set-Content ".\profile.b64" -NoNewline
+```
+
+到 repo 的 Settings → Secrets and variables → Actions → New repository secret，建三個：
+
+| Secret 名稱 | 內容 |
+| --- | --- |
+| `IOS_DIST_CERT_P12` | `p12.b64` 的全部內容 |
+| `IOS_DIST_CERT_PASSWORD` | 第 4 步你自己設的那組密碼 |
+| `IOS_PROVISIONING_PROFILE` | `profile.b64` 的全部內容 |
+
+### 7. 收尾
+
+- **`ios_distribution.key` 與 `.p12` 自己留好**（憑證有效期一年，到期或換電腦要重來）。
+- **`.b64` 那兩個檔貼完就刪掉**，那是明文的憑證。
+- **一個字都不要貼進這個對話或這個 repo。**
+
+做完回報一聲，agent 才改得動 workflow——secret 的名字用上表那三個就好，改了要一起講。
 
 ## 驗收
 
