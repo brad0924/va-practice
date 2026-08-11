@@ -17,8 +17,7 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "SpeechPlugin"
     public let jsName = "Speech"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "speak", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "describeVoices", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "speak", returnType: CAPPluginReturnPromise)
     ]
 
     /// 合成器得活得比一次朗讀久，否則話還沒念完就被回收，聲音會被切掉。
@@ -85,35 +84,5 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let preferred = AVSpeechSynthesisVoice(language: "ja-JP") else { return best }
         let sameVoice = japanese.filter { $0.name == preferred.name }
         return sameVoice.max { $0.quality.rawValue < $1.quality.rawValue } ?? preferred
-    }
-
-    // MARK: - 暫時的鷹架（票 15），驗完就拆
-
-    /// 把原生這端看到的語音狀況回成一段可以直接截圖的文字。
-    ///
-    /// 存在的理由只有一個：開發機是 Windows，看不到 Safari 的除錯器，
-    /// 「這支手機上有哪幾顆日文語音」在畫面上完全看不見。用完即拆，不是功能。
-    @objc func describeVoices(_ call: CAPPluginCall) {
-        let japanese = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("ja") }
-        let preferred = AVSpeechSynthesisVoice(language: "ja-JP")
-
-        var lines = ["當前語言：\(AVSpeechSynthesisVoice.currentLanguageCode())"]
-        lines.append("系統預設：\(Self.describe(preferred))")
-        lines.append("實際挑到：\(Self.describe(Self.japaneseVoice()))")
-        lines.append("清單共 \(japanese.count) 顆日文語音：")
-        lines.append(contentsOf: japanese.map { "・\(Self.describe($0))" })
-
-        call.resolve(["report": lines.joined(separator: "\n")])
-    }
-
-    private static func describe(_ voice: AVSpeechSynthesisVoice?) -> String {
-        guard let voice else { return "（沒有）" }
-        let quality: String
-        switch voice.quality.rawValue {
-        case 3: quality = "premium 優質"
-        case 2: quality = "enhanced 增強"
-        default: quality = "compact 壓縮"
-        }
-        return "\(voice.name)／\(quality)／\(voice.language)／\(voice.identifier)"
     }
 }
