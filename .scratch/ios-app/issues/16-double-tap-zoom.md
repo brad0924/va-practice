@@ -1,6 +1,6 @@
 # 16 — 連點兩下會把畫面放大
 
-Status: ready-for-human
+Status: done
 Type: bug
 Blocked by: 01
 
@@ -61,7 +61,7 @@ Capacitor 預設就有「禁止縮放」（`zoomEnabled` 預設 `false`），但
 
 ## Comments
 
-### 2026-08-11 — 程式面完成，Status 停在 `ready-for-human`
+### 2026-08-11 — 程式面完成
 
 `src/styles.css` 的 `*` 規則加了 `touch-action: manipulation`，連同 spec 硬約束的修訂，一共三個檔案、34 行。剩下的四條驗收都要拿 iPhone 才做得到，開發機是 Windows，因此不自行勾選。
 
@@ -74,3 +74,11 @@ Capacitor 預設就有「禁止縮放」（`zoomEnabled` 預設 `false`），但
 因此那條驗收改成只針對網頁版。`touch-action: manipulation` 不碰雙指這件事仍然成立，只是在 iOS 上沒有東西可以留給它。
 
 **順帶暴露一件本票管不到的事**：當初否決「viewport 關掉整個縮放」的理由是「這是一個背漢字的 app，想放大看筆畫是合理需求」——那個需求在 iOS 上**現在就已經滿足不了**了。要不要在 iOS app 打開雙指縮放（`zoomEnabled: true`），是一個獨立的產品決定，且本票「不做的事」明文禁止在這裡動它。留給維護者決定要不要另開票。
+
+### 2026-08-11 — 由維護者結案，四條驗收未執行
+
+維護者決定收掉這張票。上方四個未打勾的方框**維持未打勾，因為它們真的沒被驗過**——連點兩下不放大、捲動手感不變、朗讀中斷行為不變、網頁版雙指仍可用，四條都要真機才做得到，本票結案時一條都沒跑。
+
+留這個紀錄是為了半年後翻到這張票的人（含 agent）：這裡的 `done` 是「程式寫完了」，不是「驗過了」。與票 08、09 那種「真機驗收全過結案」不是同一回事，不要照它們的方式解讀。
+
+有跑過的只有靜態那一側：428 tests / 19 files 全綠、`tsc --noEmit` 與 `vite build` 通過、`dist` 產物確認含 `touch-action:manipulation`、零既有測試檔變動。
