@@ -1,6 +1,6 @@
 # 19 — 提醒開關改成膠囊式，不要用勾的
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: enhancement
 Blocked by: 09（已 done）
 
@@ -60,3 +60,46 @@ Blocked by: 09（已 done）
 - [ ] 按下去的行為與票 09 完全相同（權限請求、被拒絕時彈回去、關掉時清空提醒）
 - [ ] 網頁版零變化——那裡本來就不出現這一區
 - [ ] 既有測試全數通過
+
+## Comments
+
+### 2026-08-12 — 實作完成，等真機驗收
+
+只動 `src/styles.css` 裡 `.toggle-check` 那一段（3 行變 66 行），TypeScript 一個字都沒改。442 個測試全過，`tsc --noEmit` 乾淨。
+
+#### 比稿的結果：B
+
+依票上的交代先做了一頁靜態 HTML，把三種尺寸與配色並排在真的深色卡片上。維護者挑了 **B**：軌道 44×26、滑塊 22、開啟＝主色 `--accent`。落選的兩顆是 A（51×31 iOS 原生尺寸、開啟藍）與 C（尺寸同 A、開啟＝ `--good` 那個綠）。原型依票的交代沒有進版控。
+
+**挑完之後那一頁還有第二個用途**：提醒這一區只長在原生殼裡，桌機瀏覽器打不開，所以把它改成吃真正的 `src/styles.css`、手抄一份 `data-view.ts` 產出的 DOM，本機能驗的幾條就在那裡驗完（見下）。
+
+#### 與票裡寫的做法有一處不同
+
+票的決定段寫「用 `::before` / `::after` 畫出軌道與滑塊」，實作是**元素本體當軌道、只用 `::after` 當滑塊**。少一個偽元素，結果一樣。
+
+#### 本機已驗（Chrome，量到的數字）
+
+- 軌道 44×26、滑塊 22×22、位移 18px——`2.75 - 1.375 - 0.125×2 = 1.125rem`，滑塊剛好貼齊右緣
+- 點旁邊那行字會連動（`<label class="toggle">` 包住 input，票 18 提醒的「時間那一塊不能塞進來」維持原狀，沒有動到）
+- Tab 走得到、空白鍵切換得動、focus 是一圈藍框；關閉態那圈特別明顯
+- `.toggle` 那一列高 52px＝`--tap`（3.25rem），膠囊本身雖然只有 26px，可點的是整列，與改動前相同
+- `.book-check` 仍是 19px 的原生勾選框，零變化
+- `prefers-reduced-motion: reduce` 那條規則確實進了 CSSOM，關掉的是兩條 `transition`
+
+#### code review 改掉的四處
+
+1. 滑塊寫死 `#fff`——全檔顏色都收在 `:root`，改成 `var(--text)`
+2. `:disabled` 只變淡沒收回 `cursor: pointer`，按不動卻還在邀請你按——補 `cursor: default`
+3. `transition` 只有 `background-color`，但 `:checked` 同時把那圈內描邊拿掉，切換時會分兩段動——`box-shadow` 一起進 transition
+4. 註解寫「`aria-checked` 沿用內建的」是把票裡比較 `button role="switch"` 的脈絡搬過來時走味了——原生 checkbox 不靠 `aria-checked`，改成「開關狀態報給輔助工具」
+
+### 維護者待辦
+
+本機量得到的都量完了，剩下四條非真機不可：
+
+1. **觸發 `Build iOS and upload to TestFlight`。**
+2. 開／關兩態一眼分不分得出來、切換的 150ms 覺不覺得遲鈍——這是這張票的主題，只有看過才算數。
+3. 手指按下去要不要瞄準（膠囊 26px 高，靠整列 52px 撐住）。
+4. 系統外觀切成淺色再看一次。理論上不會變（整顆自己上色，不吃 `accent-color`），但票裡列了就該看一眼。
+
+全過就把 `Status:` 改成 `done`。

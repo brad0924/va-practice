@@ -660,11 +660,78 @@ button {
   min-height: var(--tap);
 }
 
+/* 膠囊式開關。底下仍然是 `<input type="checkbox">`，只是把原生外觀拿掉自己畫：
+   鍵盤操作、開關狀態報給輔助工具、點 label 連動這三件事全部沿用瀏覽器內建的，一行都不必補。
+   元素本體當軌道，`::after` 當滑塊。整顆自己上色，不吃 `accent-color`，
+   因此系統切成淺色外觀時長相不變（這個 app 本來就只有深色一種）。
+
+   只有提醒那一顆用它。上面單字本那排是多選清單、不是「開還是關」，維持勾選框。 */
 .toggle-check {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
-  width: 1.2rem;
-  height: 1.2rem;
-  accent-color: var(--accent);
+  position: relative;
+  /* 原生勾選框自帶的外距，換皮之後間距改由 .toggle 的 gap 決定。 */
+  margin: 0;
+  width: 2.75rem;
+  height: 1.625rem;
+  border: none;
+  border-radius: 999px;
+  /* 關著的時候軌道跟卡片底色太接近，補一圈內描邊才看得出這裡有顆東西可以按。
+     開起來整條變主色，那圈就不需要了。 */
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  /* 內描邊要跟著底色一起淡出。只轉 background-color 的話那圈會瞬間消失，
+     整顆看起來像分兩段動。 */
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.toggle-check::after {
+  content: '';
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  /* 沿用前景色而不是寫死白色：全檔的顏色都收在 :root，滑塊沒有自己脫隊的理由。 */
+  background: var(--text);
+  transition: transform 150ms ease;
+}
+
+.toggle-check:checked {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+/* 軌道寬 2.75 減掉滑塊 1.375 再減掉左右各 0.125 的留白，就是滑塊要走的距離。 */
+.toggle-check:checked::after {
+  transform: translateX(1.125rem);
+}
+
+/* 外圈留 2px 空隙，開著的時候焦點框才不會跟同色的軌道糊在一起。 */
+.toggle-check:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 請求通知權限那幾秒會被鎖住。原生外觀有內建的變淡，自己畫的沒有，要補回來，
+   否則按不動卻看不出為什麼。 */
+.toggle-check:disabled {
+  opacity: 0.5;
+  /* 游標也要收回去。留著手指的話按不動卻還在邀請你按。 */
+  cursor: default;
+}
+
+/* 開了「減少動態」就是不想看到東西滑來滑去。切換照常生效，只是瞬間到位。 */
+@media (prefers-reduced-motion: reduce) {
+  .toggle-check,
+  .toggle-check::after {
+    transition: none;
+  }
 }
 
 .toggle-label {
