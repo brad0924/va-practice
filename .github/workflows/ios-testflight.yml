@@ -1,5 +1,8 @@
 name: Build iOS and upload to TestFlight
 
+# 簽章憑證有效期一年，到期時倒在簽章那一步是正常的——
+# 要重做哪幾步見 docs/ios-signing-renewal.md（workflow 本身不用改）。
+#
 # 只手動觸發。每跑一次就佔用一個 TestFlight build number，
 # 不該綁在 push 上。網頁版的部署完全不受這支 workflow 影響。
 on:

@@ -234,7 +234,7 @@ GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShe
 - [x] `project.pbxproj` 的 Release 不再繼承 `CODE_SIGN_IDENTITY = "iPhone Developer"`
 - [x] 臨時鑰匙圈在 job 結束時被清掉，不留在 runner 上
 - [x] **連跑兩趟 workflow 都成功，且 Apple 後台的憑證張數一張都沒增加**（這是本票唯一真正的驗收，其餘都是它的前提）
-- [ ] 上傳到 TestFlight 的 build 仍然可以指派給 Internal Testing 並安裝（**未回報**，見 Comments）
+- [x] 上傳到 TestFlight 的 build 仍然可以指派給 Internal Testing 並安裝
 - [x] 網頁版部署（`deploy.yml`）不受影響
 - [x] `src/` 零改動，測試零改動
 
@@ -270,22 +270,16 @@ Run 17 倒過一次，但**與簽章無關**：簽章整條路都通了（`1 ide
 
 **撞號的成因沒有查明。** 維護者回報 run 1–16 全數成功（build 1–16 都上去了），照理 17 號應該是空的。這與 `github.run_number` 的行為對不起來，目前沒有能自圓其說的解釋，先誠實記著。Run 18 沒再撞，實務上已經過去。
 
-底層問題仍在，但**不屬於本票**（本票明文「不改 app 的任何功能」，build number 算法也不在範圍內）：`github.run_number` 與 App Store Connect 的 build number 是兩套獨立計數器，沒有任何機制保證對得齊，而且 re-run 時 `run_number` 不會 +1。值得另開一張票。
+底層問題仍在：`github.run_number` 與 App Store Connect 的 build number 是兩套獨立計數器，沒有任何機制保證對得齊，而且 re-run 時 `run_number` 不會 +1。
 
-**尚未回報：**「上傳到 TestFlight 的 build 可以指派給 Internal Testing 並安裝」這條驗收沒有回報過。前八趟的 build 本來就是 distribution 簽的、裝得起來，簽章方式沒變，風險低，但確實沒實測。
+**維護者決定不處理**——撞號會在上傳那步大聲倒掉、不會靜默出錯，重跑一趟就過，代價低於現在去改一套新算法。哪天真的常撞再說。因此**不另開票**。
+
+TestFlight 的 build 已實測可指派給 Internal Testing 並安裝，驗收全數通過。
 
 ### 2026-08-12：憑證到期怎麼辦（約 2027-08）
 
-**憑證有效期一年，明年這時候會需要重做，但不必從頭走一遍。**
+續期步驟移到 **`docs/ios-signing-renewal.md`**，這裡不重複寫，免得兩份各說各話。
 
-到期時 CI 會倒在簽章那一步，Apple 也會先寄信提醒。屆時要重做的是**第 3～6 步**：
+放那裡而不是留在這張票，是因為一年後的出發點會是「CI 倒了」而不是「票 17 講過什麼」——`ios-testflight.yml` 開頭加了一行註解指過去，兩步就找得到。
 
-1. **第 2 步可以跳過**——`ios_distribution.key` 留著的話，直接拿它產新的 CSR 就好（`openssl req -new -key ios_distribution.key ...`）。Apple 不介意 CSR 用的是舊金鑰對。
-2. **第 3 步**：拿新 CSR 去換一張新的 `Apple Distribution` 憑證。舊的那張到期後撤掉，不佔額度。
-3. **第 4 步**：新 `.cer` 跟同一把私鑰重新合成 `.p12`。密碼可以沿用舊的，那樣 `IOS_DIST_CERT_PASSWORD` 就不用動。
-4. **第 5 步**：profile 跟憑證綁在一起，憑證換了 profile 也要重下載一張。
-5. **第 6 步**：更新 `IOS_DIST_CERT_P12` 與 `IOS_PROVISIONING_PROFILE` 兩個 secret。
-
-**workflow 一個字都不用改**——名稱、UUID、bundle id 都是 CI 當下從 `.mobileprovision` 讀出來的。
-
-前提是 `ios_distribution.key` 還在。弄丟就得從第 2 步整套重來（也還是做得完，只是多一步）。
+重點只有一句：**`ios_distribution.key` 這把私鑰要留好**，有它就只需重做第 3～6 步，而且 workflow 一個字都不用改。
