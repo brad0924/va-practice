@@ -30,7 +30,7 @@ app 的顯示名稱目前以字面值散在七個位置，分短名（`JLPT 單�
 | --- | --- |
 | `index.html:12` `<title>` | 瀏覽器分頁標題 |
 | `vite.config.ts:24` manifest `name` | PWA 安裝提示 |
-| `public/privacy.html` `:19`／`:108`／`:111`／`:199` | 隱私權政策頁的標題、頁尾、內文首句、返回連結 |
+| `public/privacy.html` `:19`／`:108`／`:111`／`:199` | 隱私權政策頁的分頁標題、頁首的更新日期那行、內文首句、頁尾的返回連結 |
 
 ## 決定
 
@@ -103,14 +103,14 @@ plugins: [appNamePlugin(), ...(isIOS ? [] : [VitePWA({ ... })])],
 
 ## 驗收
 
-- [ ] `src/lib/app-name.ts` 存在，兩個值為 `JLPT 單字` 與 `JLPT 單字複習`
-- [ ] `vite.config.ts`、`src/ui/data-view.ts`、`capacitor.config.ts` 三處改為 `import` 常數，檔案裡不再有該名字的字面值
-- [ ] `capacitor.config.ts` 的註解已改寫，說明該行只在 `cap add` 生效
-- [ ] `index.html` 兩處改為佔位符，Vite plugin 掛在三元判斷式外面
-- [ ] `npm run build` 產出的 `dist/index.html` 分頁標題為「JLPT 單字複習」、`apple-mobile-web-app-title` 為「JLPT 單字」
-- [ ] `npm run build:ios` 產出的 `dist/index.html` 同上兩項也正確（這是最容易漏的一項）
-- [ ] `npm run build` 產出的 manifest 中 `name`／`short_name` 兩值正確
-- [ ] `src/lib/app-name.test.ts` 存在，涵蓋 `Info.plist` 一處與 `privacy.html` 四處
-- [ ] 把常數暫時改成別的字串，守門測試紅燈，且訊息指得出是哪個檔的哪一處；改回來後綠燈
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
-- [ ] `docs/adr/0012-display-name-single-source.md` 已寫
+- [x] `src/lib/app-name.ts` 存在，兩個值為 `JLPT 單字` 與 `JLPT 單字複習`
+- [x] `vite.config.ts`、`src/ui/data-view.ts`、`capacitor.config.ts` 三處改為 `import` 常數，檔案裡不再有該名字的字面值
+- [x] `capacitor.config.ts` 的註解已改寫，說明該行只在 `cap add` 生效
+- [x] `index.html` 兩處改為佔位符，Vite plugin 掛在三元判斷式外面
+- [x] `npm run build` 產出的 `dist/index.html` 分頁標題為「JLPT 單字複習」、`apple-mobile-web-app-title` 為「JLPT 單字」
+- [x] `npm run build:ios` 產出的 `dist/index.html` 同上兩項也正確（這是最容易漏的一項）
+- [x] `npm run build` 產出的 manifest 中 `name`／`short_name` 兩值正確
+- [x] `src/lib/app-name.test.ts` 存在，涵蓋 `Info.plist` 一處與 `privacy.html` 四處
+- [x] 把常數暫時改成別的字串，守門測試紅燈，且訊息指得出是哪個檔的哪一處；改回來後綠燈
+- [x] `npm run test` 與 `npm run typecheck` 全綠
+- [x] `docs/adr/0012-display-name-single-source.md` 已寫
