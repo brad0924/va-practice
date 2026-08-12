@@ -9,6 +9,6 @@
  * 守門），理由與被否決的做法都在 ADR-0012。改名前先讀那份文件。
  */
 export const APP_NAME = {
-  short: 'JLPT 單字',
-  full: 'JLPT 單字複習',
+  short: 'VocabCard',
+  full: 'Vocabulary Card Practice',
 } as const;

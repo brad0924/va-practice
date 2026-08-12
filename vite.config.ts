@@ -45,7 +45,7 @@ export default defineConfig(({ mode }) => {
               manifest: {
                 name: APP_NAME.full,
                 short_name: APP_NAME.short,
-                description: 'JLPT N2 日文單字閃卡，離線可用',
+                description: '自建單字本，間隔複習，離線可用',
                 lang: 'zh-Hant',
                 start_url: webBase,
                 scope: webBase,
