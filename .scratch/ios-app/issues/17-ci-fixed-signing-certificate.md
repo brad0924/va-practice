@@ -192,3 +192,37 @@ GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShe
 - **provisioning profile 要放哪個目錄，Xcode 16 之後換過位置**（舊的 `~/Library/MobileDevice/Provisioning Profiles/` 與新的 `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`）。CI 用的是 Xcode 26，動工時先確認。
 - **`ExportOptions.plist` 在手動簽章下要多帶 `signingStyle` 與 `provisioningProfiles` 對應**，現在那份只有 `method`／`teamID`／`uploadSymbols`。
 - **開發機是 Windows，這份 workflow 沒有辦法在本機驗證。** 與票 01 同樣的處境——第一趟很可能要來回幾次，倒了就把 Actions 的 log 貼回來。
+
+## Comments
+
+### 2026-08-12：workflow 側已改完，等 secret
+
+`ios-testflight.yml` 與 `project.pbxproj` 改好了。`Status:` 仍是 `ready-for-human`——維護者做到第 2 步，三個 secret 尚未建立，而唯一真正的驗收（連跑兩趟、憑證張數不增加）非跑不可。
+
+**第 2、4 步的 PowerShell 版本**（維護者在 PowerShell 而非 Git Bash，`export` 與 `\` 續行都不通）。`openssl` 在這台機器的位置：
+
+```powershell
+$ssl = "C:\Users\P10394584\AppData\Local\Atlassian\SourceTree\git_local\mingw64\bin\openssl.exe"
+
+# 第 2 步。PowerShell 直接呼叫原生執行檔不會動參數，不必 MSYS_NO_PATHCONV
+& $ssl genrsa -out ios_distribution.key 2048
+& $ssl req -new -key ios_distribution.key -out ios_distribution.csr -subj "/emailAddress=giliguala@gmail.com/CN=Brad/C=TW"
+
+# 第 4 步
+& $ssl x509 -inform DER -in ios_distribution.cer -out ios_distribution.pem
+& $ssl pkcs12 -export -legacy -inkey ios_distribution.key -in ios_distribution.pem -name "Apple Distribution" -out ios_distribution.p12
+```
+
+兩段都在這台 Windows 上實跑驗證過（用自簽憑證冒充 Apple 回傳的 `.cer`），CSR subject 正確，`.p12` 產得出來且確認是 `MAC: sha1`。
+
+**「已知的坑」查證結果：**
+
+1. **profile 目錄**：Xcode 16 起改成 `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`，舊路徑仍有工具鏈在讀。兩個目錄都複製一份，多一次 `cp` 成本趨近於零。
+2. **`ExportOptions.plist`**：已補 `signingStyle=manual`、`provisioningProfiles` 對應，另加 `signingCertificate=Apple Distribution`。最後這個票上沒列，是刻意加的——手動簽章下明講憑證比讓 Xcode 自己猜安全，而票的原文是「要多帶」不是窮舉。
+3. **無法本機驗證**：改以能在 Windows 上做的方式代替——YAML 解析、每段 `run` 的 `bash -n`、實跑 heredoc 產出 `ExportOptions.plist` 檢查變數展開。真正的簽章行為仍然只能上 CI 才知道。
+
+**bundle id、profile 名稱、UUID 三個值都不寫死**，全部在 CI 當下從 `.mobileprovision` 讀出來（bundle id 取自 `Entitlements:application-identifier` 剝掉 team 前綴）。重產 profile 時 workflow 不必跟著改。
+
+`PROVISIONING_PROFILE_SPECIFIER` 餵的是 profile **名稱**而非 UUID——那個變數的語意就是名稱，UUID 只拿來當安裝的檔名。
+
+**Code review 抓到並修掉的：** `KEYCHAIN_PATH` 原本在匯入步驟的最後一行才寫進 `GITHUB_ENV`，但鑰匙圈在中段就建好了；中途倒掉的話收尾那步拿不到路徑，鑰匙圈會留在 runner 上。已改成建立之前就先寫入。
