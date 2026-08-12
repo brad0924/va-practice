@@ -226,3 +226,26 @@ $ssl = "C:\Users\P10394584\AppData\Local\Atlassian\SourceTree\git_local\mingw64\
 `PROVISIONING_PROFILE_SPECIFIER` 餵的是 profile **名稱**而非 UUID——那個變數的語意就是名稱，UUID 只拿來當安裝的檔名。
 
 **Code review 抓到並修掉的：** `KEYCHAIN_PATH` 原本在匯入步驟的最後一行才寫進 `GITHUB_ENV`，但鑰匙圈在中段就建好了；中途倒掉的話收尾那步拿不到路徑，鑰匙圈會留在 runner 上。已改成建立之前就先寫入。
+
+### 2026-08-12：第 6 步的相對路徑會踩到坑
+
+上面第 6 步原文用 `.\ios_distribution.p12` 這種相對路徑，實跑時倒了：
+
+```
+Exception calling "ReadAllBytes" with "1" argument(s):
+"Could not find file 'C:\...\taiwan-tabelog\ios_distribution.p12'."
+```
+
+`[IO.File]::ReadAllBytes` 是 .NET 方法，看的是**行程層級**的目前目錄，而 PowerShell 的 `cd` 只動自己那份、不會同步過去。所以視窗從哪個資料夾開的，它就一直認哪裡。同一行的 `Set-Content` 是 cmdlet、認得 `cd`——於是變成從 A 讀、往 B 寫。
+
+`openssl` 那幾步沒事：PowerShell 啟動原生執行檔時會把工作目錄設成 `cd` 之後的位置。這個坑只咬 `[IO.File]` 這類 .NET 方法。
+
+改成完整路徑，並明講編碼：
+
+```powershell
+$cert = "C:\Users\P10394584\Documents\Brad\ios-cert"
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\ios_distribution.p12")) | Set-Content "$cert\p12.b64" -NoNewline -Encoding ascii
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\<你的檔名>.mobileprovision")) | Set-Content "$cert\profile.b64" -NoNewline -Encoding ascii
+```
+
+`-Encoding ascii` 是為了防 Windows PowerShell 5.1——它預設寫 UTF-16 帶 BOM，CI 那端 `base64 -D` 會解爆。PowerShell 7 預設是 UTF-8 無 BOM 本來就沒事，但明講就不必管跑在哪個版本。
