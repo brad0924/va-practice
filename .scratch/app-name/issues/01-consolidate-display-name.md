@@ -1,6 +1,6 @@
 # 01 — 顯示名稱收斂成單一來源
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無，可立即開始
 

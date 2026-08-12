@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { APP_NAME } from '../lib/app-name';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
 import { el, button, download } from './dom';
@@ -41,8 +42,8 @@ const REMINDER_HINT =
  * 權限被拒絕時說實話：不假裝提醒有在運作，也不再問第二次——系統本來就不會再跳，
  * 唯一能改的地方是設定 app，因此直接指過去（見 spec 決定二十四）。
  */
-const REMINDER_DENIED =
-  '通知權限是關的，提醒送不出來。請到「設定 → JLPT 單字 → 通知」允許通知後，再回來打開這個開關。';
+// 這裡引用的是 iOS 設定 app 裡的項目名，也就是主畫面圖示底下那行字（短名）。
+const REMINDER_DENIED = `通知權限是關的，提醒送不出來。請到「設定 → ${APP_NAME.short} → 通知」允許通知後，再回來打開這個開關。`;
 
 export function dataView(app: App): HTMLElement {
   const screen = el('div', 'screen');

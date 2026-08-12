@@ -1,11 +1,14 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { APP_NAME } from './src/lib/app-name';
 
 // appId 一旦在 App Store Connect 建立 app 記錄就無法變更。
-// appName 是主畫面顯示名稱，與 PWA manifest 的 short_name 及
-// index.html 的 apple-mobile-web-app-title 保持一致。
+// appName 只在 `cap add` 那一次生效——它會被寫進 ios/App/App/Info.plist 的
+// CFBundleDisplayName，之後 `cap sync`／`copy`／`update` 都不再碰那個檔。
+// 也就是說改這行不會改變 iPhone 上的名字，真正在用的是 Info.plist。
+// 留著是因為 `cap add` 缺 appName 會直接失敗，重建原生專案時還需要它（見 ADR-0012）。
 const config: CapacitorConfig = {
   appId: 'io.github.brad0924.vapractice',
-  appName: 'JLPT 單字',
+  appName: APP_NAME.short,
   webDir: 'dist',
   // 刻意不設 server.url：內容一律打包進 app，不讓 WebView 指向線上網址。
   // 那會使離線完全失效，也是 App Store 準則 4.2 最典型的退件理由（spec 決定四）。
