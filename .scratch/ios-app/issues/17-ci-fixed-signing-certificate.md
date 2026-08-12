@@ -1,6 +1,6 @@
 # 17 — CI 簽章改用固定憑證，別再每跑一趟就燒一張
 
-Status: ready-for-human
+Status: done
 Type: bug
 Blocked by: 無，可立即開始
 
@@ -82,17 +82,26 @@ match 是這個問題的業界標準解，但它要多一個工具、多一個�
 
 **這張票是 `ready-for-human` 而不是 `ready-for-agent`，因為第一步只有你做得到。** 憑證與密碼不會、也不應該經過 agent 的手；下面每一步都是你自己執行、自己貼進 GitHub。
 
-> **底下的 OpenSSL 指令在維護者這台 Windows 上實跑驗證過**（2026-08-11，OpenSSL 3.2.4），
-> 用自簽憑證冒充 Apple 回傳的 `.cer` 走完整條路，`.p12` 產得出來也讀得回去。
-> 唯一沒驗到的是 Apple 後台那幾步與 macOS 端的匯入。
+> **底下每一步都實際走過了**（2026-08-12 結案）。OpenSSL 指令在維護者這台 Windows 上
+> 兩種殼都實跑驗證過（OpenSSL 3.2.4），Apple 後台那幾步與 macOS 端的匯入也在 CI 上驗證完畢。
 
 ### 開始之前：openssl 在哪
 
-**PowerShell 找不到 `openssl`**，它是 Git for Windows 附帶的，只在 **Git Bash** 裡有。下面帶 `$` 的指令**一律在 Git Bash 執行**（在檔案總管空白處按右鍵 → Open Git Bash here）。
+`openssl` 不在系統 PATH 上，它是 Git for Windows 附帶的。兩種跑法都行，**每一步底下都同時給了兩個版本，挑一個從頭用到尾**：
 
-這台機器上的實際位置是 `…/git_local/mingw64/bin/openssl.exe`，Git Bash 會自己找到，不必打全路徑。
+- **PowerShell**：打全路徑。這台機器上是
+  `C:\Users\P10394584\AppData\Local\Atlassian\SourceTree\git_local\mingw64\bin\openssl.exe`，
+  先設成變數 `$ssl` 再用 `& $ssl ...` 呼叫。
+- **Git Bash**：在檔案總管空白處按右鍵 → Open Git Bash here，`openssl` 直接就有。
 
-找一個**你自己記得住、而且不在這個 repo 裡**的資料夾來做（產出的私鑰絕對不能進版控）。
+兩邊產出的檔案完全一樣。
+
+找一個**你自己記得住、而且不在這個 repo 裡**的資料夾來做（產出的私鑰絕對不能進版控）。下面 PowerShell 版本都用 `$cert` 指這個資料夾：
+
+```powershell
+$cert = "C:\Users\P10394584\Documents\Brad\ios-cert"
+$ssl  = "C:\Users\P10394584\AppData\Local\Atlassian\SourceTree\git_local\mingw64\bin\openssl.exe"
+```
 
 ### 1. 撤掉後台那些空殼的 `Apple Development` 憑證
 
@@ -101,6 +110,18 @@ match 是這個問題的業界標準解，但它要多一個工具、多一個�
 `iOS Distribution` 與 `Distribution Managed` 兩張**不要動**。
 
 ### 2. 產私鑰與憑證請求（CSR）
+
+PowerShell：
+
+```powershell
+& $ssl genrsa -out "$cert\ios_distribution.key" 2048
+& $ssl req -new -key "$cert\ios_distribution.key" -out "$cert\ios_distribution.csr" -subj "/emailAddress=giliguala@gmail.com/CN=Brad/C=TW"
+
+# 確認 subject 長對了
+& $ssl req -in "$cert\ios_distribution.csr" -noout -subject
+```
+
+Git Bash：
 
 ```bash
 # -subj 開頭那個斜線會被 Git Bash 當成路徑轉換掉，這一行不能省
@@ -114,6 +135,10 @@ openssl req -new -key ios_distribution.key -out ios_distribution.csr \
 openssl req -in ios_distribution.csr -noout -subject
 ```
 
+> **PowerShell 不需要 `MSYS_NO_PATHCONV`。** 那個斜線問題是 Git Bash 的 MSYS 層在轉路徑造成的；PowerShell 直接呼叫原生執行檔，參數原封不動送過去。實跑驗證過 subject 出來是對的。
+>
+> 反過來 PowerShell 有自己的兩個坑：續行符號是反引號 `` ` `` 不是 `\`（所以上面全部寫成一行），而且 `export` 不存在。
+
 `ios_distribution.key` 就是**私鑰**，這整件事的重點。它一旦弄丟，就得從第 2 步重來一次。
 
 ### 3. 拿 CSR 去 Apple 換憑證
@@ -122,7 +147,21 @@ Certificates → ＋ → 選 **Apple Distribution**（不是 Development、也�
 
 ### 4. 把 `.cer` 與私鑰合成 `.p12`
 
-Apple 給的 `.cer` 是 DER 格式，要先轉成 PEM 才能跟私鑰打包：
+Apple 給的 `.cer` 是 DER 格式，要先轉成 PEM 才能跟私鑰打包。
+
+PowerShell：
+
+```powershell
+& $ssl x509 -inform DER -in "$cert\ios_distribution.cer" -out "$cert\ios_distribution.pem"
+
+# -legacy 不能省，見下方說明
+& $ssl pkcs12 -export -legacy -inkey "$cert\ios_distribution.key" -in "$cert\ios_distribution.pem" -name "Apple Distribution" -out "$cert\ios_distribution.p12"
+
+# 確認真的產出來了再往下
+Test-Path "$cert\ios_distribution.p12"
+```
+
+Git Bash：
 
 ```bash
 openssl x509 -inform DER -in ios_distribution.cer -out ios_distribution.pem
@@ -135,11 +174,17 @@ openssl pkcs12 -export -legacy \
   -out ios_distribution.p12
 ```
 
-會問你兩次密碼，**自己設一組並記下來**，第 6 步要用。
+**只有 `pkcs12 -export` 那行會問密碼**，會問兩次（`Enter Export Password:` 與 `Verifying -`），**自己設一組並記下來**，第 6 步要用。打字時畫面不會有任何反應，連星號都沒有，這是正常的。
+
+前面 `x509` 那行**不會**問密碼——它只是把憑證從 DER 換成 PEM，換的是編碼格式不是加密，而且憑證本身是公開那半，沒有東西要保護。沒被問密碼不代表出錯。
 
 > **`-legacy` 為什麼不能省**：OpenSSL 3.x 預設用比較新的加密方式打包 PKCS12，而 macOS 的 `security import` 對它的支援時好時壞。加上 `-legacy` 產出的是舊式（MAC 為 SHA-1）的封裝，那是 macOS 一定讀得懂的。實跑驗證過確實會產出 `MAC: sha1`。
 
-驗一下讀得回來：
+驗一下讀得回來（會再問一次密碼）：
+
+```powershell
+& $ssl pkcs12 -legacy -in "$cert\ios_distribution.p12" -info -nodes | Select-Object -First 5
+```
 
 ```bash
 openssl pkcs12 -legacy -in ios_distribution.p12 -info -nodes | head -5
@@ -153,12 +198,18 @@ openssl pkcs12 -legacy -in ios_distribution.p12 -info -nodes | head -5
 
 ### 6. 轉成 base64 貼進 GitHub secrets
 
-GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShell 執行**（`-NoNewline` 不能省，多一個換行會讓 CI 那端解不開）：
+GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShell 執行**：
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\ios_distribution.p12")) | Set-Content ".\p12.b64" -NoNewline
-[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\<你的檔名>.mobileprovision")) | Set-Content ".\profile.b64" -NoNewline
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\ios_distribution.p12")) | Set-Content "$cert\p12.b64" -NoNewline -Encoding ascii
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\<你的檔名>.mobileprovision")) | Set-Content "$cert\profile.b64" -NoNewline -Encoding ascii
 ```
+
+三個旗標一個都不能省：
+
+- **`-NoNewline`**：多一個換行會讓 CI 那端解不開。
+- **`-Encoding ascii`**：Windows PowerShell 5.1 預設寫 UTF-16 帶 BOM，CI 的 `base64 -D` 會直接解爆。PowerShell 7 預設是 UTF-8 無 BOM 本來就沒事，明講就不必管跑在哪個版本。
+- **完整路徑（`$cert\...`，不要用 `.\`）**：`[IO.File]::ReadAllBytes` 是 .NET 方法，看的是**行程層級**的目前目錄，而 PowerShell 的 `cd` 只動自己那份、不會同步過去。用相對路徑會變成「從你開視窗的那個資料夾讀、往 `cd` 之後的資料夾寫」——同一行的 `Set-Content` 是 cmdlet，它認得 `cd`。實跑踩過這個坑。（`openssl` 那幾步沒事：PowerShell 啟動原生執行檔時會把工作目錄設成 `cd` 之後的位置。）
 
 到 repo 的 Settings → Secrets and variables → Actions → New repository secret，建三個：
 
@@ -170,7 +221,7 @@ GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShe
 
 ### 7. 收尾
 
-- **`ios_distribution.key` 與 `.p12` 自己留好**（憑證有效期一年，到期或換電腦要重來）。
+- **`ios_distribution.key` 與 `.p12` 自己留好**（憑證有效期一年，到期或換電腦要重來；到期時要重做哪幾步見 Comments）。
 - **`.b64` 那兩個檔貼完就刪掉**，那是明文的憑證。
 - **一個字都不要貼進這個對話或這個 repo。**
 
@@ -178,14 +229,14 @@ GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShe
 
 ## 驗收
 
-- [ ] `ios-testflight.yml` 不再帶 `-allowProvisioningUpdates`
-- [ ] archive 與 exportArchive 都用固定憑證簽章，且是 `Apple Distribution`
-- [ ] `project.pbxproj` 的 Release 不再繼承 `CODE_SIGN_IDENTITY = "iPhone Developer"`
-- [ ] 臨時鑰匙圈在 job 結束時被清掉，不留在 runner 上
-- [ ] **連跑兩趟 workflow 都成功，且 Apple 後台的憑證張數一張都沒增加**（這是本票唯一真正的驗收，其餘都是它的前提）
-- [ ] 上傳到 TestFlight 的 build 仍然可以指派給 Internal Testing 並安裝
-- [ ] 網頁版部署（`deploy.yml`）不受影響
-- [ ] `src/` 零改動，測試零改動
+- [x] `ios-testflight.yml` 不再帶 `-allowProvisioningUpdates`
+- [x] archive 與 exportArchive 都用固定憑證簽章，且是 `Apple Distribution`
+- [x] `project.pbxproj` 的 Release 不再繼承 `CODE_SIGN_IDENTITY = "iPhone Developer"`
+- [x] 臨時鑰匙圈在 job 結束時被清掉，不留在 runner 上
+- [x] **連跑兩趟 workflow 都成功，且 Apple 後台的憑證張數一張都沒增加**（這是本票唯一真正的驗收，其餘都是它的前提）
+- [ ] 上傳到 TestFlight 的 build 仍然可以指派給 Internal Testing 並安裝（**未回報**，見 Comments）
+- [x] 網頁版部署（`deploy.yml`）不受影響
+- [x] `src/` 零改動，測試零改動
 
 ## 已知的坑（動工時要查證，不要照抄）
 
@@ -195,25 +246,7 @@ GitHub secrets 只收文字，二進位檔要先編碼。**這兩行在 PowerShe
 
 ## Comments
 
-### 2026-08-12：workflow 側已改完，等 secret
-
-`ios-testflight.yml` 與 `project.pbxproj` 改好了。`Status:` 仍是 `ready-for-human`——維護者做到第 2 步，三個 secret 尚未建立，而唯一真正的驗收（連跑兩趟、憑證張數不增加）非跑不可。
-
-**第 2、4 步的 PowerShell 版本**（維護者在 PowerShell 而非 Git Bash，`export` 與 `\` 續行都不通）。`openssl` 在這台機器的位置：
-
-```powershell
-$ssl = "C:\Users\P10394584\AppData\Local\Atlassian\SourceTree\git_local\mingw64\bin\openssl.exe"
-
-# 第 2 步。PowerShell 直接呼叫原生執行檔不會動參數，不必 MSYS_NO_PATHCONV
-& $ssl genrsa -out ios_distribution.key 2048
-& $ssl req -new -key ios_distribution.key -out ios_distribution.csr -subj "/emailAddress=giliguala@gmail.com/CN=Brad/C=TW"
-
-# 第 4 步
-& $ssl x509 -inform DER -in ios_distribution.cer -out ios_distribution.pem
-& $ssl pkcs12 -export -legacy -inkey ios_distribution.key -in ios_distribution.pem -name "Apple Distribution" -out ios_distribution.p12
-```
-
-兩段都在這台 Windows 上實跑驗證過（用自簽憑證冒充 Apple 回傳的 `.cer`），CSR subject 正確，`.p12` 產得出來且確認是 `MAC: sha1`。
+### 2026-08-12：實作決定
 
 **「已知的坑」查證結果：**
 
@@ -227,25 +260,32 @@ $ssl = "C:\Users\P10394584\AppData\Local\Atlassian\SourceTree\git_local\mingw64\
 
 **Code review 抓到並修掉的：** `KEYCHAIN_PATH` 原本在匯入步驟的最後一行才寫進 `GITHUB_ENV`，但鑰匙圈在中段就建好了；中途倒掉的話收尾那步拿不到路徑，鑰匙圈會留在 runner 上。已改成建立之前就先寫入。
 
-### 2026-08-12：第 6 步的相對路徑會踩到坑
+**維護者實跑踩到、已回頭修進上面步驟的兩個坑：** 第 2／4 步原本只有 Git Bash 版本（`export` 與 `\` 續行在 PowerShell 都不通）；第 6 步原本用相對路徑，`[IO.File]` 那個 .NET 方法不認 `cd`，變成從 A 讀往 B 寫。兩者現在都寫在步驟裡。
 
-上面第 6 步原文用 `.\ios_distribution.p12` 這種相對路徑，實跑時倒了：
+### 2026-08-12：驗收結果
 
-```
-Exception calling "ReadAllBytes" with "1" argument(s):
-"Could not find file 'C:\...\taiwan-tabelog\ios_distribution.p12'."
-```
+`ios-testflight.yml` run 18、19 連續兩趟成功，**Apple 後台憑證張數兩次都沒有增加**——本票唯一真正的驗收成立。
 
-`[IO.File]::ReadAllBytes` 是 .NET 方法，看的是**行程層級**的目前目錄，而 PowerShell 的 `cd` 只動自己那份、不會同步過去。所以視窗從哪個資料夾開的，它就一直認哪裡。同一行的 `Set-Content` 是 cmdlet、認得 `cd`——於是變成從 A 讀、往 B 寫。
+Run 17 倒過一次，但**與簽章無關**：簽章整條路都通了（`1 identity imported.`、archive 用 `Apple Distribution` 簽、`** EXPORT SUCCEEDED **`、鑰匙圈清乾淨），倒在最後上傳時 App Store Connect 回 409 `previousBundleVersion: 17`，也就是 build number 撞號。
 
-`openssl` 那幾步沒事：PowerShell 啟動原生執行檔時會把工作目錄設成 `cd` 之後的位置。這個坑只咬 `[IO.File]` 這類 .NET 方法。
+**撞號的成因沒有查明。** 維護者回報 run 1–16 全數成功（build 1–16 都上去了），照理 17 號應該是空的。這與 `github.run_number` 的行為對不起來，目前沒有能自圓其說的解釋，先誠實記著。Run 18 沒再撞，實務上已經過去。
 
-改成完整路徑，並明講編碼：
+底層問題仍在，但**不屬於本票**（本票明文「不改 app 的任何功能」，build number 算法也不在範圍內）：`github.run_number` 與 App Store Connect 的 build number 是兩套獨立計數器，沒有任何機制保證對得齊，而且 re-run 時 `run_number` 不會 +1。值得另開一張票。
 
-```powershell
-$cert = "C:\Users\P10394584\Documents\Brad\ios-cert"
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\ios_distribution.p12")) | Set-Content "$cert\p12.b64" -NoNewline -Encoding ascii
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\<你的檔名>.mobileprovision")) | Set-Content "$cert\profile.b64" -NoNewline -Encoding ascii
-```
+**尚未回報：**「上傳到 TestFlight 的 build 可以指派給 Internal Testing 並安裝」這條驗收沒有回報過。前八趟的 build 本來就是 distribution 簽的、裝得起來，簽章方式沒變，風險低，但確實沒實測。
 
-`-Encoding ascii` 是為了防 Windows PowerShell 5.1——它預設寫 UTF-16 帶 BOM，CI 那端 `base64 -D` 會解爆。PowerShell 7 預設是 UTF-8 無 BOM 本來就沒事，但明講就不必管跑在哪個版本。
+### 2026-08-12：憑證到期怎麼辦（約 2027-08）
+
+**憑證有效期一年，明年這時候會需要重做，但不必從頭走一遍。**
+
+到期時 CI 會倒在簽章那一步，Apple 也會先寄信提醒。屆時要重做的是**第 3～6 步**：
+
+1. **第 2 步可以跳過**——`ios_distribution.key` 留著的話，直接拿它產新的 CSR 就好（`openssl req -new -key ios_distribution.key ...`）。Apple 不介意 CSR 用的是舊金鑰對。
+2. **第 3 步**：拿新 CSR 去換一張新的 `Apple Distribution` 憑證。舊的那張到期後撤掉，不佔額度。
+3. **第 4 步**：新 `.cer` 跟同一把私鑰重新合成 `.p12`。密碼可以沿用舊的，那樣 `IOS_DIST_CERT_PASSWORD` 就不用動。
+4. **第 5 步**：profile 跟憑證綁在一起，憑證換了 profile 也要重下載一張。
+5. **第 6 步**：更新 `IOS_DIST_CERT_P12` 與 `IOS_PROVISIONING_PROFILE` 兩個 secret。
+
+**workflow 一個字都不用改**——名稱、UUID、bundle id 都是 CI 當下從 `.mobileprovision` 讀出來的。
+
+前提是 `ios_distribution.key` 還在。弄丟就得從第 2 步整套重來（也還是做得完，只是多一步）。
