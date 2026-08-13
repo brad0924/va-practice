@@ -1,6 +1,6 @@
 # 02 — i18n 機制：翻譯檔、查表函式、語言決定與保存
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 01
 
@@ -87,11 +87,53 @@ va-practice:lang 是 'system' 或不存在  → 看 navigator.language 的主碼
 
 ## 驗收
 
-- [ ] `src/i18n/` 四個檔存在（zh-Hant、en、ja、index），`t()` 可以取出 `zh-Hant` 的字串
-- [ ] 故意在 `en.ts` 刪掉一條 key → `npm run typecheck` 紅燈
-- [ ] `va-practice:lang` 設成 `'ja'` → `t()` 回日文那份
-- [ ] `va-practice:lang` 不存在、`navigator.language` 是 `zh-CN` → 回繁體中文那份
-- [ ] `va-practice:lang` 不存在、`navigator.language` 是 `de-DE` → 回英文那份
-- [ ] `va-practice:lang` 存了不認得的值（如 `'ko'`）→ 當成 `'system'`
-- [ ] `va-practice:data` 與 `DATA_VERSION` 一個字都沒改
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] `src/i18n/` 四個檔存在（zh-Hant、en、ja、index），`t()` 可以取出 `zh-Hant` 的字串
+- [x] 故意在 `en.ts` 刪掉一條 key → `npm run typecheck` 紅燈
+- [x] `va-practice:lang` 設成 `'ja'` → `t()` 回日文那份
+- [x] `va-practice:lang` 不存在、`navigator.language` 是 `zh-CN` → 回繁體中文那份
+- [x] `va-practice:lang` 不存在、`navigator.language` 是 `de-DE` → 回英文那份
+- [x] `va-practice:lang` 存了不認得的值（如 `'ko'`）→ 當成 `'system'`
+- [x] `va-practice:data` 與 `DATA_VERSION` 一個字都沒改
+- [x] `npm run test` 與 `npm run typecheck` 全綠
+
+## Comments
+
+**`zh-Hant.ts` 沒有加 `as const`，與票面示意碼不同。** 上面「漏譯交給型別」那兩段
+示意碼不能同時成立：`as const` 會讓**值**也變成字面型別，`en.ts` 那句
+`const en: typeof zhHant` 於是要求填一模一樣的中文才編得過，守門反而失效。
+
+留下的是 `typeof zhHant` 那一半（做守門的是它），拿掉 `as const`。key 在物件字面值上
+本來就是字面型別，`Key = keyof typeof zhHant` 不受影響。實測漏一條與多一條都紅燈。
+
+**`t()` 這輪就吃參數**（`t('books.nameTaken', { name })`）。票 03 的「帶變數的字串用參數」
+與票 05 的 `t(error.key, error.params)` 都已經釘死這個形狀，不是臆測性功能。
+
+**還沒 `initI18n()` 就呼叫 `t()` 會丟例外。** 這是接線錯誤不是使用者的錯，而且必然重現
+（那支檔案一被載入就一定丟），溜不到使用者手上。最可能踩到的是把 `t()` 寫進
+module-level 常數——票 03 搬 `list-view.ts:183` 的 `BUCKETS` 時會第一個踩到，
+那六個標籤要改成渲染時才算。
+
+**`app.setLang()` 這條接線本輪就做了**（`app.ts`），內部呼叫 i18n 的 `setLang()` 再叫
+現成的 `render()`。票 04 只要把 `<select>` 的 change 事件接上去。它目前沒有呼叫者。
+
+`lang()` 一併開出來給票 04 問「該打勾在哪一列」。
+
+### code review 後的修正
+
+**`in` 換成 `Object.hasOwn`（真的有洞）。** 原本 `saved in TABLES` 會走原型鏈，
+`va-practice:lang` 被塞成 `constructor`、`toString`、`__proto__` 會被當成合法語言，
+接著查表回 `undefined`——型別卻宣告是 `string`。牴觸上面「讀到不認得的值一律當
+`'system'`」那條。已補三個案例的測試。
+
+**`en.ts` 的譯名改照 `docs/glossary.md`**：單字本的英文欄是 `Vocabulary Book`，
+原本寫 `Add book`。這兩條是票 03／06 抄寫的樣板，現在就要對。
+
+**`lang()` 也走 `requireDevice()`**，與 `t()`、`setLang()` 一致——接上之前什麼都別問。
+
+**沒有採納的一條**：`t()` 每次呼叫都重算 `fromSystem()`（一次 `split('-')`），
+review 建議在 init／setLang 時算好存一份。不改的理由是那會多出第三份要保持同步的
+可變狀態，換到的是一個量測不出來的差別。
+
+**接線的覆蓋落在票 04**：`src/` 沒有 `app.test.ts`，`app.setLang()` 這 4 行到票 04
+之前是零覆蓋的死碼。票 04 驗收已有「選了語言之後當前畫面立刻變，不用重開」，
+那條會驗到它，因此這裡不另外加測試。

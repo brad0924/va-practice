@@ -8,6 +8,7 @@ import { planReminders, type DailyReminder } from './lib/daily-reminder';
 import { createNativeDailyReminder } from './lib/daily-reminder-native';
 import { buildQueue, currentCard, rebuildQueue, rate as rateCard, type Queue } from './lib/review';
 import type { AppData, Card, Rating } from './lib/types';
+import { initI18n, setLang as switchLang, type LangChoice } from './i18n';
 import { initSpeech } from './ui/speech';
 import { createSyncStatus } from './ui/sync-status';
 import { reviewView } from './ui/review-view';
@@ -62,6 +63,11 @@ export interface App {
   /** 只有資料頁能進來，回去的目的地固定，不必傳 back。 */
   showStats(): void;
   showEditor(card: Card | null, back: () => void): void;
+  /**
+   * 換介面語言並立刻重畫當前畫面。這個 app 的畫面本來就是整片重畫的，
+   * 因此 i18n 不必引入 signal、store、observer 之類的響應式機制（見票 02）。
+   */
+  setLang(choice: LangChoice): void;
   /** 目前畫面的鍵盤處理器，離開畫面時自動解除。 */
   keyHandler: ((event: KeyboardEvent) => void) | null;
 }
@@ -71,6 +77,9 @@ export interface App {
  * iOS 遞的是 Keychain 撐起來的那一個（見 `main.ts`）——雲端備份自己不必知道差別。
  */
 export function start(root: HTMLElement, cloudStorage: StorageLike): void {
+  // 介面語言要在任何一個字被畫出來之前決定好，因此擺在最前面。選擇存在
+  // localStorage 的獨立一格，跟資料與雲端備份無關；沒選過就看裝置語言。
+  initI18n(localStorage, navigator.language);
   // iOS 上的保險副本夾在 store 與 localStorage 之間，跟上每一次本機寫入。
   // 網頁版拿到的是個什麼都不做的東西，這條路完全不發生。
   const store = createStore(withSafetyCopy(localStorage, createNativeSafetyCopy()));
@@ -234,6 +243,11 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     },
     showEditor(card, back) {
       render = () => mount(() => editorView(app, card, back));
+      render();
+    },
+
+    setLang(choice) {
+      switchLang(choice);
       render();
     },
 
