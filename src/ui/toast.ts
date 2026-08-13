@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { el, button } from './dom';
 
 /** 自己消失前留在畫面上的時間。 */
@@ -31,7 +32,7 @@ export function createToast(): Toast {
   const icon = el('span', 'toast-icon', '✓');
   const text = el('span', 'toast-text');
   const close = button('toast-close', '✕', hide);
-  close.setAttribute('aria-label', '關閉');
+  close.setAttribute('aria-label', t('toast.close'));
   node.append(icon, text, close);
 
   return {

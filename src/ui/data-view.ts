@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { t } from '../i18n';
 import { APP_NAME } from '../lib/app-name';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
@@ -6,53 +7,34 @@ import { el, button, download } from './dom';
 import { booksSection } from './books-section';
 
 /**
- * 最後一句不是客套話：密碼同時是加密金鑰，遺失即無法復原是機制決定的（見 ADR-0003）。
- * iOS 上把密碼交給 iCloud 鑰匙圈保管降低了忘記的機率，但沒有消除它——使用者可能沒開
- * 鑰匙圈，或整個換掉 Apple ID。因此這裡必須同時指出唯一不依賴密碼的後路（見 spec 決定十三）。
+ * 這一頁六段常駐的說明文字都搬進翻譯檔了，各自為什麼非講不可仍記在這裡：
+ *
+ * - `data.cloudHint`：最後一句不是客套話。密碼同時是加密金鑰，遺失即無法復原是機制
+ *   決定的（見 ADR-0003）。iOS 上把密碼交給 iCloud 鑰匙圈保管降低了忘記的機率，但
+ *   沒有消除它——使用者可能沒開鑰匙圈，或整個換掉 Apple ID。因此必須同時指出唯一
+ *   不依賴密碼的後路（見 spec 決定十三）。
+ * - `data.changeHint`：換密碼的後果是機制決定的，不是可以藏起來的細節——密碼同時是
+ *   雲端的指紋與金鑰，換掉之後舊密碼既推不上去也解不開（見 spec 決定 9）。
+ * - `data.geminiHint`：「不要開計費」是這個設計唯一的保險。金鑰只存在本機、不上雲也
+ *   不進匯出檔，但真的外洩時，沒綁卡的金鑰代價只是免費額度被別人用掉，不會生出帳單
+ *   （見 issue 01 決定 7）。
+ * - `data.reminderHint`：三件事講清楚——什麼時候會叫、什麼時候不叫、這個開關只管這一台。
+ * - `data.reminderDenied`：權限被拒絕時說實話，不假裝提醒有在運作，也不再問第二次
+ *   （見 spec 決定二十四）。`{app}` 代進去的是 iOS 設定 app 裡的項目名，也就是主畫面
+ *   圖示底下那行字（短名）。
+ *
+ * 六段一律在畫的那一刻才查表。寫成模組層常數的話會在 `initI18n()` 之前就算完，
+ * 而且切語言之後不會跟著換。
  */
-const CLOUD_HINT =
-  '輸入自取的暱稱與密碼，進度就會自動備份到雲端；換裝置輸入同一組就接得回來。' +
-  '密碼同時用來加密內容，沒有人能幫你重設，遺失後雲端那份就再也讀不出來。' +
-  '請用下面的「手動備份」另外匯出一份檔案，那是唯一不需要密碼就打得開的後路。';
-
-/**
- * 換密碼的後果是機制決定的，不是可以藏起來的細節：密碼同時是雲端的指紋與金鑰，
- * 換掉之後舊密碼既推不上去也解不開（見 spec 決定 9）。因此這段文字常駐在表單裡。
- */
-const CHANGE_HINT = '換密碼後，其他還在用舊密碼的裝置會被擋下來，需要各自重新輸入新密碼才能繼續同步。';
-
-const STOP_CONFIRM = '停止後不再備份到雲端，卡片與進度會完整留在這台裝置。確定要停止？';
-
-/**
- * 「不要開計費」是這個設計唯一的保險：金鑰只存在本機、不上雲也不進匯出檔，
- * 但真的外洩時，沒綁卡的金鑰代價只是免費額度被別人用掉，不會生出帳單。
- * 因此這句話與取得方式一起常駐在表單裡（見 issue 01 決定 7）。
- */
-const GEMINI_HINT =
-  '到 Google AI Studio（aistudio.google.com/apikey）建立金鑰，' +
-  '並確認該專案沒有啟用計費——一旦啟用，免費額度就會消失，之後每次呼叫都從第一個字開始計費。' +
-  '金鑰只留在這台裝置，不會上傳雲端，也不會出現在匯出的備份檔裡。';
-
-/** 三件事講清楚：什麼時候會叫、什麼時候不叫、以及這個開關只管這一台。 */
-const REMINDER_HINT =
-  '有卡到期的日子才會叫你，一張都沒有就不吵；當天複習完之後，那天剩下的提醒也不會再出現。' +
-  '這個開關只影響這台裝置，不會上傳雲端，也不會出現在匯出的備份檔裡。';
-
-/**
- * 權限被拒絕時說實話：不假裝提醒有在運作，也不再問第二次——系統本來就不會再跳，
- * 唯一能改的地方是設定 app，因此直接指過去（見 spec 決定二十四）。
- */
-// 這裡引用的是 iOS 設定 app 裡的項目名，也就是主畫面圖示底下那行字（短名）。
-const REMINDER_DENIED = `通知權限是關的，提醒送不出來。請到「設定 → ${APP_NAME.short} → 通知」允許通知後，再回來打開這個開關。`;
 
 export function dataView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
   const header = el('header', 'bar');
   header.append(
-    button('bar-action', '卡片', () => app.showList()),
-    el('span', 'bar-title', '資料'),
-    button('bar-action', '統計', () => app.showStats()),
+    button('bar-action', t('nav.cards'), () => app.showList()),
+    el('span', 'bar-title', t('nav.data')),
+    button('bar-action', t('nav.stats'), () => app.showStats()),
   );
 
   const main = el('main', 'panel');
@@ -70,16 +52,16 @@ export function dataView(app: App): HTMLElement {
 /** 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止同步兩個控制項。 */
 function cloudSection(app: App): HTMLElement {
   const section = el('section', 'section');
-  section.append(el('h2', 'section-title', '雲端備份'));
+  section.append(el('h2', 'section-title', t('data.cloudTitle')));
 
   const signedInAs = app.cloud.nickname();
   if (signedInAs !== null) {
     section.append(
-      el('p', 'hint', `已登入：${signedInAs}。複習進度會自動備份，換裝置輸入同一組暱稱與密碼就接得回來。`),
-      el('h3', 'subsection-title', '換密碼'),
+      el('p', 'hint', t('data.signedInAs', { nickname: signedInAs })),
+      el('h3', 'subsection-title', t('data.changePasswordTitle')),
       changePasswordForm(app),
-      button('danger', '停止同步', () => {
-        if (!confirm(STOP_CONFIRM)) return;
+      button('danger', t('data.stopSync'), () => {
+        if (!confirm(t('data.stopConfirm'))) return;
         app.cloud.signOut();
         // 重畫成未登入的樣子，暱稱密碼欄位跟著回來。
         app.showData();
@@ -100,14 +82,14 @@ function cloudSection(app: App): HTMLElement {
 
   const error = el('p', 'error');
 
-  const submit = el('button', 'primary', '登入');
+  const submit = el('button', 'primary', t('data.signIn'));
   submit.type = 'submit';
 
   const form = el('form', 'form');
   form.append(
-    el('p', 'hint', CLOUD_HINT),
-    labelled('暱稱', nickname),
-    labelled('密碼', password),
+    el('p', 'hint', t('data.cloudHint')),
+    labelled(t('data.nickname'), nickname),
+    labelled(t('data.password'), password),
     error,
     el('div', 'form-actions', submit),
   );
@@ -116,7 +98,7 @@ function cloudSection(app: App): HTMLElement {
     event.preventDefault();
     error.textContent = '';
     submit.disabled = true;
-    submit.textContent = '連線中…';
+    submit.textContent = t('data.connecting');
     void app.cloud
       .signIn(nickname.value, password.value, app.data)
       // 重畫成已登入的樣子。拉到雲端資料的情形下這裡是第二次重畫，內容相同。
@@ -124,7 +106,7 @@ function cloudSection(app: App): HTMLElement {
       .catch((reason: unknown) => {
         error.textContent = toMessage(reason);
         submit.disabled = false;
-        submit.textContent = '登入';
+        submit.textContent = t('data.signIn');
       });
   });
 
@@ -144,13 +126,13 @@ function changePasswordForm(app: App): HTMLElement {
   const error = el('p', 'error');
   const status = el('p', 'status');
 
-  const submit = el('button', 'primary', '更新密碼');
+  const submit = el('button', 'primary', t('data.updatePassword'));
   submit.type = 'submit';
 
   const form = el('form', 'form');
   form.append(
-    labelled('新密碼', password),
-    el('p', 'hint', CHANGE_HINT),
+    labelled(t('data.newPassword'), password),
+    el('p', 'hint', t('data.changeHint')),
     error,
     status,
     el('div', 'form-actions', submit),
@@ -161,19 +143,19 @@ function changePasswordForm(app: App): HTMLElement {
     error.textContent = '';
     status.textContent = '';
     submit.disabled = true;
-    submit.textContent = '連線中…';
+    submit.textContent = t('data.connecting');
     void app.cloud
       .changePassword(password.value, app.data)
       .then(() => {
         password.value = '';
-        status.textContent = '密碼已更新。其他裝置要重新輸入新密碼才能繼續同步。';
+        status.textContent = t('data.passwordUpdated');
       })
       .catch((reason: unknown) => {
         error.textContent = toMessage(reason);
       })
       .finally(() => {
         submit.disabled = false;
-        submit.textContent = '更新密碼';
+        submit.textContent = t('data.updatePassword');
       });
   });
 
@@ -187,12 +169,12 @@ function changePasswordForm(app: App): HTMLElement {
  */
 function geminiSection(app: App): HTMLElement {
   const section = el('section', 'section');
-  section.append(el('h2', 'section-title', 'Gemini API 金鑰'));
+  section.append(el('h2', 'section-title', t('data.geminiTitle')));
 
   if (app.gemini.read() !== null) {
     section.append(
-      el('p', 'hint', '已設定。要換一把金鑰的話，先按清除再貼上新的。'),
-      button('danger', '清除金鑰', () => {
+      el('p', 'hint', t('data.geminiSet')),
+      button('danger', t('data.geminiClear'), () => {
         app.gemini.write(null);
         // 重畫成未設定的樣子，輸入框跟著回來。
         app.showData();
@@ -207,11 +189,15 @@ function geminiSection(app: App): HTMLElement {
   key.spellcheck = false;
   key.autocomplete = 'off';
 
-  const submit = el('button', 'primary', '儲存金鑰');
+  const submit = el('button', 'primary', t('data.geminiSave'));
   submit.type = 'submit';
 
   const form = el('form', 'form');
-  form.append(el('p', 'hint', GEMINI_HINT), labelled('金鑰', key), el('div', 'form-actions', submit));
+  form.append(
+    el('p', 'hint', t('data.geminiHint')),
+    labelled(t('data.geminiLabel'), key),
+    el('div', 'form-actions', submit),
+  );
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -250,7 +236,7 @@ function reminderSection(app: App): HTMLElement | null {
   // 「提醒時間」與時間格是開關那句話的後半，讀起來是一句：
   // 「每天提醒我，提醒時間 08:00」。刻意不塞進開關那個 <label> 裡——
   // 塞進去的話點時間格會順手把開關關掉。
-  const timeRow = el('label', 'reminder-time', el('span', 'toggle-label', '提醒時間'), time);
+  const timeRow = el('label', 'reminder-time', el('span', 'toggle-label', t('data.reminderTime')), time);
 
   /**
    * 時間欄位跟著開關走：關著的時候那一格沒有意義，長在那裡只會讓人以為關著也會叫
@@ -268,7 +254,7 @@ function reminderSection(app: App): HTMLElement | null {
   function deny(): void {
     check.checked = false;
     syncTimeRow();
-    status.textContent = REMINDER_DENIED;
+    status.textContent = t('data.reminderDenied', { app: APP_NAME.short });
     status.classList.add('error');
   }
 
@@ -315,15 +301,15 @@ function reminderSection(app: App): HTMLElement | null {
 
   const section = el('section', 'section');
   section.append(
-    el('h2', 'section-title', '每日提醒'),
+    el('h2', 'section-title', t('data.reminderTitle')),
     // 兩塊並排成一句話。逗號留在開關那半，換行時斷在它後面才讀得順。
     el(
       'div',
       'reminder-line',
-      el('label', 'toggle', check, el('span', 'toggle-label', '每天提醒我，')),
+      el('label', 'toggle', check, el('span', 'toggle-label', t('data.reminderToggle'))),
       timeRow,
     ),
-    el('p', 'hint', REMINDER_HINT),
+    el('p', 'hint', t('data.reminderHint')),
     status,
   );
   return section;
@@ -340,25 +326,25 @@ function fileSection(app: App): HTMLElement {
     const chosen = file.files?.[0];
     file.value = '';
     if (!chosen) return;
-    if (!confirm('匯入會整份覆蓋目前的卡片與進度，且無法復原。確定要繼續？')) return;
+    if (!confirm(t('data.importConfirm'))) return;
     try {
       app.importBackup(await chosen.text());
       // 匯入成功不另外報喜，直接跳回卡片頁——新資料出現在眼前就是回饋。
       app.showList();
     } catch (error) {
-      status.textContent = `匯入失敗：${toMessage(error)}`;
+      status.textContent = t('data.importFailed', { reason: toMessage(error) });
       status.classList.add('error');
     }
   });
 
   const section = el('section', 'section');
   section.append(
-    el('h2', 'section-title', '手動備份'),
-    el('p', 'hint', '匯出後可在另一台裝置匯入，用來備份或搬家。'),
+    el('h2', 'section-title', t('data.fileTitle')),
+    el('p', 'hint', t('data.fileHint')),
     el(
       'div',
       'data-actions',
-      button('secondary', '匯出備份', async () => {
+      button('secondary', t('data.exportButton'), async () => {
         try {
           await download(
             app.exportBackup(),
@@ -367,11 +353,11 @@ function fileSection(app: App): HTMLElement {
           );
         } catch (error) {
           // 只有原生那條路（iOS 的分享單）丟得出東西來，網頁版走不到這裡。
-          status.textContent = `匯出失敗：${toMessage(error)}`;
+          status.textContent = t('data.exportFailed', { reason: toMessage(error) });
           status.classList.add('error');
         }
       }),
-      button('secondary', '匯入備份', () => file.click()),
+      button('secondary', t('data.importButton'), () => file.click()),
     ),
     file,
     status,

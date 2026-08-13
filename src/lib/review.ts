@@ -4,6 +4,7 @@
  * 當前時間與亂數一律以參數注入，模組內不取用系統時鐘或全域亂數，
  * 否則排程與抖動無法測試。
  */
+import { t } from '../i18n';
 import type { Card, Rating } from './types';
 
 export const DEFAULT_EASE = 2.5;
@@ -137,7 +138,7 @@ export function rate(
   random: () => number,
 ): { queue: Queue; card: Card } {
   const target = queue[0];
-  if (!target) throw new Error('複習佇列已清空，沒有可評分的卡片');
+  if (!target) throw new Error(t('review.queueEmpty'));
 
   const { interval, easeDelta } = RATINGS[rating];
   const days = applyFuzz(interval(target.interval ?? 1, target.ease), random);

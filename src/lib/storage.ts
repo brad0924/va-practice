@@ -15,11 +15,18 @@
 import type { AppData, Book, BookScopes, Card } from './types';
 import { DEFAULT_EASE, isDateKey } from './review';
 import { toPlainText } from './reading';
+import { t } from '../i18n';
 
 export const STORAGE_KEY = 'va-practice:data';
 export const DATA_VERSION = 3;
 
-/** 沒有歸屬的卡被收攏進去的那一本。使用者之後可以改名或刪除。 */
+/**
+ * 沒有歸屬的卡被收攏進去的那一本，在還沒有介面語言那個年代叫的名字。
+ *
+ * **只拿來認舊資料**：那些裝置上已經存著這個名字，換一套認法就會多長一本。
+ * 新產生的那本走 `t('books.homeName')`——名字在產生的當下用當下的介面語言，
+ * 之後它就是使用者資料，切語言不會跟著變（見 spec 決定十二）。
+ */
 export const HOME_BOOK_NAME = '我的單字';
 
 /** localStorage 的最小介面，測試時可換成假的實作。 */
@@ -63,7 +70,7 @@ function parseJson(json: string): unknown {
   try {
     return JSON.parse(json);
   } catch (error) {
-    throw new Error(`這不是有效的 JSON 檔：${toMessage(error)}`);
+    throw new Error(t('storage.invalidJson', { reason: toMessage(error) }));
   }
 }
 
@@ -89,7 +96,7 @@ export function createStore(storage: StorageLike): Store {
     try {
       return parseAppData(JSON.parse(raw));
     } catch (error) {
-      throw new Error(`本機儲存的資料已毀損，無法讀取：${toMessage(error)}`);
+      throw new Error(t('storage.corrupted', { reason: toMessage(error) }));
     }
   }
 
@@ -119,7 +126,7 @@ export function createStore(storage: StorageLike): Store {
       const incoming = parseAppData(parseJson(json));
       const current = read() ?? blank();
       if (!current.books.some((book) => book.id === bookId)) {
-        throw new Error('要匯進去的那本單字本已經不在了');
+        throw new Error(t('books.importTargetGone'));
       }
 
       const cards = [...current.cards];
@@ -164,12 +171,12 @@ function normalizeBookName(name: string): string {
  */
 function acceptBookName(books: readonly Book[], name: string, exceptId?: string): string {
   const normalized = normalizeBookName(name);
-  if (normalized === '') throw new Error('單字本的名字不能是空白');
+  if (normalized === '') throw new Error(t('books.nameBlank'));
 
   const taken = books.find(
     (book) => book.id !== exceptId && normalizeBookName(book.name) === normalized,
   );
-  if (taken) throw new Error(`已經有一本叫「${taken.name}」了`);
+  if (taken) throw new Error(t('books.nameTaken', { name: taken.name }));
 
   return name.trim();
 }
@@ -218,7 +225,7 @@ export function deleteBook(data: AppData, id: string): AppData {
  * 零本時三組本來就是空的，不在此列。
  */
 export function setScope(data: AppData, group: keyof BookScopes, bookIds: readonly string[]): AppData {
-  if (bookIds.length === 0 && data.books.length > 0) throw new Error('至少要選一本單字本');
+  if (bookIds.length === 0 && data.books.length > 0) throw new Error(t('books.scopeEmpty'));
   return { ...data, scopes: { ...data.scopes, [group]: [...bookIds] } };
 }
 
@@ -244,8 +251,11 @@ export function assertTermAvailable(data: AppData, text: string, exceptCardId?: 
   if (conflict === null) return;
 
   const book = data.books.find((candidate) => candidate.id === conflict.bookId);
-  const where = book ? `「${book.name}」` : '別的單字本';
-  throw new Error(`「${toPlainText(conflict.text)}」已經在${where}裡了`);
+  // 兩句各自完整，不把「在哪一本」那一段拼進去——其他語言的語序不同，拼起來會不通。
+  const term = toPlainText(conflict.text);
+  throw new Error(
+    book ? t('books.termTakenIn', { term, book: book.name }) : t('books.termTaken', { term }),
+  );
 }
 
 /** 取出屬於這幾本的卡，順序沿用卡片原本的。`bookIds` 為空時回傳空陣列。 */
@@ -255,9 +265,9 @@ export function cardsInBooks(cards: readonly Card[], bookIds: readonly string[])
 }
 
 function parseAppData(raw: unknown): AppData {
-  if (typeof raw !== 'object' || raw === null) throw new Error('內容不是一個物件');
+  if (typeof raw !== 'object' || raw === null) throw new Error(t('storage.notObject'));
   const source = raw as Record<string, unknown>;
-  if (!Array.isArray(source.cards)) throw new Error('找不到卡片清單');
+  if (!Array.isArray(source.cards)) throw new Error(t('storage.noCards'));
 
   // version 2 以前沒有 books 也沒有 bookId，兩者一起交給 adopt() 收攏。
   const adopted = adopt(
@@ -286,9 +296,11 @@ function adopt(books: Book[], cards: Card[]): { books: Book[]; cards: Card[]; ho
   const known = new Set(books.map((book) => book.id));
   if (cards.every((card) => known.has(card.bookId))) return { books, cards, home: null };
 
+  // 找的是舊名字，生的是當下介面語言的名字：舊裝置上已經有的那本認得出來，
+  // 新長出來的那本則跟著使用者現在看的語言（spec 決定十二）。
   const home = books.find((book) => book.name === HOME_BOOK_NAME) ?? {
     id: crypto.randomUUID(),
-    name: HOME_BOOK_NAME,
+    name: t('books.homeName'),
   };
   return {
     books: known.has(home.id) ? books : [...books, home],
@@ -331,19 +343,27 @@ function parseScopes(raw: unknown): BookScopes {
 }
 
 function parseBook(raw: unknown, index: number): Book {
-  if (typeof raw !== 'object' || raw === null) throw new Error(`第 ${index + 1} 本單字本不是一個物件`);
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error(t('storage.bookNotObject', { index: index + 1 }));
+  }
   const source = raw as Record<string, unknown>;
   for (const field of ['id', 'name'] as const) {
-    if (typeof source[field] !== 'string') throw new Error(`第 ${index + 1} 本單字本缺少 ${field} 欄位`);
+    if (typeof source[field] !== 'string') {
+      throw new Error(t('storage.bookMissingField', { index: index + 1, field }));
+    }
   }
   return { id: source.id as string, name: source.name as string };
 }
 
 function parseCard(raw: unknown, index: number): Card {
-  if (typeof raw !== 'object' || raw === null) throw new Error(`第 ${index + 1} 張卡不是一個物件`);
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error(t('storage.cardNotObject', { index: index + 1 }));
+  }
   const source = raw as Record<string, unknown>;
   for (const field of ['id', 'text', 'meaning'] as const) {
-    if (typeof source[field] !== 'string') throw new Error(`第 ${index + 1} 張卡缺少 ${field} 欄位`);
+    if (typeof source[field] !== 'string') {
+      throw new Error(t('storage.cardMissingField', { index: index + 1, field }));
+    }
   }
   // 有值但格式不合的到期日一律當成沒有，這張卡退回新卡。
   // 新卡的定義是「尚無間隔與到期日」，故間隔也要一併清掉，

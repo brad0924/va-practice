@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { t, type Key } from '../i18n';
 import { groupByBucket } from './list-view';
 import { cardsInBooks, setScope } from '../lib/storage';
 import type { Card } from '../lib/types';
@@ -18,14 +19,17 @@ interface EaseBin {
  * 熟練度分佈的六段區間。「下限」用 <= 1.31 而非 === 1.3：MIN_EASE 理論上會精準
  * 卡在 1.3，容差避免浮點誤差漏判。「2.5 附近」單獨一段：「好」評分不改變成長倍數
  * （見 review.ts 的 RATINGS），這段能看出哪些卡從未被調整過。
+ *
+ * 標籤存的是 key 而不是字：查表要等 `initI18n()` 接上這台裝置，而這份常數在模組
+ * 載入的那一刻就算完了，比接線還早；切語言之後也不會跟著換。
  */
-const EASE_BINS: readonly { key: EaseBinKey; label: string; match: (ease: number) => boolean }[] = [
-  { key: 'floor', label: '下限', match: (ease) => ease <= 1.31 },
-  { key: 'low', label: '1.31–1.7', match: (ease) => ease > 1.31 && ease < 1.7 },
-  { key: 'mid-low', label: '1.7–2.1', match: (ease) => ease >= 1.7 && ease < 2.1 },
-  { key: 'mid-high', label: '2.1–2.5', match: (ease) => ease >= 2.1 && ease < 2.49 },
-  { key: 'steady', label: '2.5 附近', match: (ease) => ease >= 2.49 && ease <= 2.51 },
-  { key: 'high', label: '2.5 以上', match: (ease) => ease > 2.51 },
+const EASE_BINS: readonly { key: EaseBinKey; label: Key; match: (ease: number) => boolean }[] = [
+  { key: 'floor', label: 'stats.easeFloor', match: (ease) => ease <= 1.31 },
+  { key: 'low', label: 'stats.easeLow', match: (ease) => ease > 1.31 && ease < 1.7 },
+  { key: 'mid-low', label: 'stats.easeMidLow', match: (ease) => ease >= 1.7 && ease < 2.1 },
+  { key: 'mid-high', label: 'stats.easeMidHigh', match: (ease) => ease >= 2.1 && ease < 2.49 },
+  { key: 'steady', label: 'stats.easeSteady', match: (ease) => ease >= 2.49 && ease <= 2.51 },
+  { key: 'high', label: 'stats.easeHigh', match: (ease) => ease > 2.51 },
 ];
 
 /** 一張卡的成長倍數落在哪一段。 */
@@ -37,7 +41,7 @@ export function easeBinOf(ease: number): EaseBinKey {
 export function groupByEaseBin(cards: readonly Card[]): EaseBin[] {
   const grouped = new Map<EaseBinKey, Card[]>(EASE_BINS.map((bin) => [bin.key, []]));
   for (const card of cards) grouped.get(easeBinOf(card.ease))!.push(card);
-  return EASE_BINS.map(({ key, label }) => ({ key, label, cards: grouped.get(key)! }));
+  return EASE_BINS.map(({ key, label }) => ({ key, label: t(label), cards: grouped.get(key)! }));
 }
 
 export interface Snapshot {
@@ -73,7 +77,10 @@ export function statsView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
   const header = el('header', 'bar');
-  header.append(button('bar-action', '資料', () => app.showData()), el('span', 'bar-title', '統計'));
+  header.append(
+    button('bar-action', t('nav.data'), () => app.showData()),
+    el('span', 'bar-title', t('nav.stats')),
+  );
 
   const main = el('main', 'panel');
 
@@ -83,8 +90,8 @@ export function statsView(app: App): HTMLElement {
       el(
         'div',
         'form',
-        el('p', 'hint', '還沒有任何單字本，沒有東西可以統計。'),
-        el('div', 'form-actions', button('primary', '去建立單字本', () => app.showData())),
+        el('p', 'hint', t('stats.noBooks')),
+        el('div', 'form-actions', button('primary', t('books.goCreate'), () => app.showData())),
       ),
     );
     screen.append(header, main);
@@ -111,26 +118,26 @@ export function statsView(app: App): HTMLElement {
 
     const overview = el('section', 'section');
     overview.append(
-      el('h2', 'section-title', '現況'),
+      el('h2', 'section-title', t('stats.overview')),
       el(
         'div',
         'tiles',
-        tile(String(snapshot.total), '卡片總數'),
-        tile(String(snapshot.reviewCount), '已複習過'),
-        tile(snapshot.avgInterval.toFixed(1), '平均間隔（天）'),
+        tile(String(snapshot.total), t('stats.totalCards')),
+        tile(String(snapshot.reviewCount), t('stats.reviewed')),
+        tile(snapshot.avgInterval.toFixed(1), t('stats.avgInterval')),
       ),
     );
 
     const dueMax = Math.max(...snapshot.buckets.map((bucket) => bucket.cards.length));
     const dueSection = el('section', 'section');
     dueSection.append(
-      el('h2', 'section-title', '到期分佈'),
+      el('h2', 'section-title', t('stats.dueDistribution')),
       el(
         'div',
         'bar-list',
         ...snapshot.buckets.map((bucket) =>
           barRow(bucket.key, bucket.label, bucket.cards.length, dueMax, () =>
-            openModal(bucket.label, bucket.cards, (card) => card.due ?? '新卡'),
+            openModal(bucket.label, bucket.cards, (card) => card.due ?? t('stats.newCard')),
           ),
         ),
       ),
@@ -139,13 +146,15 @@ export function statsView(app: App): HTMLElement {
     const easeMax = Math.max(...snapshot.easeBins.map((bin) => bin.cards.length));
     const easeSection = el('section', 'section');
     easeSection.append(
-      el('h2', 'section-title', '熟練度分佈'),
+      el('h2', 'section-title', t('stats.easeDistribution')),
       el(
         'div',
         'bar-list',
         ...snapshot.easeBins.map((bin) =>
           barRow(bin.key, bin.label, bin.cards.length, easeMax, () =>
-            openModal(bin.label, bin.cards, (card) => `倍數 ${card.ease.toFixed(2)}`),
+            openModal(bin.label, bin.cards, (card) =>
+              t('stats.easeTag', { ease: card.ease.toFixed(2) }),
+            ),
           ),
         ),
       ),
@@ -172,7 +181,7 @@ export function statsView(app: App): HTMLElement {
   });
 
   function openModal(title: string, cards: Card[], tagFn: (card: Card) => string): void {
-    modalHeading.textContent = `${title}，共 ${cards.length} 張`;
+    modalHeading.textContent = t('stats.modalTitle', { title, count: cards.length });
     modalRows.replaceChildren(...cards.map((card) => modalRow(card, tagFn)));
     overlay.hidden = false;
   }

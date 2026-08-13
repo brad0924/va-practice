@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { t, type Key } from '../i18n';
 import { setScope } from '../lib/storage';
 import { currentCard, isComplete } from '../lib/review';
 import type { Rating } from '../lib/types';
@@ -7,11 +8,16 @@ import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 import { hasJapaneseVoice, speak } from './speech';
 
-const RATING_BUTTONS: { rating: Rating; label: string; key: string }[] = [
-  { rating: 'again', label: '再次', key: '1' },
-  { rating: 'hard', label: '困難', key: '2' },
-  { rating: 'good', label: '好', key: '3' },
-  { rating: 'easy', label: '簡單', key: '4' },
+/**
+ * 四個評分與各自的快捷鍵。`label` 存的是翻譯檔的 key 而不是字——寫成字的話在模組
+ * 載入的那一刻就算完了，那比 `initI18n()` 還早，切語言之後也不會跟著換。
+ * 與 `list-view.ts` 的 `BUCKETS`、`stats-view.ts` 的 `EASE_BINS` 同一種寫法。
+ */
+const RATING_BUTTONS: { rating: Rating; label: Key; key: string }[] = [
+  { rating: 'again', label: 'review.ratingAgain', key: '1' },
+  { rating: 'hard', label: 'review.ratingHard', key: '2' },
+  { rating: 'good', label: 'review.ratingGood', key: '3' },
+  { rating: 'easy', label: 'review.ratingEasy', key: '4' },
 ];
 
 /**
@@ -50,7 +56,7 @@ export function reviewView(app: App): HTMLElement {
   });
 
   const header = el('header', 'bar bar-centered');
-  header.append(remaining, books, button('bar-action', '卡片', () => app.showList()));
+  header.append(remaining, books, button('bar-action', t('nav.cards'), () => app.showList()));
 
   const main = el('main', 'card');
   const footer = el('footer', 'actions');
@@ -69,17 +75,17 @@ export function reviewView(app: App): HTMLElement {
 
   function refresh(): void {
     const complete = isComplete(app.queue);
-    remaining.textContent = `剩餘 ${app.queue.length} 張`;
+    remaining.textContent = t('review.remaining', { count: app.queue.length });
     main.classList.toggle('done', complete);
     footer.classList.toggle('ratings', !complete && app.revealed);
 
     if (complete) {
       main.replaceChildren(
         el('div', 'done-mark', '✓'),
-        el('h1', 'done-title', '今日份完成'),
-        el('p', 'done-note', '到期的卡片都複習過了，明天再來。'),
+        el('h1', 'done-title', t('review.doneTitle')),
+        el('p', 'done-note', t('review.doneNote')),
       );
-      footer.replaceChildren(button('secondary', '瀏覽全部卡片', () => app.showList()));
+      footer.replaceChildren(button('secondary', t('review.browseAll'), () => app.showList()));
       return;
     }
 
@@ -90,27 +96,27 @@ export function reviewView(app: App): HTMLElement {
     if (app.revealed) {
       face.append(el('div', 'meaning', card.meaning));
       if (hasJapaneseVoice()) {
-        const speakButton = button('speak', '🔊 朗讀', () => speak(card.text));
-        speakButton.setAttribute('aria-label', '朗讀這個詞條');
+        const speakButton = button('speak', t('review.speak'), () => speak(card.text));
+        speakButton.setAttribute('aria-label', t('review.speakLabel'));
         face.append(speakButton);
       }
     }
 
     main.replaceChildren(
-      button('edit-here', '編輯', () => app.showEditor(card, () => app.showReview())),
+      button('edit-here', t('review.edit'), () => app.showEditor(card, () => app.showReview())),
       face,
     );
 
     if (app.revealed) {
       footer.replaceChildren(
         ...RATING_BUTTONS.map(({ rating, label, key }) => {
-          const node = button(`rating rating-${rating}`, label, () => submit(rating));
+          const node = button(`rating rating-${rating}`, t(label), () => submit(rating));
           node.append(el('span', 'key-hint', key));
           return node;
         }),
       );
     } else {
-      footer.replaceChildren(button('primary', '顯示答案', reveal));
+      footer.replaceChildren(button('primary', t('review.showAnswer'), reveal));
     }
   }
 
@@ -148,17 +154,20 @@ export function reviewView(app: App): HTMLElement {
 function noBooksView(app: App): HTMLElement {
   const screen = el('div', 'screen');
   const header = el('header', 'bar');
-  header.append(el('span', 'remaining', '剩餘 0 張'), button('bar-action', '卡片', () => app.showList()));
+  header.append(
+    el('span', 'remaining', t('review.remaining', { count: 0 })),
+    button('bar-action', t('nav.cards'), () => app.showList()),
+  );
 
   const main = el('main', 'card done');
   main.append(
     el('div', 'done-mark', '📚'),
-    el('h1', 'done-title', '還沒有單字本'),
-    el('p', 'done-note', '先建一本並加幾張卡，就可以開始複習。'),
+    el('h1', 'done-title', t('review.noBooksTitle')),
+    el('p', 'done-note', t('review.noBooksNote')),
   );
 
   const footer = el('footer', 'actions');
-  footer.append(button('primary', '去建立單字本', () => app.showData()));
+  footer.append(button('primary', t('books.goCreate'), () => app.showData()));
 
   app.keyHandler = null;
   screen.append(header, main, footer);

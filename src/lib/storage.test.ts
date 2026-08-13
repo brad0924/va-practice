@@ -13,6 +13,18 @@ import {
 } from './storage';
 import { DEFAULT_EASE } from './review';
 import type { AppData, Card } from './types';
+import zhHant from '../i18n/zh-Hant';
+
+/**
+ * 一條翻譯代入參數後的樣子。斷言比對的是翻譯檔裡的字，不是抄一份在測試裡——
+ * 中文改文案時測試跟著走。（票 05 會再改成斷言 key，那時這支就不需要了。）
+ */
+function message(key: keyof typeof zhHant, params: Record<string, string> = {}): string {
+  return Object.entries(params).reduce(
+    (filled, [name, value]) => filled.replaceAll(`{${name}}`, value),
+    zhHant[key],
+  );
+}
 
 /** 一台裝置的本機儲存。同一個 storage 傳給不同的 store，等同重開 App。 */
 function fakeStorage(initial?: string): StorageLike & { raw(): string | null } {
@@ -346,7 +358,7 @@ describe('儲存', () => {
 
   it('儲存內容毀損時拋出明確錯誤，而不是靜靜清空資料', () => {
     const store = createStore(fakeStorage('{ 這不是 JSON'));
-    expect(() => store.load()).toThrow(/毀損/);
+    expect(() => store.load()).toThrow(message('storage.corrupted', { reason: '' }));
   });
 });
 
@@ -418,7 +430,7 @@ describe('匯出與匯入', () => {
   it('匯入缺少卡片欄位的 JSON 會拋錯', () => {
     const store = createStore(fakeStorage());
     store.load();
-    expect(() => store.importJson('{"version":1}')).toThrow(/卡片/);
+    expect(() => store.importJson('{"version":1}')).toThrow(message('storage.noCards'));
   });
 
   it('匯入的卡片缺少必要欄位會拋錯', () => {
@@ -430,7 +442,9 @@ describe('匯出與匯入', () => {
   it('匯入的單字本缺少必要欄位會拋錯', () => {
     const store = createStore(fakeStorage());
     store.load();
-    expect(() => store.importJson('{"version":3,"books":[{"id":"x"}],"cards":[]}')).toThrow(/單字本/);
+    expect(() => store.importJson('{"version":3,"books":[{"id":"x"}],"cards":[]}')).toThrow(
+      message('storage.bookMissingField', { index: '1', field: 'name' }),
+    );
   });
 
   it('匯入的 due 格式不合就當成新卡，其餘卡片照常匯入', () => {
@@ -508,7 +522,7 @@ describe('新增單字本', () => {
     ['大小寫', 'jlpt n2'],
     ['全形半形', 'ＪＬＰＴ　Ｎ２'],
   ])('與既有的本只差在%s時算重名，被拒且訊息指得出撞到誰', (_label, name) => {
-    expect(() => addBook(twoBooks(), name)).toThrow(/JLPT N2/);
+    expect(() => addBook(twoBooks(), name)).toThrow(message('books.nameTaken', { name: 'JLPT N2' }));
   });
 
   it.each([
@@ -516,7 +530,7 @@ describe('新增單字本', () => {
     ['只有半形空白', '   '],
     ['只有全形空白', '　'],
   ])('名字是%s時被拒', (_label, name) => {
-    expect(() => addBook(twoBooks(), name)).toThrow(/名字/);
+    expect(() => addBook(twoBooks(), name)).toThrow(message('books.nameBlank'));
   });
 
   it('被拒時原本那份資料一個字都沒動', () => {
@@ -545,7 +559,9 @@ describe('單字本改名', () => {
   });
 
   it('撞到別本的名字被拒', () => {
-    expect(() => renameBook(twoBooks(), 'book-n2', '工作用')).toThrow(/工作用/);
+    expect(() => renameBook(twoBooks(), 'book-n2', '工作用')).toThrow(
+      message('books.nameTaken', { name: '工作用' }),
+    );
   });
 
   it('改名一樣走正規化比對，不是只擋一字不差的重名', () => {
@@ -557,11 +573,13 @@ describe('單字本改名', () => {
       cards: [],
       scopes: { review: ['book-n2', 'book-n1'], list: ['book-n2'], stats: ['book-n1'] },
     });
-    expect(() => renameBook(data, 'book-n1', 'ｊｌｐｔ　ｎ２')).toThrow(/JLPT N2/);
+    expect(() => renameBook(data, 'book-n1', 'ｊｌｐｔ　ｎ２')).toThrow(
+      message('books.nameTaken', { name: 'JLPT N2' }),
+    );
   });
 
   it('改成空白被拒', () => {
-    expect(() => renameBook(twoBooks(), 'book-n2', '   ')).toThrow(/名字/);
+    expect(() => renameBook(twoBooks(), 'book-n2', '   ')).toThrow(message('books.nameBlank'));
   });
 });
 
@@ -590,7 +608,7 @@ describe('刪除單字本', () => {
 
 describe('範圍的變更', () => {
   it('把某一組設成空陣列會被拒', () => {
-    expect(() => setScope(twoBooks(), 'review', [])).toThrow(/至少/);
+    expect(() => setScope(twoBooks(), 'review', [])).toThrow(message('books.scopeEmpty'));
   });
 
   it('改一組不動另外兩組', () => {
@@ -618,7 +636,9 @@ describe('詞條全域唯一', () => {
   }
 
   it('往另一本新增同一個詞被拒，訊息說得出它在哪一本', () => {
-    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ')).toThrow(/A 本/);
+    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ')).toThrow(
+      message('books.termTakenIn', { term: '打ち合わせ', book: 'A 本' }),
+    );
   });
 
   it('撞到的那張卡帶得出所在的單字本', () => {
@@ -635,7 +655,9 @@ describe('詞條全域唯一', () => {
   });
 
   it('編輯別本的卡、把詞條改成該詞同樣被拒', () => {
-    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ', 'card-b')).toThrow(/A 本/);
+    expect(() => assertTermAvailable(crossBooks(), '打ち合わせ', 'card-b')).toThrow(
+      message('books.termTakenIn', { term: '打ち合わせ', book: 'A 本' }),
+    );
   });
 
   it('把一張卡的詞條改成它自己不算撞到', () => {
@@ -861,7 +883,9 @@ describe('匯入單字', () => {
   it('目標單字本不存在時丟例外，且不自動建立', () => {
     const { storage, store } = device();
     const before = storage.raw();
-    expect(() => store.importWords(THREE_WORDS, '早就被刪掉的本')).toThrow(/單字本/);
+    expect(() => store.importWords(THREE_WORDS, '早就被刪掉的本')).toThrow(
+      message('books.importTargetGone'),
+    );
     expect(storage.raw()).toBe(before);
   });
 });

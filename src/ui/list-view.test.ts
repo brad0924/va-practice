@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { bucketOf, groupByBucket } from './list-view';
 import { DEFAULT_EASE } from '../lib/review';
 import type { Card } from '../lib/types';
+import zhHant from '../i18n/zh-Hant';
 
 const NOW = new Date(2026, 6, 27); // 2026-07-27
 
@@ -60,12 +61,12 @@ describe('groupByBucket', () => {
       'future',
     ]);
     expect(buckets.map((bucket) => bucket.label)).toEqual([
-      '新',
-      '現在',
-      '<24小時',
-      '明天',
-      '<1週',
-      '未來',
+      zhHant['list.bucketNew'],
+      zhHant['list.bucketNow'],
+      zhHant['list.bucketToday'],
+      zhHant['list.bucketTomorrow'],
+      zhHant['list.bucketWeek'],
+      zhHant['list.bucketFuture'],
     ]);
   });
 

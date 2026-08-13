@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { bookFilter, scopeLabel } from './book-filter';
 import type { Book } from '../lib/types';
+import zhHant from '../i18n/zh-Hant';
 
 const BOOKS: Book[] = [
   { id: 'a', name: 'JLPT N2' },
@@ -13,7 +14,7 @@ const BOOKS: Book[] = [
 /** 收合後那顆鈕上只有一行字，三種情況要說得清楚：全選、單選、其餘。 */
 describe('scopeLabel', () => {
   it('全部勾滿時顯示「全部」', () => {
-    expect(scopeLabel(BOOKS, ['a', 'b', 'c'])).toBe('全部');
+    expect(scopeLabel(BOOKS, ['a', 'b', 'c'])).toBe(zhHant['filter.all']);
   });
 
   it('只勾一本時顯示那本的名字', () => {

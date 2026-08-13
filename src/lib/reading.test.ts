@@ -12,6 +12,7 @@ import {
   acceptPrefill,
   type KanjiRun,
 } from './reading';
+import zhHant from '../i18n/zh-Hant';
 
 describe('讀音標記解析', () => {
   it('單一漢字加送假名', () => {
@@ -429,7 +430,7 @@ describe('儲存驗證 validateDraft', () => {
 
   it('讀音含羅馬字被擋', () => {
     const draft = { term: '考', runs: [run([{ kanji: '考', reading: 'kanga' }])] };
-    expect(validateDraft(draft)).toEqual(['考 的讀音要填假名']);
+    expect(validateDraft(draft)).toEqual([zhHant['reading.kanaRequired'].replace('{kanji}', '考')]);
   });
 
   it('片假名加長音符通過', () => {

@@ -64,6 +64,8 @@ export default defineConfig(({ mode }) => {
     test: {
       environment: 'node',
       include: ['src/**/*.test.ts'],
+      // 介面語言在每支測試開跑前接上繁體中文，理由見 src/test-setup.ts。
+      setupFiles: ['./src/test-setup.ts'],
     },
   };
 });

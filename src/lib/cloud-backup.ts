@@ -11,6 +11,7 @@
  * 上網的方式跟 `storage` 一樣由呼叫端遞進來；「連線恢復了，該補推了」是瀏覽器事件，
  * 何時觸發由接線層（`app.ts`）決定，這裡只提供一個可以叫的動作。
  */
+import { t } from '../i18n';
 import type { AppData } from './types';
 import type { StorageLike } from './storage';
 import { deriveKeys, encrypt, decrypt, isRemoteNewer, type CloudKeys } from './cloud-crypto';
@@ -23,8 +24,10 @@ export const CREDENTIALS_KEY = 'va-practice:cloud';
 /**
  * 程式無法分辨「密碼打錯」與「這個暱稱被別人用了」——兩者的正確反應都是
  * 不要動雲端那份，所以不必分辨，一律回這句話。
+ *
+ * 是函式不是常數：查表要等 `initI18n()` 接上這台裝置，而常數在模組載入的那一刻就算完了。
  */
-export const WRONG_PASSWORD = '暱稱或密碼不對';
+export const wrongPassword = (): string => t('cloud.wrongPassword');
 
 /**
  * 單筆備份的大小上限，量的是加密後那串 base64 的字數——安全規則量的也是同一個東西。
@@ -39,29 +42,28 @@ export const CLOUD_PAYLOAD_LIMIT = 4_194_304;
 /**
  * 三句話缺一不可：超過的是什麼、改用什麼、以及本機到底有沒有事。
  * 最後一句最重要——不講的話，使用者會以為自己的卡出事了。
+ *
+ * 與 `wrongPassword()` 同一個理由是函式而不是常數。
  */
-export const TOO_LARGE =
-  '卡片數量已超過雲端備份的上限，這次沒有上傳。請到「資料」的手動備份匯出成檔案保存。本機的卡片與進度完全不受影響。';
-
-const OFFLINE_NOTE = '進度還沒上傳，恢復連線後會自動補上';
+export const tooLarge = (): string => t('cloud.tooLarge');
 
 class RejectedByCloud extends Error {
   constructor() {
-    super(WRONG_PASSWORD);
+    super(wrongPassword());
   }
 }
 
 class TooLarge extends Error {
   constructor() {
-    super(TOO_LARGE);
+    super(tooLarge());
   }
 }
 
 /** 推不上去的三種理由各有各的下一步，那行狀態字不能混為一談。 */
 function statusFor(error: unknown): string {
-  if (error instanceof RejectedByCloud) return WRONG_PASSWORD;
-  if (error instanceof TooLarge) return TOO_LARGE;
-  return OFFLINE_NOTE;
+  if (error instanceof RejectedByCloud) return wrongPassword();
+  if (error instanceof TooLarge) return tooLarge();
+  return t('cloud.offlineNote');
 }
 
 /** 雲端上任何人都讀得到的那一半：密文與伺服器時間戳。 */
@@ -116,7 +118,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
 
   async function readOpen(keys: CloudKeys): Promise<RemoteOpen | null> {
     const response = await hooks.fetch(`${DATABASE}/backups/${keys.path}/open.json`);
-    if (!response.ok) throw new Error(`讀取雲端失敗（${response.status}）`);
+    if (!response.ok) throw new Error(t('cloud.readFailed', { status: response.status }));
     const body: unknown = await response.json();
     if (typeof body !== 'object' || body === null) return null;
     const open = body as Partial<RemoteOpen>;
@@ -145,11 +147,11 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
     });
     // 指紋對不上就是被規則擋下來，雲端那份原封不動。
     if (response.status === 401) throw new RejectedByCloud();
-    if (!response.ok) throw new Error(`寫入雲端失敗（${response.status}）`);
+    if (!response.ok) throw new Error(t('cloud.writeFailed', { status: response.status }));
     // 回應裡的時間戳已經是伺服器解析後的數字，不必再讀一次。
     const written = (await response.json()) as { open?: { updatedAt?: unknown } };
     const updatedAt = written.open?.updatedAt;
-    if (typeof updatedAt !== 'number') throw new Error('雲端沒有回覆時間戳');
+    if (typeof updatedAt !== 'number') throw new Error(t('cloud.noTimestamp'));
     return updatedAt;
   }
 
@@ -227,7 +229,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
 
     async signIn(nickname, password, local) {
       const trimmed = nickname.trim();
-      if (trimmed === '' || password === '') throw new Error('暱稱與密碼都要填。');
+      if (trimmed === '' || password === '') throw new Error(t('cloud.credentialsRequired'));
 
       const keys = await deriveKeys(trimmed, password);
       const remote = await readOpen(keys);
@@ -251,9 +253,9 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
     },
 
     async changePassword(password, local) {
-      if (password === '') throw new Error('新密碼要填。');
+      if (password === '') throw new Error(t('cloud.newPasswordRequired'));
       const saved = recall();
-      if (saved === null) throw new Error('尚未登入，無法換密碼。');
+      if (saved === null) throw new Error(t('cloud.notSignedIn'));
 
       const before = await deriveKeys(saved.nickname, saved.password);
       const keys = await deriveKeys(saved.nickname, password);

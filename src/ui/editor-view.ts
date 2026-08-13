@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { t } from '../i18n';
 import { newCard } from '../lib/review';
 import { assertTermAvailable, toMessage } from '../lib/storage';
 import type { Card } from '../lib/types';
@@ -22,8 +23,8 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   const header = el('header', 'bar');
   // 這顆按鈕底下還掛了防「點空」的 pointerdown，見下面的 jumpToEmpty。
-  const cancel = button('bar-action', '取消', back);
-  header.append(cancel, el('span', 'bar-title', card ? '編輯卡片' : '新增卡片'));
+  const cancel = button('bar-action', t('editor.cancel'), back);
+  header.append(cancel, el('span', 'bar-title', card ? t('editor.titleEdit') : t('editor.titleNew')));
 
   // 讀音格的規則全在這台機器裡，畫面只負責畫、接事件、照它回的變更單辦事。
   // 金鑰在這裡取一次就夠：要改金鑰得離開這個畫面，回來時整個 editorView 已重建。
@@ -55,7 +56,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   const termInput = el('input', 'field');
   termInput.type = 'text';
   termInput.value = editor.term;
-  termInput.placeholder = '焦がす';
+  termInput.placeholder = t('editor.termPlaceholder');
   termInput.autocapitalize = 'off';
   termInput.spellcheck = false;
 
@@ -87,7 +88,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   // 讀音格自己打字時不重建，才不會失焦、不打斷 IME（Input Method Editor，輸入法編輯器）組字。
   const renderReading = () => {
     if (editor.runs.length === 0) {
-      readingRegion.replaceChildren(el('p', 'hint', '這個詞沒有漢字'));
+      readingRegion.replaceChildren(el('p', 'hint', t('editor.noKanji')));
       return;
     }
     readingRegion.replaceChildren(...editor.runs.map((run, ri) => renderRun(run, ri)));
@@ -107,7 +108,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       if (ci > 0) {
         const left = run.cells[ci - 1]!;
         const seam = button('reading-seam', '⊕', () => apply(editor.mergeAt(ri, ci - 1)));
-        seam.setAttribute('aria-label', `把${left.kanji}和${cell.kanji}合併`);
+        seam.setAttribute('aria-label', t('editor.mergeLabel', { left: left.kanji, right: cell.kanji }));
         runEl.append(seam);
       }
       runEl.append(renderCell(cell, ri, ci));
@@ -123,7 +124,10 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
       if (k > 0) {
         // 第 k 個字前的縫：只把這格從第 k 字切成左右兩格，其餘不動。
         const seam = button('reading-seam', '·', () => apply(editor.splitAt(ri, ci, k)));
-        seam.setAttribute('aria-label', `把${cell.kanji.slice(0, k)}和${cell.kanji.slice(k)}拆開`);
+        seam.setAttribute(
+          'aria-label',
+          t('editor.splitLabel', { left: cell.kanji.slice(0, k), right: cell.kanji.slice(k) }),
+        );
         kanjiRow.append(seam);
       }
       kanjiRow.append(el('span', 'reading-char', char));
@@ -161,7 +165,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   const meaningInput = el('input', 'field');
   meaningInput.type = 'text';
   meaningInput.value = card?.meaning ?? '';
-  meaningInput.placeholder = '燒焦';
+  meaningInput.placeholder = t('editor.meaningPlaceholder');
 
   // iPhone 上鍵盤還開著時直接點按鈕，blur 先發生、焦點跳走、畫面捲動，按鈕在 touchend
   // 前就移位了，那一下 click 不會觸發。三顆按鈕都會中，但只有「取消」白按沒有便宜可佔
@@ -265,11 +269,11 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   const form = el('form', 'form');
   form.append(
-    labelled('單字本', bookSelect),
-    labelled('詞條', termInput),
-    el('div', 'labelled', el('span', 'label-text', '讀音'), readingRegion),
-    el('div', 'labelled', el('span', 'label-text', '預覽'), preview),
-    labelled('釋義', meaningInput),
+    labelled(t('editor.labelBook'), bookSelect),
+    labelled(t('editor.labelTerm'), termInput),
+    el('div', 'labelled', el('span', 'label-text', t('editor.labelReading')), readingRegion),
+    el('div', 'labelled', el('span', 'label-text', t('editor.labelPreview')), preview),
+    labelled(t('editor.labelMeaning'), meaningInput),
     error,
   );
 
@@ -280,7 +284,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   /** 空欄擋下來：同一句紅字，游標落到該填的那一欄。不指名是哪一格——游標已經指路。 */
   const rejectBlank = (field: HTMLInputElement): null => {
-    error.textContent = '詞條、讀音與釋義都要填。';
+    error.textContent = t('editor.blankFields');
     field.focus();
     return null;
   };
@@ -293,7 +297,7 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     const result = editor.commit();
     // 讀音「填了但不是假名」不同路：列出每一條，游標不動——錯可能一次好幾個（ADR-0006）。
     if (!result.ok) {
-      error.textContent = result.errors.join('；');
+      error.textContent = result.errors.join(t('editor.errorSeparator'));
       return null;
     }
     const text = result.text;
@@ -337,22 +341,22 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
     }
     // 留在原地又被清空，是唯一分不出「存進去了」還是「白打一場」的時刻。
     // 措辭只講本機那一份：推雲端失敗與否由 sync-status 那行小字負責。
-    toast.show(`已加入『${toPlainText(text)}』`);
+    toast.show(t('editor.saved', { term: toPlainText(text) }));
     reset();
   });
 
   if (card) {
-    const save = el('button', 'primary', '儲存');
+    const save = el('button', 'primary', t('editor.save'));
     save.type = 'submit';
     form.append(el('div', 'form-actions', save));
   } else {
     // 「儲存」排在 DOM（Document Object Model，文件物件模型）前面，type 必須是 button——
     // 兩顆都是 submit 的話它會把 Enter 搶走。Enter 歸「儲存並繼續」：
     // 連著加卡時可以打字、Enter、打字、Enter，手不離鍵盤。
-    const save = button('secondary', '儲存', () => {
+    const save = button('secondary', t('editor.save'), () => {
       if (saveCard() !== null) back();
     });
-    const saveAndContinue = el('button', 'primary', '儲存並繼續');
+    const saveAndContinue = el('button', 'primary', t('editor.saveAndContinue'));
     saveAndContinue.type = 'submit';
     form.append(el('div', 'form-actions split', save, saveAndContinue));
   }
@@ -362,8 +366,8 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 
   if (card) {
     main.append(
-      button('danger', '刪除這張卡', () => {
-        if (!confirm(`確定刪除「${card.meaning}」這張卡？此動作無法復原。`)) return;
+      button('danger', t('editor.deleteCard'), () => {
+        if (!confirm(t('editor.deleteConfirm', { meaning: card.meaning }))) return;
         app.remove(card.id);
         back();
       }),
@@ -380,11 +384,11 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 function noteWording(note: Note): { className: string; text: string } {
   switch (note.kind) {
     case 'asking':
-      return { className: 'hint', text: '詢問中…' };
+      return { className: 'hint', text: t('editor.noteAsking') };
     case 'filled':
-      return { className: 'hint', text: '讀音由 AI 填入，請確認' };
+      return { className: 'hint', text: t('editor.noteFilled') };
     case 'failed':
-      return { className: 'error', text: `自動填讀音失敗：${note.reason}` };
+      return { className: 'error', text: t('editor.noteFailed', { reason: note.reason }) };
   }
 }
 

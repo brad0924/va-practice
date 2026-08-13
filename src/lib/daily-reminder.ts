@@ -9,6 +9,7 @@
  * `keychain.ts` 同一個立場。接上 Capacitor 那一端的接線在 `daily-reminder-native.ts`。
  * 網頁版完全沒有這條支線。
  */
+import { t } from '../i18n';
 import { dueCountToday, forecastDueCounts, type DueForecast } from './reminders';
 import { toDateKey } from './review';
 import type { StorageLike } from './storage';
@@ -41,9 +42,6 @@ const REMINDER_TIME_KEY = 'va-practice:reminder-time';
 
 /** 存進去的那個值。只有「開著」需要記，關著就把整格拿掉。 */
 const ENABLED = 'on';
-
-/** 通知的標題。四則七則都是同一句，變動的只有底下那行張數。 */
-const REMINDER_TITLE = '該複習了';
 
 /** 一則要登記的提醒。 */
 export interface ScheduledReminder {
@@ -164,8 +162,9 @@ export function planReminders(cards: readonly Card[], now: Date, time: string): 
     const [year, month, dayOfMonth] = day.date.split('-').map(Number);
     return {
       id: index + 1,
-      title: REMINDER_TITLE,
-      body: `今天有 ${day.count} 張到期`,
+      // 四則七則都是同一句標題，變動的只有底下那行張數。
+      title: t('reminder.title'),
+      body: t('reminder.body', { count: day.count }),
       year,
       month,
       day: dayOfMonth,

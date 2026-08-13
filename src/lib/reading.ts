@@ -3,6 +3,8 @@
  * 純函式，不涉及任何狀態。
  */
 
+import { t } from '../i18n';
+
 /** 詞條中的一段文字，有 reading 者代表該段漢字要標振假名。 */
 export interface Segment {
   text: string;
@@ -301,11 +303,11 @@ export function validateDraft(draft: ReadingDraft): string[] {
   for (const run of draft.runs) {
     if (run.cells.some((cell) => cell.reading === '')) {
       const label = run.cells.map((cell) => cell.kanji).join('');
-      errors.push(`${label} 這串漢字的讀音每一格都要填`);
+      errors.push(t('reading.cellsRequired', { kanji: label }));
     }
     for (const cell of run.cells) {
       if (cell.reading !== '' && !KANA.test(cell.reading)) {
-        errors.push(`${cell.kanji} 的讀音要填假名`);
+        errors.push(t('reading.kanaRequired', { kanji: cell.kanji }));
       }
     }
   }

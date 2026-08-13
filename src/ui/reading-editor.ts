@@ -9,6 +9,7 @@
  * 唯讀的 `term`、`runs`、`note` 取。中文文案與樣式一律留在畫面那一側，這裡只吐狀態代號。
  */
 
+import { t } from '../i18n';
 import {
   parseReading,
   toDraft,
@@ -203,7 +204,7 @@ export function createReadingEditor(options: {
       // 等待期間使用者又改了詞條，這份回覆對的是舊的那串漢字，不能套上去。
       // 提示字的生死已經由那一下的 setTerm 處理過，這裡不再插手。
       if (term !== asked) return NOTHING;
-      if (filled === null) throw new Error('AI 給的讀音對不上這個詞條');
+      if (filled === null) throw new Error(t('reading.prefillMismatch'));
       runs = filled;
       note = { kind: 'filled' };
       return { term: false, runs: true, note: true };
@@ -212,7 +213,7 @@ export function createReadingEditor(options: {
       // 讀音格維持原狀留空，接下來得自己填——必填之後，填好之前這張卡存不下去。
       return setNote({
         kind: 'failed',
-        reason: reason instanceof Error ? reason.message : '未知原因',
+        reason: reason instanceof Error ? reason.message : t('reading.unknownReason'),
       });
     }
   }

@@ -4,20 +4,21 @@ import {
   createCloudBackup,
   CLOUD_PAYLOAD_LIMIT,
   CREDENTIALS_KEY,
-  TOO_LARGE,
-  WRONG_PASSWORD,
+  tooLarge,
+  wrongPassword,
   type CloudBackupHooks,
 } from './cloud-backup';
 import { deriveKeys, encrypt, decrypt } from './cloud-crypto';
 import { DATA_VERSION, type StorageLike } from './storage';
 import { DEFAULT_EASE } from './review';
 import type { AppData } from './types';
+import zhHant from '../i18n/zh-Hant';
 
 const NICKNAME = 'brad';
 const PASSWORD = 'hunter2';
 
-/** 模組回報給畫面的那句離線提示。使用者看得到的字，測試就照抄一份守著。 */
-const OFFLINE_NOTE = '進度還沒上傳，恢復連線後會自動補上';
+/** 模組回報給畫面的那句離線提示。從翻譯檔取值，改文案不必動測試（票 05 會改成斷言 key）。 */
+const OFFLINE_NOTE = zhHant['cloud.offlineNote'];
 
 /** 一份認得出是誰的資料：`mark` 解密後找得回來，用來分辨送上去的是哪一份。 */
 function appData(mark: string, updatedAt = 0): AppData {
@@ -253,7 +254,7 @@ describe('雲端備份', () => {
     // 別台裝置換了密碼，這台的指紋從此對不上。
     server.hijack();
     cloud.push(appData('第一次被擋'));
-    await until(() => status.includes(WRONG_PASSWORD));
+    await until(() => status.includes(wrongPassword()));
 
     const quiet = server.requests.length;
     cloud.push(appData('之後再推'));
@@ -323,7 +324,7 @@ describe('雲端備份', () => {
     const cloud = createCloudBackup(hooks);
 
     await expect(cloud.signIn(NICKNAME, '打錯的密碼', appData('本機那份', 1))).rejects.toThrow(
-      WRONG_PASSWORD,
+      wrongPassword(),
     );
     expect(server.writes()).toHaveLength(0);
     expect(storage.getItem(CREDENTIALS_KEY)).toBeNull();
@@ -407,12 +408,12 @@ describe('雲端備份', () => {
 
     const quiet = server.writes().length;
     cloud.push(oversized());
-    await until(() => status.includes(TOO_LARGE));
+    await until(() => status.includes(tooLarge()));
 
     // 超大的那份根本沒離開這台機器，雲端那筆原封不動。
     expect(server.writes()).toHaveLength(quiet);
     // 這句是使用者唯一的線索，少了它他會以為自己的卡出事了。
-    expect(TOO_LARGE).toContain('本機的卡片與進度完全不受影響');
+    expect(tooLarge()).toContain('本機的卡片與進度完全不受影響');
     // 被擋下來不等於被登出：憑證原封不動，下次開 app 照樣接得上雲端。
     expect(storage.getItem(CREDENTIALS_KEY)).toBe(credentials);
     expect(cloud.nickname()).toBe(NICKNAME);

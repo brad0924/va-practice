@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { createReadingEditor, type Change } from './reading-editor';
+import zhHant from '../i18n/zh-Hant';
 
 /** 什麼都不必動的變更單。多數斷言都是拿它比對。 */
 const NOTHING: Change = { term: false, runs: false, note: false };
+
+/** 儲存前那兩句檢查結果。比對翻譯檔裡的字，不在測試裡另抄一份。 */
+const kanaRequired = (kanji: string) => zhHant['reading.kanaRequired'].replace('{kanji}', kanji);
+const cellsRequired = (kanji: string) => zhHant['reading.cellsRequired'].replace('{kanji}', kanji);
 
 /** AI 回覆裡的一串漢字。splittable 為 false 代表整串共用一段讀音。 */
 function replyRun(kanji: string, reading: string, splittable = true) {
@@ -109,7 +114,7 @@ describe('讀音預填', () => {
     ai.reply([replyRun('煎', 'い')]);
 
     expect(await later).toEqual({ term: false, runs: false, note: true });
-    expect(editor.note).toEqual({ kind: 'failed', reason: 'AI 給的讀音對不上這個詞條' });
+    expect(editor.note).toEqual({ kind: 'failed', reason: zhHant['reading.prefillMismatch'] });
     expect(editor.runs).toEqual([{ start: 0, cells: [{ kanji: '焦', reading: '' }] }]);
   });
 
@@ -300,7 +305,7 @@ describe('進出口', () => {
     editor.setTerm('考');
     editor.setReading(0, 0, 'kanga');
 
-    expect(editor.commit()).toEqual({ ok: false, errors: ['考 的讀音要填假名'] });
+    expect(editor.commit()).toEqual({ ok: false, errors: [kanaRequired('考')] });
   });
 
   // 空讀音格是道守門：畫面按儲存時必填格已經先擋過，走到 commit 代表輸入框與讀音格漂移了。
@@ -312,7 +317,7 @@ describe('進出口', () => {
 
     expect(editor.commit()).toEqual({
       ok: false,
-      errors: ['大丈夫 這串漢字的讀音每一格都要填'],
+      errors: [cellsRequired('大丈夫')],
     });
   });
 
@@ -321,7 +326,7 @@ describe('進出口', () => {
 
     expect(editor.commit()).toEqual({
       ok: false,
-      errors: ['仕事 這串漢字的讀音每一格都要填'],
+      errors: [cellsRequired('仕事')],
     });
   });
 

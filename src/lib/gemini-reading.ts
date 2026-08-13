@@ -10,6 +10,8 @@
  * 那部分有 `gemini-reading.test.ts` 守著。
  */
 
+import { t } from '../i18n';
+
 /**
  * 端點與模型固定。日文能力是選這一家唯一的理由（見 issue 02 決定 7）。
  *
@@ -85,9 +87,9 @@ interface GenerateContentResponse {
 async function reason(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: { message?: unknown } };
-    return typeof body.error?.message === 'string' ? body.error.message : '沒有附原因';
+    return typeof body.error?.message === 'string' ? body.error.message : t('gemini.noReason');
   } catch {
-    return '沒有附原因';
+    return t('gemini.noReason');
   }
 }
 
@@ -119,26 +121,31 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
       });
     } catch {
       throw new Error(
-        controller.signal.aborted ? `等超過 ${TIMEOUT_MS / 1000} 秒沒有回覆` : '連不上 Gemini',
+        controller.signal.aborted
+          ? t('gemini.timeout', { seconds: TIMEOUT_MS / 1000 })
+          : t('gemini.offline'),
       );
     }
     // 金鑰不對是 400／403，額度用完是 429，模型名或版本路徑不對是 404。
     // 光看狀態碼分不出是哪一種，錯誤回應裡那句 message 才講得出原因，一起帶出去。
-    if (!response.ok) throw new Error(`Gemini 回了 ${response.status}：${await reason(response)}`);
+    if (!response.ok) {
+      const why = await reason(response);
+      throw new Error(t('gemini.httpError', { status: response.status, reason: why }));
+    }
 
     let text: unknown;
     try {
       const body = (await response.json()) as GenerateContentResponse;
       text = body.candidates?.[0]?.content?.parts?.[0]?.text;
     } catch {
-      throw new Error('讀不懂 Gemini 的回覆');
+      throw new Error(t('gemini.unreadable'));
     }
-    if (typeof text !== 'string') throw new Error('Gemini 沒有回覆內容');
+    if (typeof text !== 'string') throw new Error(t('gemini.emptyReply'));
 
     try {
       return JSON.parse(text);
     } catch {
-      throw new Error('Gemini 回的不是 JSON');
+      throw new Error(t('gemini.notJson'));
     }
   } finally {
     clearTimeout(timer);

@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { t, type Key } from '../i18n';
 import { toPlainText, toReadingText } from '../lib/reading';
 import { overdueDays, sortByDue, type SortDirection } from '../lib/review';
 import { cardsInBooks, setScope } from '../lib/storage';
@@ -12,14 +13,14 @@ export function listView(app: App): HTMLElement {
 
   const header = el('header', 'bar');
   header.append(
-    button('bar-action', '複習', () => app.showReview()),
-    el('span', 'bar-title', '卡片'),
+    button('bar-action', t('nav.review'), () => app.showReview()),
+    el('span', 'bar-title', t('nav.cards')),
     el(
       'div',
       'bar-side',
-      button('bar-action', '資料', () => app.showData()),
+      button('bar-action', t('nav.data'), () => app.showData()),
       // 零本時開出來的編輯器沒有單字本可選，那張卡沒有地方放，先去建一本。
-      button('bar-action', '新增', () =>
+      button('bar-action', t('nav.add'), () =>
         app.data.books.length === 0 ? app.showData() : app.showEditor(null, () => app.showList()),
       ),
     ),
@@ -33,8 +34,8 @@ export function listView(app: App): HTMLElement {
       el(
         'div',
         'form',
-        el('p', 'hint', '還沒有任何單字本。卡片要先有一本才放得進去。'),
-        el('div', 'form-actions', button('primary', '去建立單字本', () => app.showData())),
+        el('p', 'hint', t('list.noBooks')),
+        el('div', 'form-actions', button('primary', t('books.goCreate'), () => app.showData())),
       ),
     );
     screen.append(header, main);
@@ -43,7 +44,7 @@ export function listView(app: App): HTMLElement {
 
   const search = el('input', 'field search');
   search.type = 'search';
-  search.placeholder = '搜尋詞條、讀音或釋義';
+  search.placeholder = t('list.searchPlaceholder');
   search.autocapitalize = 'off';
 
   const count = el('span', 'count');
@@ -78,12 +79,12 @@ export function listView(app: App): HTMLElement {
     const scoped = cardsInBooks(app.data.cards, app.data.scopes.list);
     const matches = filter(scoped, search.value);
     count.textContent = searching()
-      ? `符合 ${matches.length} 張，共 ${scoped.length} 張`
-      : `共 ${scoped.length} 張`;
-    sort.textContent = direction === 'asc' ? '到期 ↑' : '到期 ↓';
+      ? t('list.countMatched', { matched: matches.length, total: scoped.length })
+      : t('list.countAll', { total: scoped.length });
+    sort.textContent = direction === 'asc' ? t('list.sortAsc') : t('list.sortDesc');
     sort.setAttribute(
       'aria-label',
-      direction === 'asc' ? '切換到期排序方向，目前最急的在前' : '切換到期排序方向，目前最不急的在前',
+      direction === 'asc' ? t('list.sortLabelAsc') : t('list.sortLabelDesc'),
     );
 
     // 空桶平時顯示並標 0（「明天 0」本身是資訊），搜尋中則藏起來，
@@ -175,18 +176,22 @@ interface Bucket {
 }
 
 /**
- * 六個時間桶的定義，順序即畫面由上而下的順序（最急的在最上面）。
+ * 六個時間桶，順序即畫面由上而下的順序（最急的在最上面）。
  *
  * 「<24小時」是「今日到期」這一桶的別名，不是真的用小時算：排程只到日，
  * 分不出今天卡在當日的哪個時刻。逾期卡一律歸「現在」，不分拖了幾天。
+ *
+ * `key` 不是介面文字，原樣留著；`label` 存的是翻譯檔的 key 而不是字——寫成字的話
+ * 在模組載入的那一刻就算完了，那比 `initI18n()` 還早，切語言之後也不會跟著換。
+ * 與 `stats-view.ts` 的 `EASE_BINS` 同一種寫法。
  */
-const BUCKETS: readonly { key: BucketKey; label: string }[] = [
-  { key: 'new', label: '新' },
-  { key: 'now', label: '現在' },
-  { key: 'today', label: '<24小時' },
-  { key: 'tomorrow', label: '明天' },
-  { key: 'week', label: '<1週' },
-  { key: 'future', label: '未來' },
+const BUCKETS: readonly { key: BucketKey; label: Key }[] = [
+  { key: 'new', label: 'list.bucketNew' },
+  { key: 'now', label: 'list.bucketNow' },
+  { key: 'today', label: 'list.bucketToday' },
+  { key: 'tomorrow', label: 'list.bucketTomorrow' },
+  { key: 'week', label: 'list.bucketWeek' },
+  { key: 'future', label: 'list.bucketFuture' },
 ];
 
 /** 一張卡拖了幾天（`overdueDays()` 的結果）落在哪個桶。 */
@@ -209,7 +214,7 @@ export function groupByBucket(cards: readonly Card[], now: Date, direction: Sort
   for (const card of sortByDue(cards, direction)) {
     grouped.get(bucketOf(overdueDays(card, now)))!.push(card);
   }
-  const buckets = BUCKETS.map(({ key, label }) => ({ key, label, cards: grouped.get(key)! }));
+  const buckets = BUCKETS.map(({ key, label }) => ({ key, label: t(label), cards: grouped.get(key)! }));
   return direction === 'asc' ? buckets : buckets.reverse();
 }
 

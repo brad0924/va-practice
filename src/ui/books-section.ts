@@ -1,4 +1,5 @@
 import type { App } from '../app';
+import { t } from '../i18n';
 import {
   addBook,
   cardsInBooks,
@@ -19,7 +20,7 @@ import { el, button } from './dom';
  * 密碼一起清掉。
  *
  * 判斷一律來自資料存取模組：名稱合不合法、範圍會不會被清空、匯入跳過了哪些詞，
- * 這裡只負責把它說的話翻成畫面上的中文與樣式。
+ * 這裡只負責把它說的話翻成畫面上看得到的字與樣式。
  */
 export function booksSection(app: App): HTMLElement {
   /** 整區收起來時只剩標頭。放在最上面就是因為它是主角，因此預設展開。 */
@@ -36,7 +37,7 @@ export function booksSection(app: App): HTMLElement {
     open = !open;
     refresh();
   });
-  head.append(el('span', 'section-title', '單字本'), mark);
+  head.append(el('span', 'section-title', t('books.sectionTitle')), mark);
 
   // 匯入的選檔沿用備份檔那一區的做法：一個藏起來的 file input，按鈕替它按下去。
   // 整區共用一個，按下去的是哪一本記在 target 上。
@@ -54,9 +55,19 @@ export function booksSection(app: App): HTMLElement {
     if (!chosen || bookId === null) return;
     try {
       const result = app.importWords(await chosen.text(), bookId);
-      outcome = { bookId, message: `已匯入 ${result.imported} 張`, failed: false, skipped: result.skipped };
+      outcome = {
+        bookId,
+        message: t('books.imported', { count: result.imported }),
+        failed: false,
+        skipped: result.skipped,
+      };
     } catch (error) {
-      outcome = { bookId, message: `匯入失敗：${toMessage(error)}`, failed: true, skipped: [] };
+      outcome = {
+        bookId,
+        message: t('books.importFailed', { reason: toMessage(error) }),
+        failed: true,
+        skipped: [],
+      };
     }
     refresh();
   });
@@ -80,7 +91,7 @@ export function booksSection(app: App): HTMLElement {
 
     const books = app.data.books;
     const children: Node[] =
-      books.length === 0 ? [el('p', 'hint', '還沒有單字本。')] : books.flatMap(bookRow);
+      books.length === 0 ? [el('p', 'hint', t('books.empty'))] : books.flatMap(bookRow);
     // 取名中的是新增時，輸入介面取代「新增單字本」那顆；改名的那份長在該列底下。
     children.push(naming?.id === null ? nameForm(null) : addButton());
     body.replaceChildren(...children);
@@ -98,7 +109,7 @@ export function booksSection(app: App): HTMLElement {
     // 資料存取模組本來就會拒絕這種變更，但那是繞過去之後的最後一道，
     // 讓使用者按了才吃紅字不如一開始就按不動。
     check.disabled = inScope && app.data.scopes.review.length === 1;
-    check.setAttribute('aria-label', `複習「${book.name}」`);
+    check.setAttribute('aria-label', t('books.scopeCheckLabel', { name: book.name }));
     check.addEventListener('change', () => {
       const current = app.data.scopes.review;
       const next = check.checked ? [...current, book.id] : current.filter((id) => id !== book.id);
@@ -113,7 +124,10 @@ export function booksSection(app: App): HTMLElement {
       refresh();
     });
     main.setAttribute('aria-expanded', String(isOpen));
-    main.append(el('span', 'book-name', book.name), el('span', 'book-count', `${count} 張`));
+    main.append(
+      el('span', 'book-name', book.name),
+      el('span', 'book-count', t('books.cardCount', { count })),
+    );
 
     const row = el('div', 'book-row', check, main);
     if (!isOpen) return [row];
@@ -124,23 +138,17 @@ export function booksSection(app: App): HTMLElement {
     const tools = el(
       'div',
       'book-tools',
-      button('book-tool', '改名', () => {
+      button('book-tool', t('books.rename'), () => {
         naming = { id: book.id };
         outcome = null;
         refresh();
       }),
-      button('book-tool', '匯入', () => {
+      button('book-tool', t('books.importWords'), () => {
         target = book.id;
         file.click();
       }),
-      button('book-tool remove', '刪除', () => {
-        if (
-          !confirm(
-            `確定刪除「${book.name}」？將一併刪除 ${count} 張卡片與它們的複習進度，無法復原。`,
-          )
-        ) {
-          return;
-        }
+      button('book-tool remove', t('books.delete'), () => {
+        if (!confirm(t('books.deleteConfirm', { name: book.name, count }))) return;
         expandedId = null;
         outcome = null;
         apply(deleteBook(app.data, book.id));
@@ -159,13 +167,15 @@ export function booksSection(app: App): HTMLElement {
     if (shown.skipped.length === 0) return box;
 
     const nameOf = (bookId: string) =>
-      app.data.books.find((book) => book.id === bookId)?.name ?? '未知的單字本';
+      app.data.books.find((book) => book.id === bookId)?.name ?? t('books.unknownBook');
     box.append(
-      el('p', 'hint', `以下 ${shown.skipped.length} 個詞已存在，已跳過：`),
+      el('p', 'hint', t('books.skippedHeading', { count: shown.skipped.length })),
       el(
         'ul',
         'skip-list',
-        ...shown.skipped.map((skip) => el('li', '', `・${skip.term}（${nameOf(skip.bookId)}）`)),
+        ...shown.skipped.map((skip) =>
+          el('li', '', t('books.skippedItem', { term: skip.term, book: nameOf(skip.bookId) })),
+        ),
       ),
     );
     return box;
@@ -176,11 +186,11 @@ export function booksSection(app: App): HTMLElement {
     const input = el('input', 'field');
     input.type = 'text';
     input.value = book?.name ?? '';
-    input.placeholder = '例如：工作用日文';
+    input.placeholder = t('books.namePlaceholder');
     input.autocapitalize = 'off';
 
     const error = el('p', 'error');
-    const submit = el('button', 'primary', book ? '改名' : '新增');
+    const submit = el('button', 'primary', book ? t('books.rename') : t('books.confirmAdd'));
     submit.type = 'submit';
 
     const form = el('form', 'form book-form');
@@ -190,7 +200,7 @@ export function booksSection(app: App): HTMLElement {
       el(
         'div',
         'form-actions split',
-        button('secondary', '取消', () => {
+        button('secondary', t('books.cancel'), () => {
           naming = null;
           refresh();
         }),
@@ -219,7 +229,7 @@ export function booksSection(app: App): HTMLElement {
   }
 
   function addButton(): HTMLElement {
-    return button('book-add', '＋ 新增單字本', () => {
+    return button('book-add', t('books.addButton'), () => {
       naming = { id: null };
       expandedId = null;
       outcome = null;

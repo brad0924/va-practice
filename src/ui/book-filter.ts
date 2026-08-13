@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { Book } from '../lib/types';
 import { el, button } from './dom';
 
@@ -27,11 +28,11 @@ export interface BookFilterOptions {
 
 /** 收合後鈕上的那行字：全勾是「全部」，只勾一本是那本的名字，其餘報本數。 */
 export function scopeLabel(books: readonly Book[], selected: readonly string[]): string {
-  if (selected.length === books.length) return '全部';
+  if (selected.length === books.length) return t('filter.all');
   if (selected.length === 1) {
-    return books.find((book) => book.id === selected[0])?.name ?? '1 本';
+    return books.find((book) => book.id === selected[0])?.name ?? t('filter.bookCount', { count: 1 });
   }
-  return `${selected.length} 本`;
+  return t('filter.bookCount', { count: selected.length });
 }
 
 export function bookFilter({
@@ -117,8 +118,8 @@ export function bookFilter({
   }
 
   function refresh(): void {
-    const prefix = variant === 'block' ? '單字本：' : '';
-    label.textContent = `${prefix}${scopeLabel(books, chosen)}`;
+    const scope = scopeLabel(books, chosen);
+    label.textContent = variant === 'block' ? t('filter.blockLabel', { scope }) : scope;
     mark.textContent = open ? '▴' : '▾';
     toggle.setAttribute('aria-expanded', String(open));
     menu.hidden = !open;
@@ -130,7 +131,7 @@ export function bookFilter({
     const all = chosen.length === books.length;
     menu.replaceChildren(
       // 已經全勾時它沒有事情可做，鎖起來——與底下「取消它就空了」同一種處理。
-      item('全部', all, all, () => choose(new Set(books.map((book) => book.id)))),
+      item(t('filter.all'), all, all, () => choose(new Set(books.map((book) => book.id)))),
       ...books.map((book) => {
         const checked = chosen.includes(book.id);
         const wanted = new Set(chosen);
