@@ -1,5 +1,5 @@
 import type { App } from '../app';
-import { t } from '../i18n';
+import { lang, t, type LangChoice } from '../i18n';
 import { APP_NAME } from '../lib/app-name';
 import { toDateKey } from '../lib/review';
 import { toMessage } from '../lib/storage';
@@ -7,8 +7,11 @@ import { el, button, download } from './dom';
 import { booksSection } from './books-section';
 
 /**
- * 這一頁六段常駐的說明文字都搬進翻譯檔了，各自為什麼非講不可仍記在這裡：
+ * 這一頁七段常駐的說明文字都搬進翻譯檔了，各自為什麼非講不可仍記在這裡：
  *
+ * - `data.langHint`：語言的選擇與提醒開關是同一類東西——只留在這台裝置，不進雲端也不進
+ *   備份檔（見 spec 決定五）。措辭刻意照抄底下 `data.reminderHint` 的後半句，同一件事
+ *   不要有兩種講法。
  * - `data.cloudHint`：最後一句不是客套話。密碼同時是加密金鑰，遺失即無法復原是機制
  *   決定的（見 ADR-0003）。iOS 上把密碼交給 iCloud 鑰匙圈保管降低了忘記的機率，但
  *   沒有消除它——使用者可能沒開鑰匙圈，或整個換掉 Apple ID。因此必須同時指出唯一
@@ -23,7 +26,7 @@ import { booksSection } from './books-section';
  *   （見 spec 決定二十四）。`{app}` 代進去的是 iOS 設定 app 裡的項目名，也就是主畫面
  *   圖示底下那行字（短名）。
  *
- * 六段一律在畫的那一刻才查表。寫成模組層常數的話會在 `initI18n()` 之前就算完，
+ * 七段一律在畫的那一刻才查表。寫成模組層常數的話會在 `initI18n()` 之前就算完，
  * 而且切語言之後不會跟著換。
  */
 
@@ -39,14 +42,57 @@ export function dataView(app: App): HTMLElement {
 
   const main = el('main', 'panel');
   // 單字本擺最上面：它是這一頁的主角，其餘幾區都是設定好就很久不再碰的東西。
+  // 介面語言排在那幾區之首：語言是「app 用什麼話跟你說」，比底下四區都基礎，
+  // 而看不懂畫面的人來找語言選單時，越上面越容易找到（spec 決定十）。
   // 提醒緊接在 Gemini 金鑰之後：兩者同樣是「只管這一台裝置」的偏好，擺在一起。
-  main.append(booksSection(app), cloudSection(app), geminiSection(app));
+  main.append(booksSection(app), langSection(app), cloudSection(app), geminiSection(app));
   const reminder = reminderSection(app);
   if (reminder) main.append(reminder);
   main.append(fileSection(app));
 
   screen.append(header, main);
   return screen;
+}
+
+/**
+ * 介面語言。整個 i18n 需求裡使用者唯一看得到的新東西。
+ *
+ * 用 `<select>` 而不是自製清單：`editor-view.ts` 的單字本選擇已經是同一種元件，
+ * 而 iPhone 上它叫出來的是系統原生的選取介面，滑動與點擊的手感不必自己調
+ * （spec 決定十）。
+ *
+ * 換完不必重開 app：`app.setLang()` 存好之後把當前畫面重畫一次，
+ * 這一頁本來就是整片重畫的（票 02）。
+ */
+function langSection(app: App): HTMLElement {
+  // 四個選項的文字**不隨介面語言變**，只有「系統預設」例外——它沒有自稱。
+  // 理由很實際：萬一手滑切到看不懂的語言，滿畫面日文的時候「繁體中文」那四個字
+  // 還認得出來，找得回來；用當前介面語言寫的話就變成一場猜謎（spec 決定十）。
+  const choices: [LangChoice, string][] = [
+    ['system', t('data.langSystem')],
+    ['zh-Hant', '繁體中文'],
+    ['en', 'English'],
+    ['ja', '日本語'],
+  ];
+
+  const select = el('select', 'field');
+  for (const [value, label] of choices) {
+    const option = el('option', '', label);
+    option.value = value;
+    select.append(option);
+  }
+  select.value = lang();
+
+  // 值只可能是上面那四個之一：選單裡沒有別的東西，使用者也塞不進第五個。
+  select.addEventListener('change', () => app.setLang(select.value as LangChoice));
+
+  const section = el('section', 'section');
+  section.append(
+    el('h2', 'section-title', t('data.langTitle')),
+    // 借 .form 的直排與間距，這一段不必另外一套版面（與 list-view.ts 的空狀態同一招）。
+    el('div', 'form', select, el('p', 'hint', t('data.langHint'))),
+  );
+  return section;
 }
 
 /** 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止同步兩個控制項。 */

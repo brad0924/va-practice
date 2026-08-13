@@ -114,6 +114,9 @@ const en: typeof zhHant = {
   'editor.noteAsking': '詢問中…',
   'editor.noteFilled': '讀音由 AI 填入，請確認',
   'editor.noteFailed': '自動填讀音失敗：{reason}',
+  'data.langTitle': '介面語言',
+  'data.langSystem': '系統預設',
+  'data.langHint': '這個選擇只影響這台裝置，不會上傳雲端，也不會出現在匯出的備份檔裡。',
   'data.cloudTitle': '雲端備份',
   'data.cloudHint':
     '輸入自取的暱稱與密碼，進度就會自動備份到雲端；換裝置輸入同一組就接得回來。' +
