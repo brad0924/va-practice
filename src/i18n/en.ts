@@ -182,7 +182,7 @@ const en: typeof zhHant = {
   'gemini.timeout': '等超過 {seconds} 秒沒有回覆',
   'gemini.offline': '連不上 Gemini',
   'gemini.httpError': 'Gemini 回了 {status}：{reason}',
-  'gemini.noReason': '沒有附原因',
+  'gemini.httpErrorNoReason': 'Gemini 回了 {status}：沒有附原因',
   'gemini.unreadable': '讀不懂 Gemini 的回覆',
   'gemini.emptyReply': 'Gemini 沒有回覆內容',
   'gemini.notJson': 'Gemini 回的不是 JSON',

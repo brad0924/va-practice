@@ -82,6 +82,11 @@ export function t(key: Key, params?: Record<string, string | number>): string {
 function requireDevice(): Device {
   // 這種錯必然重現（只要那支檔案被載入就一定丟），不會是偶發，因此溜不到使用者手上。
   // 最可能踩到的是「在模組載入的當下就呼叫 t()」——那種字串要改成渲染時才算。
+  //
+  // 全 repo 只剩這一處是帶文字的 `Error` 而不是 `AppError`（票 05），刻意如此：
+  // 帶 key 的錯要靠 `toMessage()` 查表才變成字，而這個錯的意思正是「查表還不能用」——
+  // 顯示它的那一刻會再繞回這裡丟一次，使用者反而一個字都拿不到。
+  // 它也不是介面文字——看到這句話的是開發者，不是使用者。
   if (device === null) throw new Error('i18n 還沒啟動，t() 不知道該用哪一種語言');
   return device;
 }

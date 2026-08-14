@@ -10,6 +10,7 @@
  */
 
 import { t } from '../i18n';
+import { AppError, toMessage } from '../lib/app-error';
 import {
   parseReading,
   toDraft,
@@ -204,16 +205,19 @@ export function createReadingEditor(options: {
       // 等待期間使用者又改了詞條，這份回覆對的是舊的那串漢字，不能套上去。
       // 提示字的生死已經由那一下的 setTerm 處理過，這裡不再插手。
       if (term !== asked) return NOTHING;
-      if (filled === null) throw new Error(t('reading.prefillMismatch'));
+      if (filled === null) throw new AppError('reading.prefillMismatch');
       runs = filled;
       note = { kind: 'filled' };
       return { term: false, runs: true, note: true };
     } catch (reason) {
       if (term !== asked) return NOTHING;
       // 讀音格維持原狀留空，接下來得自己填——必填之後，填好之前這張卡存不下去。
+      // 這裡走 toMessage()：問 Gemini 的失敗現在帶的是 key，直接讀 `.message` 只會拿到那條 key。
+      // 外面那層 `instanceof Error` 不是多餘的——連 Error 都不是的東西 toMessage() 會吐
+      // `String(error)`（`[object Object]` 那類），那不是一句話，所以仍然換成「未知原因」。
       return setNote({
         kind: 'failed',
-        reason: reason instanceof Error ? reason.message : t('reading.unknownReason'),
+        reason: reason instanceof Error ? toMessage(reason) : t('reading.unknownReason'),
       });
     }
   }

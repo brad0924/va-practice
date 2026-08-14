@@ -58,7 +58,7 @@
 
 ## Consequences
 
-**25 處 `throw new Error` 加上每一個接住錯誤的畫面層都要改。** 這是本 ADR 唯一動到架構的部分。`storage.ts:61` 的註解「壞掉時的訊息可以直接顯示給使用者」在改完之後不再成立——畫面層必須先查表。`toMessage()`（`storage.ts:367`）的角色也要跟著重新定義。
+**25 處 `throw new Error` 加上每一個接住錯誤的畫面層都要改。** 這是本 ADR 唯一動到架構的部分。`storage.ts:61` 的註解「壞掉時的訊息可以直接顯示給使用者」在改完之後不再成立——畫面層必須先查表。`toMessage()` 的角色也要跟著重新定義（實作時它與 `AppError` 一起搬到 `src/lib/app-error.ts`，理由見 `.scratch/i18n/issues/05-error-key-objects.md` 的 Comments）。
 
 **`CONTEXT.md` 被動到一處：釋義的 `_Avoid_` 拿掉「意思」。** 理由是英文的 `Meaning` 正好等於那個被避開的詞，而「意思」屬於「只是比較鬆散的同義詞」這一類——沒有第二個東西可以混淆、也不會誤導，不值得為它把英文扭成 `Gloss`。逐條理由見 `.scratch/i18n/spec.md` 決定一。**除此之外 29 則的定義段落一個字都沒改。**
 

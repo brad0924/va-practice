@@ -1,12 +1,12 @@
 import type { App } from '../app';
 import { t } from '../i18n';
+import { toMessage } from '../lib/app-error';
 import {
   addBook,
   cardsInBooks,
   deleteBook,
   renameBook,
   setScope,
-  toMessage,
   type ImportSkip,
 } from '../lib/storage';
 import type { AppData, Book } from '../lib/types';

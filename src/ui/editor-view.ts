@@ -1,7 +1,8 @@
 import type { App } from '../app';
 import { t } from '../i18n';
+import { toMessage } from '../lib/app-error';
 import { newCard } from '../lib/review';
-import { assertTermAvailable, toMessage } from '../lib/storage';
+import { assertTermAvailable } from '../lib/storage';
 import type { Card } from '../lib/types';
 import { toMarkup, toPlainText, type KanjiRun, type ReadingCell } from '../lib/reading';
 import { askReading } from '../lib/gemini-reading';

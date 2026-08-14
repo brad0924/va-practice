@@ -200,7 +200,11 @@ export default {
   'data.importFailed': '匯入失敗：{reason}',
 
   // ── 雲端備份模組自己說的話 ────────────────────────────────────
+  // 程式無法分辨「密碼打錯」與「這個暱稱被別人用了」——兩者的正確反應都是不要動雲端
+  // 那份，所以不必分辨，一律講這一句。
   'cloud.wrongPassword': '暱稱或密碼不對',
+  // 三句話缺一不可：超過的是什麼、改用什麼、以及本機到底有沒有事。最後一句最重要——
+  // 不講的話，使用者會以為自己的卡出事了（`cloud-backup.test.ts` 有一條測試釘著它）。
   'cloud.tooLarge':
     '卡片數量已超過雲端備份的上限，這次沒有上傳。請到「資料」的手動備份匯出成檔案保存。本機的卡片與進度完全不受影響。',
   'cloud.offlineNote': '進度還沒上傳，恢復連線後會自動補上',
@@ -230,8 +234,11 @@ export default {
   // ── 問 Gemini 讀音時的各種失敗 ───────────────────────────────
   'gemini.timeout': '等超過 {seconds} 秒沒有回覆',
   'gemini.offline': '連不上 Gemini',
+  // 同一句話兩條 key，差別只在挖不挖得到 Google 附的原因。「沒有附原因」刻意寫進句子裡
+  // 而不是當參數代進去——那是我們自己的字，當參數就等於在丟出錯誤的當下被凍成某一種
+  // 語言（票 05）。`{reason}` 那條代進去的是 Google 回的英文，語言本來就不歸我們管。
   'gemini.httpError': 'Gemini 回了 {status}：{reason}',
-  'gemini.noReason': '沒有附原因',
+  'gemini.httpErrorNoReason': 'Gemini 回了 {status}：沒有附原因',
   'gemini.unreadable': '讀不懂 Gemini 的回覆',
   'gemini.emptyReply': 'Gemini 沒有回覆內容',
   'gemini.notJson': 'Gemini 回的不是 JSON',

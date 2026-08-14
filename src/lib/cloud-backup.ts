@@ -12,6 +12,7 @@
  * 何時觸發由接線層（`app.ts`）決定，這裡只提供一個可以叫的動作。
  */
 import { t } from '../i18n';
+import { AppError, toMessage } from './app-error';
 import type { AppData } from './types';
 import type { StorageLike } from './storage';
 import { deriveKeys, encrypt, decrypt, isRemoteNewer, type CloudKeys } from './cloud-crypto';
@@ -20,14 +21,6 @@ const DATABASE = 'https://va-practice-default-rtdb.asia-southeast1.firebasedatab
 
 /** 記住暱稱與密碼的地方。能讀這裡的人本來就讀得到全部的卡片與進度，不吃虧。 */
 export const CREDENTIALS_KEY = 'va-practice:cloud';
-
-/**
- * 程式無法分辨「密碼打錯」與「這個暱稱被別人用了」——兩者的正確反應都是
- * 不要動雲端那份，所以不必分辨，一律回這句話。
- *
- * 是函式不是常數：查表要等 `initI18n()` 接上這台裝置，而常數在模組載入的那一刻就算完了。
- */
-export const wrongPassword = (): string => t('cloud.wrongPassword');
 
 /**
  * 單筆備份的大小上限，量的是加密後那串 base64 的字數——安全規則量的也是同一個東西。
@@ -40,29 +33,30 @@ export const wrongPassword = (): string => t('cloud.wrongPassword');
 export const CLOUD_PAYLOAD_LIMIT = 4_194_304;
 
 /**
- * 三句話缺一不可：超過的是什麼、改用什麼、以及本機到底有沒有事。
- * 最後一句最重要——不講的話，使用者會以為自己的卡出事了。
- *
- * 與 `wrongPassword()` 同一個理由是函式而不是常數。
+ * 程式無法分辨「密碼打錯」與「這個暱稱被別人用了」——兩者的正確反應都是
+ * 不要動雲端那份，所以不必分辨，一律用同一條 key。
  */
-export const tooLarge = (): string => t('cloud.tooLarge');
-
-class RejectedByCloud extends Error {
+class RejectedByCloud extends AppError {
   constructor() {
-    super(wrongPassword());
+    super('cloud.wrongPassword');
   }
 }
 
-class TooLarge extends Error {
+class TooLarge extends AppError {
   constructor() {
-    super(tooLarge());
+    super('cloud.tooLarge');
   }
 }
 
-/** 推不上去的三種理由各有各的下一步，那行狀態字不能混為一談。 */
+/**
+ * 推不上去的三種理由各有各的下一步，那行狀態字不能混為一談。
+ *
+ * 前兩種自己就帶著 key，話怎麼講由 `toMessage()` 在這一刻查表決定——不要在這裡
+ * 另外列一張「哪個類別配哪句話」的表，那會變成第二條漏斗，改 key 得改兩處。
+ * 其餘一切（網路不通、雲端回怪狀態碼）都不是使用者能處理的，一律講同一句。
+ */
 function statusFor(error: unknown): string {
-  if (error instanceof RejectedByCloud) return wrongPassword();
-  if (error instanceof TooLarge) return tooLarge();
+  if (error instanceof RejectedByCloud || error instanceof TooLarge) return toMessage(error);
   return t('cloud.offlineNote');
 }
 
@@ -118,7 +112,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
 
   async function readOpen(keys: CloudKeys): Promise<RemoteOpen | null> {
     const response = await hooks.fetch(`${DATABASE}/backups/${keys.path}/open.json`);
-    if (!response.ok) throw new Error(t('cloud.readFailed', { status: response.status }));
+    if (!response.ok) throw new AppError('cloud.readFailed', { status: response.status });
     const body: unknown = await response.json();
     if (typeof body !== 'object' || body === null) return null;
     const open = body as Partial<RemoteOpen>;
@@ -147,11 +141,11 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
     });
     // 指紋對不上就是被規則擋下來，雲端那份原封不動。
     if (response.status === 401) throw new RejectedByCloud();
-    if (!response.ok) throw new Error(t('cloud.writeFailed', { status: response.status }));
+    if (!response.ok) throw new AppError('cloud.writeFailed', { status: response.status });
     // 回應裡的時間戳已經是伺服器解析後的數字，不必再讀一次。
     const written = (await response.json()) as { open?: { updatedAt?: unknown } };
     const updatedAt = written.open?.updatedAt;
-    if (typeof updatedAt !== 'number') throw new Error(t('cloud.noTimestamp'));
+    if (typeof updatedAt !== 'number') throw new AppError('cloud.noTimestamp');
     return updatedAt;
   }
 
@@ -229,7 +223,7 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
 
     async signIn(nickname, password, local) {
       const trimmed = nickname.trim();
-      if (trimmed === '' || password === '') throw new Error(t('cloud.credentialsRequired'));
+      if (trimmed === '' || password === '') throw new AppError('cloud.credentialsRequired');
 
       const keys = await deriveKeys(trimmed, password);
       const remote = await readOpen(keys);
@@ -253,9 +247,9 @@ export function createCloudBackup(hooks: CloudBackupHooks): CloudBackup {
     },
 
     async changePassword(password, local) {
-      if (password === '') throw new Error(t('cloud.newPasswordRequired'));
+      if (password === '') throw new AppError('cloud.newPasswordRequired');
       const saved = recall();
-      if (saved === null) throw new Error(t('cloud.notSignedIn'));
+      if (saved === null) throw new AppError('cloud.notSignedIn');
 
       const before = await deriveKeys(saved.nickname, saved.password);
       const keys = await deriveKeys(saved.nickname, password);

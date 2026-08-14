@@ -15,6 +15,7 @@
 import type { AppData, Book, BookScopes, Card } from './types';
 import { DEFAULT_EASE, isDateKey } from './review';
 import { toPlainText } from './reading';
+import { AppError, toMessage } from './app-error';
 import { t } from '../i18n';
 
 export const STORAGE_KEY = 'va-practice:data';
@@ -65,12 +66,18 @@ export interface Store {
   importWords(json: string, bookId: string): ImportResult;
 }
 
-/** 解析使用者交進來的檔案內容。壞掉時的訊息可以直接顯示給使用者，兩條匯入都用它。 */
+/**
+ * 解析使用者交進來的檔案內容。兩條匯入都用它。
+ *
+ * 壞掉時丟的是帶 key 的 `AppError`，畫面層走 `toMessage()` 查表才變成字。
+ * 內層那個 `reason` 是瀏覽器丟的 `SyntaxError`，沒有 key，因此仍是它自己的語言——
+ * 這一層消除不了，記在這裡，不是 bug（見 ADR-0013）。
+ */
 function parseJson(json: string): unknown {
   try {
     return JSON.parse(json);
   } catch (error) {
-    throw new Error(t('storage.invalidJson', { reason: toMessage(error) }));
+    throw new AppError('storage.invalidJson', { reason: toMessage(error) });
   }
 }
 
@@ -96,7 +103,7 @@ export function createStore(storage: StorageLike): Store {
     try {
       return parseAppData(JSON.parse(raw));
     } catch (error) {
-      throw new Error(t('storage.corrupted', { reason: toMessage(error) }));
+      throw new AppError('storage.corrupted', { reason: toMessage(error) });
     }
   }
 
@@ -126,7 +133,7 @@ export function createStore(storage: StorageLike): Store {
       const incoming = parseAppData(parseJson(json));
       const current = read() ?? blank();
       if (!current.books.some((book) => book.id === bookId)) {
-        throw new Error(t('books.importTargetGone'));
+        throw new AppError('books.importTargetGone');
       }
 
       const cards = [...current.cards];
@@ -171,12 +178,12 @@ function normalizeBookName(name: string): string {
  */
 function acceptBookName(books: readonly Book[], name: string, exceptId?: string): string {
   const normalized = normalizeBookName(name);
-  if (normalized === '') throw new Error(t('books.nameBlank'));
+  if (normalized === '') throw new AppError('books.nameBlank');
 
   const taken = books.find(
     (book) => book.id !== exceptId && normalizeBookName(book.name) === normalized,
   );
-  if (taken) throw new Error(t('books.nameTaken', { name: taken.name }));
+  if (taken) throw new AppError('books.nameTaken', { name: taken.name });
 
   return name.trim();
 }
@@ -225,7 +232,7 @@ export function deleteBook(data: AppData, id: string): AppData {
  * 零本時三組本來就是空的，不在此列。
  */
 export function setScope(data: AppData, group: keyof BookScopes, bookIds: readonly string[]): AppData {
-  if (bookIds.length === 0 && data.books.length > 0) throw new Error(t('books.scopeEmpty'));
+  if (bookIds.length === 0 && data.books.length > 0) throw new AppError('books.scopeEmpty');
   return { ...data, scopes: { ...data.scopes, [group]: [...bookIds] } };
 }
 
@@ -245,7 +252,7 @@ export function findTermConflict(
   return cards.find((card) => card.id !== exceptCardId && toPlainText(card.text) === term) ?? null;
 }
 
-/** 同上，但撞到時丟出可直接顯示的例外，訊息說得出那個詞現在在哪一本。 */
+/** 同上，但撞到時丟出例外，那條 key 說得出那個詞現在在哪一本。 */
 export function assertTermAvailable(data: AppData, text: string, exceptCardId?: string): void {
   const conflict = findTermConflict(data.cards, text, exceptCardId);
   if (conflict === null) return;
@@ -253,9 +260,9 @@ export function assertTermAvailable(data: AppData, text: string, exceptCardId?: 
   const book = data.books.find((candidate) => candidate.id === conflict.bookId);
   // 兩句各自完整，不把「在哪一本」那一段拼進去——其他語言的語序不同，拼起來會不通。
   const term = toPlainText(conflict.text);
-  throw new Error(
-    book ? t('books.termTakenIn', { term, book: book.name }) : t('books.termTaken', { term }),
-  );
+  throw book
+    ? new AppError('books.termTakenIn', { term, book: book.name })
+    : new AppError('books.termTaken', { term });
 }
 
 /** 取出屬於這幾本的卡，順序沿用卡片原本的。`bookIds` 為空時回傳空陣列。 */
@@ -265,9 +272,9 @@ export function cardsInBooks(cards: readonly Card[], bookIds: readonly string[])
 }
 
 function parseAppData(raw: unknown): AppData {
-  if (typeof raw !== 'object' || raw === null) throw new Error(t('storage.notObject'));
+  if (typeof raw !== 'object' || raw === null) throw new AppError('storage.notObject');
   const source = raw as Record<string, unknown>;
-  if (!Array.isArray(source.cards)) throw new Error(t('storage.noCards'));
+  if (!Array.isArray(source.cards)) throw new AppError('storage.noCards');
 
   // version 2 以前沒有 books 也沒有 bookId，兩者一起交給 adopt() 收攏。
   const adopted = adopt(
@@ -344,12 +351,12 @@ function parseScopes(raw: unknown): BookScopes {
 
 function parseBook(raw: unknown, index: number): Book {
   if (typeof raw !== 'object' || raw === null) {
-    throw new Error(t('storage.bookNotObject', { index: index + 1 }));
+    throw new AppError('storage.bookNotObject', { index: index + 1 });
   }
   const source = raw as Record<string, unknown>;
   for (const field of ['id', 'name'] as const) {
     if (typeof source[field] !== 'string') {
-      throw new Error(t('storage.bookMissingField', { index: index + 1, field }));
+      throw new AppError('storage.bookMissingField', { index: index + 1, field });
     }
   }
   return { id: source.id as string, name: source.name as string };
@@ -357,12 +364,12 @@ function parseBook(raw: unknown, index: number): Book {
 
 function parseCard(raw: unknown, index: number): Card {
   if (typeof raw !== 'object' || raw === null) {
-    throw new Error(t('storage.cardNotObject', { index: index + 1 }));
+    throw new AppError('storage.cardNotObject', { index: index + 1 });
   }
   const source = raw as Record<string, unknown>;
   for (const field of ['id', 'text', 'meaning'] as const) {
     if (typeof source[field] !== 'string') {
-      throw new Error(t('storage.cardMissingField', { index: index + 1, field }));
+      throw new AppError('storage.cardMissingField', { index: index + 1, field });
     }
   }
   // 有值但格式不合的到期日一律當成沒有，這張卡退回新卡。
@@ -381,9 +388,4 @@ function parseCard(raw: unknown, index: number): Card {
     ease: typeof source.ease === 'number' ? source.ease : DEFAULT_EASE,
     due,
   };
-}
-
-/** 把攔到的例外轉成可以直接顯示給使用者的一句話。 */
-export function toMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

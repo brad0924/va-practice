@@ -6,11 +6,11 @@
  * 把 JSON（JavaScript Object Notation，JavaScript 物件表示法）挖出來。
  *
  * 上網的方式由呼叫端遞進來（比照 `cloud-backup.ts` 的 `hooks.fetch`），
- * 這支函式七成的程式碼在做同一件事——把各種失敗翻成使用者看得懂的話，
- * 那部分有 `gemini-reading.test.ts` 守著。
+ * 這支函式七成的程式碼在做同一件事——把各種失敗變成一條說得出原因的 key，
+ * 那部分有 `gemini-reading.test.ts` 守著。真正的文字要到畫面顯示的當下才查表。
  */
 
-import { t } from '../i18n';
+import { AppError } from './app-error';
 
 /**
  * 端點與模型固定。日文能力是選這一家唯一的理由（見 issue 02 決定 7）。
@@ -83,13 +83,19 @@ interface GenerateContentResponse {
   candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
 }
 
-/** 非 2xx 回應裡 Google 附的那句原因（英文）。挖不到就算了，不要再蓋掉原本的狀態碼。 */
-async function reason(response: Response): Promise<string> {
+/**
+ * 非 2xx 回應裡 Google 附的那句原因（英文）。挖不到回 null，不要再蓋掉原本的狀態碼。
+ *
+ * 挖不到時刻意**不在這裡補上「沒有附原因」那句話**：那是我們自己的字，在這裡查表
+ * 等於把語言凍在丟出錯誤的那一刻。改由呼叫端換一條 key，讓查表留在顯示的當下。
+ * 挖得到的那句是 Google 給的，語言不歸我們管，只能原樣帶進參數。
+ */
+async function reason(response: Response): Promise<string | null> {
   try {
     const body = (await response.json()) as { error?: { message?: unknown } };
-    return typeof body.error?.message === 'string' ? body.error.message : t('gemini.noReason');
+    return typeof body.error?.message === 'string' ? body.error.message : null;
   } catch {
-    return t('gemini.noReason');
+    return null;
   }
 }
 
@@ -120,17 +126,17 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
         signal: controller.signal,
       });
     } catch {
-      throw new Error(
-        controller.signal.aborted
-          ? t('gemini.timeout', { seconds: TIMEOUT_MS / 1000 })
-          : t('gemini.offline'),
-      );
+      throw controller.signal.aborted
+        ? new AppError('gemini.timeout', { seconds: TIMEOUT_MS / 1000 })
+        : new AppError('gemini.offline');
     }
     // 金鑰不對是 400／403，額度用完是 429，模型名或版本路徑不對是 404。
     // 光看狀態碼分不出是哪一種，錯誤回應裡那句 message 才講得出原因，一起帶出去。
     if (!response.ok) {
       const why = await reason(response);
-      throw new Error(t('gemini.httpError', { status: response.status, reason: why }));
+      throw why === null
+        ? new AppError('gemini.httpErrorNoReason', { status: response.status })
+        : new AppError('gemini.httpError', { status: response.status, reason: why });
     }
 
     let text: unknown;
@@ -138,14 +144,14 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
       const body = (await response.json()) as GenerateContentResponse;
       text = body.candidates?.[0]?.content?.parts?.[0]?.text;
     } catch {
-      throw new Error(t('gemini.unreadable'));
+      throw new AppError('gemini.unreadable');
     }
-    if (typeof text !== 'string') throw new Error(t('gemini.emptyReply'));
+    if (typeof text !== 'string') throw new AppError('gemini.emptyReply');
 
     try {
       return JSON.parse(text);
     } catch {
-      throw new Error(t('gemini.notJson'));
+      throw new AppError('gemini.notJson');
     }
   } finally {
     clearTimeout(timer);

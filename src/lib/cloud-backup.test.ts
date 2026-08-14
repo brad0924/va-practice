@@ -4,8 +4,6 @@ import {
   createCloudBackup,
   CLOUD_PAYLOAD_LIMIT,
   CREDENTIALS_KEY,
-  tooLarge,
-  wrongPassword,
   type CloudBackupHooks,
 } from './cloud-backup';
 import { deriveKeys, encrypt, decrypt } from './cloud-crypto';
@@ -17,8 +15,15 @@ import zhHant from '../i18n/zh-Hant';
 const NICKNAME = 'brad';
 const PASSWORD = 'hunter2';
 
-/** 模組回報給畫面的那句離線提示。從翻譯檔取值，改文案不必動測試（票 05 會改成斷言 key）。 */
+/**
+ * 模組回報給畫面的那三句狀態字。從翻譯檔取值，改文案不必動測試。
+ *
+ * 這三條**刻意留在文字這一層**：`onStatus` 遞出去的本來就是「畫面角落那行小字」，
+ * 不是錯誤物件——票 05 改成帶 key 的是 `throw` 出去的那些。
+ */
 const OFFLINE_NOTE = zhHant['cloud.offlineNote'];
+const WRONG_PASSWORD = zhHant['cloud.wrongPassword'];
+const TOO_LARGE = zhHant['cloud.tooLarge'];
 
 /** 一份認得出是誰的資料：`mark` 解密後找得回來，用來分辨送上去的是哪一份。 */
 function appData(mark: string, updatedAt = 0): AppData {
@@ -254,7 +259,7 @@ describe('雲端備份', () => {
     // 別台裝置換了密碼，這台的指紋從此對不上。
     server.hijack();
     cloud.push(appData('第一次被擋'));
-    await until(() => status.includes(wrongPassword()));
+    await until(() => status.includes(WRONG_PASSWORD));
 
     const quiet = server.requests.length;
     cloud.push(appData('之後再推'));
@@ -324,7 +329,8 @@ describe('雲端備份', () => {
     const cloud = createCloudBackup(hooks);
 
     await expect(cloud.signIn(NICKNAME, '打錯的密碼', appData('本機那份', 1))).rejects.toThrow(
-      wrongPassword(),
+      // 丟出來的錯只帶 key，一個字的介面文字都沒有（票 05）。
+      expect.objectContaining({ key: 'cloud.wrongPassword' }),
     );
     expect(server.writes()).toHaveLength(0);
     expect(storage.getItem(CREDENTIALS_KEY)).toBeNull();
@@ -408,12 +414,12 @@ describe('雲端備份', () => {
 
     const quiet = server.writes().length;
     cloud.push(oversized());
-    await until(() => status.includes(tooLarge()));
+    await until(() => status.includes(TOO_LARGE));
 
     // 超大的那份根本沒離開這台機器，雲端那筆原封不動。
     expect(server.writes()).toHaveLength(quiet);
     // 這句是使用者唯一的線索，少了它他會以為自己的卡出事了。
-    expect(tooLarge()).toContain('本機的卡片與進度完全不受影響');
+    expect(TOO_LARGE).toContain('本機的卡片與進度完全不受影響');
     // 被擋下來不等於被登出：憑證原封不動，下次開 app 照樣接得上雲端。
     expect(storage.getItem(CREDENTIALS_KEY)).toBe(credentials);
     expect(cloud.nickname()).toBe(NICKNAME);
