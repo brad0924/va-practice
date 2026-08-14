@@ -1,6 +1,6 @@
 # 09 — privacy.html 出英文版，守門測試改成抓屬性
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無，可立即開始
 
@@ -84,12 +84,60 @@ Blocked by: 無，可立即開始
 
 ## 驗收
 
-- [ ] `app-name.test.ts` 改成抓 `data-app-name` 屬性，四條中文上下文的 regex 已移除
-- [ ] 中文版的四處都加上 `data-app-name`，且**測試在只有中文版時就先跑綠**
-- [ ] 故意把其中一處的名字改錯 → 紅燈，且訊息指得出是哪個檔的哪一處
-- [ ] 故意在檔案裡多寫一次全名 → 次數檢查紅燈
-- [ ] `public/privacy-en.html` 存在，`<html lang="en">`，四處都有 `data-app-name`
-- [ ] 英文版與中文版**逐句對應**，上面列的七條特別核對過
+- [x] `app-name.test.ts` 改成抓 `data-app-name` 屬性，四條中文上下文的 regex 已移除
+- [x] 中文版的四處都加上 `data-app-name`，且**測試在只有中文版時就先跑綠**
+- [x] 故意把其中一處的名字改錯 → 紅燈，且訊息指得出是哪個檔的哪一處
+- [x] 故意在檔案裡多寫一次全名 → 次數檢查紅燈
+- [x] `public/privacy-en.html` 存在，`<html lang="en">`，四處都有 `data-app-name`
+- [x] 英文版與中文版**逐句對應**，上面列的七條特別核對過
 - [ ] 部署後 `https://brad0924.github.io/va-practice/privacy-en.html` 回 200
 - [ ] 中文版網址仍然回 200，內容未變
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] `npm run test` 與 `npm run typecheck` 全綠
+
+## Comments
+
+### 部署那兩條還沒驗，要等這個分支上線
+
+`npm run build` 產出的 `dist/` 兩份都在（`privacy-en.html` 9710 bytes、`privacy.html` 9302 bytes），
+`public/` 原封複製這條路確認可行。但 `feature/ios-app` 還沒併回 `main`，GitHub Pages 上還沒有那個網址，
+**兩條回 200 的驗收只能等上線後補**。中文版的網址與內容一個字都沒動，只多了四個屬性與一段開頭註解。
+
+### 失敗訊息的座標改成「檔名:行號」
+
+屬性本身不帶名字（票面的例子是 bare `data-app-name`，沒有值），所以沒有現成的字串可以當「哪一處」。
+做法是**逐行數出 raw 檔裡 `data-app-name` 的行號**，跟 DOM 掃出來的元素依序配對——兩邊順序必然一致。
+測試名稱本身就是座標，紅燈時訊息長這樣：`public/privacy-en.html:118 標了 data-app-name，但那段文字與 APP_NAME.full 不一致`，終端機裡點得進去。
+
+配對靠「順序必然一致」這個口頭約定，因此**數量對不上就當場丟例外**，跟 `pick()` 同一個道理——
+有人把 `data-app-name` 寫進註解或樣式時配對會整個錯開，行號開始指向不相干的地方，那比沒有行號更糟。
+（初版是拆成 `spots` 與 `lines` 兩個平行陣列、再加一支 `it` 守那個約定，code review 指出那是 Data Clumps，
+改成一個函式一次產出 `{ at, text }`，索引與那支測試一起消失。）
+
+次數檢查的訊息改成兩個方向都講得通：多寫一次全名是「沒標到的那處會被漏掉」，少一次則是「某一處被改成了別的字」。
+名字打錯時這兩條會同時紅燈（全名少一次、那一處的文字對不上），訊息不能只寫其中一種原因。
+
+### 這支測試改吃 jsdom
+
+檔頂加了 `// @vitest-environment jsdom`，用 `DOMParser` 掃 `[data-app-name]`。repo 裡已經有五個檔這樣做，不是新東西。
+用 regex 抓屬性後面那段文字也做得到，但那等於把剛拆掉的「regex 讀 HTML」再裝回去一次。
+
+### 英文版與中文版的 `<style>` 逐字相同
+
+沒有為英文另調字體或行高。兩份的樣式一模一樣，`diff` 起來只有內文有差別——這是刻意的，
+兩份要長期同步，樣式再各走各的只會多一條漂移路線。
+
+### 順手改了 `ADR-0012` 的檔案清單
+
+`ADR-0012:6` 原本列的「打包流程外」是兩個檔（`Info.plist`、`privacy.html`），多了英文版之後那句話就不準了。
+補上第三個檔，並加一段說明守門為什麼改成掃屬性。**這不是推翻 ADR**，那份文件的判準（「這個檔吃不吃得到 TypeScript 常數」）
+與被否決的做法一個字都沒動。票面沒列這一項，是 code review 的 Spec 軸抓到的。
+
+### 英文用字的三處修正
+
+code review 抓到的，都不影響意思，但這是公開的法律頁：`(below, "the app")` 改成 `(hereafter "the app")`；
+`It is enabled only if you use it` 讀起來循環，改成 `It stays off until you turn it on`；
+英式拼字 `labelled`／`recognise` 改成美式，配合頁首那個美式日期。
+
+另外 `a hash of your nickname` 的 `hash` 看起來踩到詞彙表的「英文避用」，但避的是把**指紋**叫成 Hash，
+而指紋是密碼算出來的那兩個值，跟暱稱的雜湊不是同一個東西（中文版同一句也寫「雜湊值」）。
+照 `src/i18n/en.ts` 檔頂那三個例外的慣例，理由寫進檔案開頭的註解，不留給下一個人重新推一遍。

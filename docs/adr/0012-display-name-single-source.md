@@ -3,9 +3,11 @@
 app 的顯示名稱只有一份來源：`src/lib/app-name.ts`，含短名與全名兩欄。但它抵達七個位置的方式**刻意分成兩套**：
 
 - **打包流程內**（`vite.config.ts`、`src/ui/data-view.ts`、`capacitor.config.ts`）→ **直接 `import`**。這幾處從此物理上不可能與來源不一致。`index.html` 走 Vite plugin 替換佔位符，效果同級。
-- **打包流程外**（`ios/App/App/Info.plist`、`public/privacy.html`）→ **仍寫字面值，另有 `src/lib/app-name.test.ts` 讀檔比對**。改名時這兩個檔要人工改，但漏了一定紅燈。
+- **打包流程外**（`ios/App/App/Info.plist`、`public/privacy.html`、`public/privacy-en.html`）→ **仍寫字面值，另有 `src/lib/app-name.test.ts` 讀檔比對**。改名時這幾個檔要人工改，但漏了一定紅燈。
 
-判準是**這個檔有沒有辦法吃到一個 TypeScript 常數**。`Info.plist` 是 XML，而且 Capacitor 只在 `cap add` 那一次寫過它；`privacy.html` 依票 04 的決定是「不參與打包、原封複製進 `dist`」的靜態檔，不 import 任何東西。這兩個檔沒有任何天然管道拿得到常數。
+判準是**這個檔有沒有辦法吃到一個 TypeScript 常數**。`Info.plist` 是 XML，而且 Capacitor 只在 `cap add` 那一次寫過它；隱私權政策各語言版依票 04 的決定是「不參與打包、原封複製進 `dist`」的靜態檔，不 import 任何東西。這幾個檔沒有任何天然管道拿得到常數。
+
+隱私權政策每多一種語言就多一個這類檔案（`.scratch/i18n/spec.md` 決定八加了英文版）。守門測試因此**不逐處寫比對規則，改成掃 `data-app-name` 屬性**：那幾處的中文上下文換了語言就整批失效，屬性則語言無關。`Info.plist` 那半段是 XML，沒有這個問題，維持逐處釘死。
 
 ## 為什麼
 
