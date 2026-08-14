@@ -45,8 +45,8 @@ export default defineConfig(({ mode }) => {
               manifest: {
                 name: APP_NAME.full,
                 short_name: APP_NAME.short,
-                description: '自建單字本，間隔複習，離線可用',
-                lang: 'zh-Hant',
+                description: 'Build your own vocabulary books, review at spaced intervals, works offline',
+                lang: 'en',
                 start_url: webBase,
                 scope: webBase,
                 display: 'standalone',

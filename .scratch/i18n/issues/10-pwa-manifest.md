@@ -1,6 +1,6 @@
 # 10 — PWA manifest 的描述與語言改成英文
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無，可立即開始
 
@@ -49,8 +49,8 @@ manifest 只影響**網頁版的「加到主畫面」安裝提示**。
 
 ## 驗收
 
-- [ ] `vite.config.ts:48` 是英文描述，`:49` 是 `'en'`
-- [ ] `name` 與 `short_name` 仍然來自 `APP_NAME`，未被寫死
-- [ ] `npm run build` 之後 `dist/manifest.webmanifest` 裡是新值
-- [ ] `npm run build:ios` 不受影響（`isIOS` 分支本來就跳過 `VitePWA`）
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] `vite.config.ts:48` 是英文描述，`:49` 是 `'en'`
+- [x] `name` 與 `short_name` 仍然來自 `APP_NAME`，未被寫死
+- [x] `npm run build` 之後 `dist/manifest.webmanifest` 裡是新值
+- [x] `npm run build:ios` 不受影響（`isIOS` 分支本來就跳過 `VitePWA`）
+- [x] `npm run test` 與 `npm run typecheck` 全綠
