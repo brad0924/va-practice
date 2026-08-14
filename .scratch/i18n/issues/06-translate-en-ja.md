@@ -1,6 +1,6 @@
 # 06 — 英、日兩語的翻譯內容
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 03
 
@@ -69,10 +69,52 @@ Blocked by: 03
 
 ## 驗收
 
-- [ ] `en.ts`、`ja.ts` 兩支各約 193 條，`npm run typecheck` 綠燈
-- [ ] 29 個領域概念的用詞與 `docs/glossary.md` 逐條相符
-- [ ] 沒有任何一條踩到 `glossary.md` 的「英文避用」
-- [ ] 帶參數的字串在英日都語序正確、參數名沒打錯
-- [ ] 標點符號照各語言習慣，不是中文標點直接沿用
-- [ ] 抽查：切到每一種語言，五個畫面（複習、卡片列表、編輯、統計、資料）都沒有未翻譯的中文殘留
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] `en.ts`、`ja.ts` 兩支各 167 條（不是估的 193，見 Comments），`npm run typecheck` 綠燈
+- [x] 29 個領域概念的用詞與 `docs/glossary.md` 逐條相符
+- [x] 沒有任何一條踩到 `glossary.md` 的「英文避用」
+- [x] 帶參數的字串在英日都語序正確、參數名沒打錯（逐條比對過三支的佔位符集合）
+- [x] 標點符號照各語言習慣，不是中文標點直接沿用
+- [x] 抽查：切到每一種語言，五個畫面（複習、卡片列表、編輯、統計、資料）都沒有未翻譯的中文殘留——用一支拋棄式測試把三語 × 五畫面的文字節點、`aria-label` 與 `placeholder` 全倒出來看過，英日兩份只剩單字本名字這類使用者資料是中文。**先前只掃翻譯檔沒有真的畫，因此漏掉了下面 Comments 記的那個嵌套 bug；那是這條驗收存在的理由。**
+- [x] `npm run test` 與 `npm run typecheck` 全綠（487 tests）
+
+## Comments
+
+### 實際是 167 條，不是 193
+
+spec 與本票寫的「約 193 條」是搬字串之前在原始碼上數的。票 03 搬完之後同一句話在多處共用（例如「取消」、四個畫面的導覽字），落到翻譯檔就是 167 條。型別釘住三支一致，數目不會走散。
+
+### 英文為了避開「英文避用」欄，繞過三個最順口的字
+
+避的是**概念不是字**（判準與理由寫在 `en.ts` 檔頭）。三處繞開：
+
+- `Stop syncing` → **`Stop backing up`**（`Sync` 是雲端備份的避用詞，會讓人誤以為逐張合併）。全檔沒有 sync。日文那份不受影響，避用欄只管英文，因此照樣是「同期を停止」
+- `Merge`／`Split` → **`Join`／`Separate`**（前者是匯入單字的避用詞，後者是讀音格的）
+- 匯入時被跳過的那幾條，中文寫「詞」，英文寫 **`entries`** 而不是 `words`（`Word` 是詞條的避用詞，理由「可能是文法句型」在這裡照樣成立）。`Import words` 是例外，那是詞彙表自己定的功能名
+
+**刻意留著三個避用字**，因為它們指的是別的東西：`storage.*` 的 `the {field} field` 是備份檔的 JSON 欄位不是讀音格、`Average interval (days)` 的 `days` 是單位（概念本身叫 `interval`）、`key` 是 Gemini 的 API 金鑰不是密碼——最後這個因為同一畫面上並存著 `Password`，`data.geminiLabel` 寫全 `API key` 而不是 `Key`。
+
+### 英文的數量字串一律「名詞在前、數字在後」
+
+查表沒有單複數機制（票 02 沒做，本票也不加），`{count} cards` 在 count 為 1 時會漏出 `1 cards`。而卡片數、符合筆數、跳過筆數、今天到期數幾乎每一條都會遇到 1。因此英文統一寫成 `Cards: 12`、`Due today: 3`、`Imported: 12`、`Books: 3`。
+
+日文有量詞沒有單複數，不受影響（カードは枚、単語帳は冊、跳過的那幾條用件）。
+
+**這條規則有一個例外，是 code review 抓出來的**：`filter.bookCount` 會被 `filter.blockLabel` 當成 `{scope}` 嵌進去（`book-filter.ts:35` → `:122`），寫成 `Books: {count}` 的話統計畫面那顆鈕會組出 `Vocabulary book: Books: 3`。改成 `{count} selected`，嵌起來是 `Vocabulary book: 2 selected`，單獨當膠囊時是 `2 selected`，兩邊都通。
+
+同一輪把 `data.geminiLabel` 從 `Key` 改成 `API key`——同一個畫面上並存著 `Password`，而 `Key` 正是密碼那則的避用詞。
+
+### 中文原文的一處小不一致：熟練度 vs 成長倍數
+
+`stats.easeDistribution` 中文寫「熟練度分佈」，`stats.easeTag` 寫「倍數 {ease}」，但詞彙表定的是**成長倍數 = Ease ＝ 易しさ**，沒有「熟練度」這一則。英日兩份照詞彙表填（`Ease distribution`／「易しさの分布」），中文那份**沒有動**（本票不改 `zh-Hant.ts`）。
+
+要嘛中文統一成「成長倍數」，要嘛詞彙表補一則，都是另一張票的事。
+
+### 版面風險：最可能被撐爆的是單字本列右邊那顆張數
+
+`books.cardCount` 中文「12 張」，英文變成 `Cards: 12`，長度大約兩倍，而它擠在本名右邊、本名本身可以很長。其次是 `data.stopSync`（「停止同步」→ `Stop backing up`）與 `stats.overview`（「現況」→ `Where things stand`）。
+
+三條都只是猜測，jsdom 看不到，留給票 08 實機判。**沒有為了塞得下而縮寫**——本票只管內容正確。
+
+### 日文的「毎日リマインドする、」保留讀點
+
+開關那半的結尾讀點是刻意留的，理由與中文那份同一個（`data-view.ts:351` 的註解：兩塊並排成一句，斷在讀點後面才讀得順）。英文那份**拿掉了**逗號——`Remind me every day` ＋ `at` ＋ 時間格本來就不該有逗號，標點跟著語言走。
