@@ -1,6 +1,6 @@
 # 07 — 三語冒煙測試
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 06
 
@@ -54,8 +54,88 @@ key 的命名是 `區塊.名稱` 這種帶點的英數字串（票 02 定案）�
 
 ## 驗收
 
-- [ ] 測試存在，三語各渲染五個畫面一次
-- [ ] 故意在某個畫面留一個沒有對應翻譯的 key → 紅燈
-- [ ] 故意讓某段程式用顯示文字做判斷 → 切到非中文時紅燈
-- [ ] 整支測試跑起來不超過幾秒（三語 × 五個畫面）
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] 測試存在，三語各渲染五個畫面一次
+- [x] 故意在某個畫面留一個沒有對應翻譯的 key → 紅燈
+- [x] 故意讓某段程式用顯示文字做判斷 → 切到非中文時紅燈
+- [x] 整支測試跑起來不超過幾秒（三語 × 五個畫面）
+- [x] `npm run test` 與 `npm run typecheck` 全綠
+
+## Comments
+
+### 落點與寫法
+
+`src/i18n/smoke.test.ts`，`describe.each` 三種語言各一條 `it`。全檔 127 行，其中測試本體
+（走五個畫面、六次斷言）14 行，其餘是註解、造資料與三支 helper。
+
+順帶把這一支登記進 `docs/spec.md:208` 那份「目前跑在 jsdom 上的測試」清單——`:210` 明講
+這一節的做法是維持清單與現況同步，不替個別檔案記例外。
+
+**從 `start()` 開機、照使用者的走法按過去**，而不是各畫面湊一個假 `App` 直接呼叫。理由是
+冒煙測試問的是「有沒有整個燒起來」，湊出來的假 `App` 只會照著五支畫面現在要什麼給什麼，
+真正在畫面之間傳遞的那些狀態就繞過去了。代價是要複製 `app.test.ts` 那份假 localStorage
+（`fakeStorage()` 在 `storage.test.ts` 與 `cloud-backup.test.ts` 也各有一份，repo 有前例）。
+
+導覽用的是各語言翻譯檔裡的字（`table['nav.cards']`），與 `app.test.ts` 同一種寫法——
+按不到就 `throw`，那本身也是一種冒煙。五個畫面的路徑：開機即複習 → `review.showAnswer`
+掀答案 → `nav.cards` → `nav.add`（編輯）→ `editor.cancel` 回列表 → `nav.data` → `nav.stats`。
+
+**複習畫面按兩次而不是一次。** 不掀答案的話那四顆評分鈕不長出來，而
+`review-view.ts:16-21` 的 `RATING_BUTTONS`（`label` 存 key、渲染時才查表）正是這張票要
+保護的那種寫法，漏掉它等於漏掉最該掃的一塊。實測掀開後三語各拿到四顆：`再次/困難/好/簡單`、
+`Again/Hard/Good/Easy`、`もう一度/難しい/普通/簡単`。
+
+`click()` 與那份假 localStorage 都與 `app.test.ts` 重複。沒有抽成共用檔：四行，
+而且這個 repo 已經有前例——`fakeStorage()` 在 `storage.test.ts` 與 `cloud-backup.test.ts`
+各一份，`failure()` 在票 05 的兩支測試檔各一份。
+
+`SEED` 加 `satisfies AppData`、`boot()` 收 `Lang` 而不是 `string`：欄位改名與語言碼打錯
+都在 `tsc` 當場紅，不必等執行期。`'va-practice:lang'` 硬寫是因為 `LANG_STORAGE_KEY` 沒有
+匯出，`index.test.ts` 也是這樣寫的。
+
+### 漏出 key 怎麼掃：逐個文字節點，不是整片 `textContent`
+
+票面寫「掃一次 `textContent`」，實作改成走 `TreeWalker` 逐個文字節點看。原因是整片
+`textContent` 會把相鄰元素的字黏成一串（「共 2 張」＋「順序」→「共 2 張順序」），真的漏
+出來的 key 兩頭一被黏住就不再符合 `^[a-z]+\.[a-zA-Z]+$` 這個「獨立字串」的判斷了。
+判斷式本身一個字都沒放寬，仍是票面那條。
+
+**測試資料造成不會誤判的樣子**（票面要求）：單字本叫「日本語テスト」，卡片是
+`焦[こ]がす`／烤焦、`峠[とうげ]`／山頂。全是中日文，不可能長成帶點的英數字串，因此
+判斷式不必為誤判多寫任何一行。
+
+### 掃描範圍外的三個缺口
+
+都是已知缺口，都沒開票：
+
+1. **屬性上的字掃不到**。`placeholder`、`aria-label` 那類不在掃描範圍內（例如
+   `list-view.ts:47` 的搜尋框提示、`review-view.ts:100` 的朗讀按鈕標籤）。票面明寫
+   「掃一次 `textContent`」，沒有擴充。
+2. **資料畫面的「每日提醒」整區永遠不長**。`data-view.ts:268` 在 `app.reminder === null`
+   時直接回 null，而網頁與 jsdom 都是 null——那一區只有原生殼裡才有。HEAD 前一筆
+   commit（`b6f8d5d`）改的正好是這一區的英文字距，這支測試看不到那種東西。
+3. **朗讀按鈕永遠不長**。jsdom 沒有 `speechSynthesis`，`hasJapaneseVoice()` 恆為 false。
+
+第 2、3 兩項都要有真的裝置才會出現，本來就是票 08 實機驗證的守備範圍。
+
+### 驗收那兩條「故意弄壞」實際跑過
+
+1. **留一個沒翻的 key**：`stats-view.ts` 的 `t('stats.overview')` 改成字面值 `'stats.overview'`
+   → 三種語言全紅，訊息直接印出 `"stats.overview"`。
+2. **拿顯示文字做判斷**：`list-view.ts` 的 `bucketSection()` 加一張「中文桶名 → 急迫度」
+   的對照表並取值（六個中文桶名都列齊，中文下查得到），切到英日就是
+   `TypeError: Cannot read properties of undefined` → **zh-Hant 綠、en 與 ja 紅**，正是票面
+   要的那個形狀。
+
+第 2 條那次順帶跑了整套：**其餘 25 個測試檔全綠，只有這一支紅**——這張票的理由因此不是
+紙上談兵，那種錯確實沒有第二個地方擋得住。
+
+### 它抓不到的那一半，票面沒寫清楚
+
+票面說它抓「程式某處拿顯示文字去做判斷」，但這支測試只看兩件事：有沒有爆、有沒有漏 key。
+因此**只抓得到「會爆掉或會把 key 印到畫面上」的那一種**。純粹靜靜走錯分支的——例如
+`if (label === '新') head.classList.add('urgent')`，英文下少一個 class 但畫面照常畫完——
+這兩項檢查看不到。這條界線寫進測試檔頂端的註解了。
+
+### 速度
+
+三語 × 五個畫面共 3 條測試，50 ms（整套 490 條 5.34 秒）。票面的「不超過幾秒」很寬鬆地過了。
