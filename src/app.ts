@@ -6,7 +6,8 @@ import { createNativeSafetyCopy } from './lib/safety-copy-native';
 import { createNativeHaptic } from './lib/haptics-native';
 import { planReminders, type DailyReminder } from './lib/daily-reminder';
 import { createNativeDailyReminder } from './lib/daily-reminder-native';
-import { buildQueue, currentCard, rebuildQueue, rate as rateCard, type Queue } from './lib/review';
+import { currentCard, rebuildQueue, rate as rateCard, toDateKey, type Queue } from './lib/review';
+import { onNativeForeground } from './lib/foreground-native';
 import type { AppData, Card, Rating } from './lib/types';
 import { initI18n, setLang as switchLang, type LangChoice } from './i18n';
 import { initSpeech } from './ui/speech';
@@ -89,8 +90,11 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   const random = Math.random;
 
   let data = store.load();
-  // 佇列只吃複習範圍內的卡。buildQueue() 因此完全不必知道單字本存在。
-  let queue = buildQueue(cardsInBooks(data.cards, data.scopes.review), now(), random);
+  // 佇列只吃複習範圍內的卡，過濾在底下的 rebuild() 裡——review.ts 那幾支因此
+  // 完全不必知道單字本存在。開機這一次也走它，「這份佇列是依哪一天建的」才不會漏記。
+  let queue: Queue = [];
+  let queueDate = '';
+  rebuild();
   let revealed = false;
   let render: () => void = () => {};
 
@@ -146,6 +150,11 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
       // 而畫面層一個字都不必為觸覺改（見 spec 決定二十五）。
       // 擺在最前面是為了立刻震——存檔與推雲端慢不慢，跟手指的回饋無關。
       haptic();
+      // 整晚開著 app、早上直接評分的那條路：頁內動作不會觸發可見性變化事件，
+      // 因此先在這裡把佇列換成今天這份，這一下才是評在當日的佇列上。
+      // 必須早於 rateCard()。手上那張卡尚未評分、到期日停在昨天或更早，重建後
+      // 仍是隊首（見 review.ts 的 rebuildQueue()），使用者評的還是同一張。
+      rebuildIfNewDay();
       const result = rateCard(queue, rating, now(), random);
       queue = result.queue;
       revealed = false;
@@ -191,15 +200,9 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
       // 但沒有一張卡因此改變，正在進行的複習不該被打斷——重建會重洗一次順序，
       // 也會把評為「再次」而排回去的那幾張一起丟掉。
       const before = cardsInBooks(data.cards, data.scopes.review);
-      const current = currentCard(queue);
       data = next;
       const after = cardsInBooks(data.cards, data.scopes.review);
-      if (!sameCards(before, after)) {
-        queue = rebuildQueue(after, current, now(), random);
-        // 隊首真的換人了才蓋回答案：目前這張仍在範圍內時連掀開狀態一起留住，
-        // 換掉的話下一張會遞補上來，不能沿用——與 remove() 同一個理由。
-        if (currentCard(queue)?.id !== current?.id) revealed = false;
-      }
+      if (!sameCards(before, after)) rebuildKeepingCurrent();
       persist();
     },
 
@@ -254,10 +257,51 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     keyHandler: null,
   };
 
+  /**
+   * 依現在的複習範圍與今天的日期重建佇列，並記下這份佇列是依哪一天建的。
+   *
+   * 兩件事永遠一起發生，因此綁成同一個動作：分開寫的話，漏記日期的那條路
+   * 會讓跨日檢查以為佇列還停在前一天，隔天第一個動作就白重建一次。
+   * 記的形式與卡片到期日同一種日期字串（只到日），與判定到期用的是同一把尺。
+   *
+   * `current` 是使用者正在看的那張，它若仍到期就留在最前面（見 review.ts 的 rebuildQueue()）。
+   */
+  function rebuild(current?: Card): void {
+    const at = now();
+    queue = rebuildQueue(cardsInBooks(data.cards, data.scopes.review), current, at, random);
+    queueDate = toDateKey(at);
+  }
+
+  /**
+   * 重建，並在隊首真的換人了才蓋回答案：目前這張仍在的話連掀開狀態一起留住，
+   * 換掉的話下一張會遞補上來，不能沿用——與 remove() 同一個理由。
+   */
+  function rebuildKeepingCurrent(): void {
+    const current = currentCard(queue);
+    rebuild(current);
+    if (currentCard(queue)?.id !== current?.id) revealed = false;
+  }
+
+  /**
+   * 跨過午夜就把佇列換成今天這份，回傳有沒有真的換——呼叫端據此決定要不要重畫。
+   *
+   * 冪等：日期沒變時一件事都不做，順序不重洗、掀開狀態不動。兩條訊號同時到達
+   * 與只到一條因此結果相同。
+   *
+   * 不重用 reload()：那條的語義是「整份資料被換掉了」，會重讀本機、清掉掀開狀態、
+   * 重排提醒。跨日是「資料沒變，判定基準變了」，那三件事都不必做，
+   * 而清掉掀開狀態會直接打斷正在看答案的使用者。
+   */
+  function rebuildIfNewDay(): boolean {
+    if (queueDate === toDateKey(now())) return false;
+    rebuildKeepingCurrent();
+    return true;
+  }
+
   // 整份資料被換掉之後，佇列與已掀開的狀態都要重建。
   function reload(): void {
     data = store.load();
-    queue = buildQueue(cardsInBooks(data.cards, data.scopes.review), now(), random);
+    rebuild();
     revealed = false;
     // 整份資料被換掉也是一次資料變動。這條路（匯入單字、整份匯入、雲端拉下來）
     // 不經過 persist()，漏掉的話「匯入一批單字後數字立刻正確」就不成立。
@@ -289,6 +333,22 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     if (isTyping(event.target)) return;
     app.keyHandler?.(event);
   });
+
+  // 跨日檢查的兩條訊號，都打到同一支 rebuildIfNewDay()。
+  //
+  // 兩條一起接的理由是成本：可見性事件在 iOS 的 WKWebView 裡可靠不可靠，
+  // 本專案沒有驗過，而驗一次要跑完一輪 TestFlight。兩條都接上，第一版就會動。
+  // 檢查本身是冪等的，因此兩條都送到與只送一條，結果相同。
+  //
+  // 這兩個監聽器與 app 同生共死，沒有天然的解除時機，因此不走 ADR-0011 的元件那一套；
+  // 立場與上面那個 'online' 相同。可見性事件掛在 document 上，window 上沒有這個事件。
+  const backToForeground = () => {
+    if (rebuildIfNewDay()) render();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') backToForeground();
+  });
+  onNativeForeground(backToForeground);
 
   // 語音清單可能稍後才載入，屆時重畫目前畫面讓朗讀按鈕出現。
   initSpeech(() => render());
