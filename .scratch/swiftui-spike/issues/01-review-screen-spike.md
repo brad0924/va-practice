@@ -1,8 +1,10 @@
 # 01 — SwiftUI 複習畫面探路原型
 
-Status: ready-for-agent
+Status: wontfix
 Type: enhancement
 Blocked by: 無，可立即開始
+
+> **不做了（2026-08-18）**。改由 `.scratch/rn-spike/issues/01` 用 React Native 做同一件事。理由見本檔 `## Comments`。本票的推理仍然有效，是新票的地基，因此保留不刪。
 
 > ## ⚠️ 只能在 macOS 上執行
 >
@@ -26,7 +28,7 @@ Blocked by: 無，可立即開始
 
 **把「學新技術」和「重寫五千行正式專案」疊在一起是兩個困難相乘。** 所以先花一個週末問清楚值不值得，而不是押上幾個月。
 
-### 為什麼是 Swift／SwiftUI，不是 React Native
+### ~~為什麼是 Swift／SwiftUI，不是 React Native~~ — 已推翻，見 `## Comments`
 
 React Native 能在 Windows 上天天開發（Expo Go 即時預覽），一度是最合適的路。**但它買不到動機——RN 寫的是 JavaScript**，維護者白天已經在寫 TypeScript，換個框架而已，語言、型別系統、思考方式都沒變。
 
@@ -98,3 +100,24 @@ Xcode 專案跟純前端 repo 混在一起確實怪，但那是暫時分支，�
 - [ ] 若判定為「分不出來」，ADR 已寫，本票轉 `wontfix` 或 `done` 並註明結論
 
 ## Comments
+
+### 2026-08-18 — 轉 `wontfix`，改做 React Native 原型
+
+一場 `/grill-with-docs` 把本票「為什麼是 SwiftUI，不是 React Native」那段推翻了。推翻的是**理由**，不是方法——本票的探路加盲測結構原封不動搬去新票。
+
+**本票當初的推理錯在哪。** 它寫「RN 買不到動機，因為 RN 寫的是 JavaScript」，把動機當成單一的一件事。實際問下去，動機是兩件可以拆開的東西：
+
+- **想學新語言** → RN 買不到（還是 TypeScript），Flutter 買得到（Dart），SwiftUI 買得到
+- **畫面要是系統原生元件** → RN 買得到（`<Text>` 變 `UILabel`），**Flutter 買不到**（自繪引擎，與 WebView 同類），SwiftUI 買得到
+
+維護者選的是第二個。本票沒有做這個分辨，所以把 RN 誤判出局。
+
+**連帶三件事：**
+
+1. **Flutter 出局**，而且理由跟本票寫的不同——不是「多背一層框架」，是它與 WebView 同樣不使用原生元件，犯的是同一條。
+2. **RN 不是從零重寫。** 本票與 `ios-app/spec.md` 都假設任何重寫都得丟掉全部程式碼。RN 同為 TypeScript，純邏輯 3,638 行與其 4,732 行測試可搬，要重寫的是畫面層 2,373 行。訂正見 `../../ios-app/spec.md` 決定一底下那則。
+3. **「只能在 macOS 上執行」這個限制在 RN 上消失。** 本票開頭那個警告框的成本（Xcode、Mac、一個週末）是 SwiftUI 才有的。RN 用 EAS Build 在雲端編譯，Windows 上就能做出可裝進 iPhone 的獨立 app——盲測需要獨立 app（用 Expo Go 會露餡），這條路走得通。
+
+**沒有推翻的部分**（新票原樣沿用）：由 agent 寫而非維護者寫、寫死三張假卡、外觀對齊網頁版、盲測隔天判定、停損條件現在就寫死。
+
+**一個 grill 中確認的事實**：維護者每天都在用 Capacitor 版，`ios-app` 的 16 張票（Keychain、原生語音、觸覺、每日提醒）都已 `done`。問他哪裡不順，答案仍然是**講不出來**。本票第 19 行「從頭到尾沒有列出任何用起來不順的地方」在十天後依然成立。停損條件因此比當初更重要，不是更不重要。

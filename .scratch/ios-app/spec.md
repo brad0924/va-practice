@@ -5,7 +5,7 @@ Type: enhancement
 
 本檔案是整個 iOS 化工程的決策紀錄，不直接實作。實作票見 `issues/`。
 
-**核心立場：現有的 web 程式碼是資產，不是包袱。** 畫面層沒有框架，因此任何「重寫」路線都得丟掉全部 2,480 行畫面碼與 3,642 行測試。Capacitor 包殼是唯一能保住這批資產、又拿得到原生能力的路。網頁版與 iOS 版共用同一份程式碼，~~**網頁版的行為一字不改**~~ — 訂正為**網頁版不出現任何行為回歸**，理由見下。
+**核心立場：現有的 web 程式碼是資產，不是包袱。** 畫面層沒有框架，因此~~任何~~「重寫」路線都得丟掉全部 2,480 行畫面碼與 3,642 行測試（~~任何~~ — 訂正：只對換語言的路線成立，React Native 不在此列，見決定一底下那則）。Capacitor 包殼是唯一能保住這批資產、又拿得到原生能力的路。網頁版與 iOS 版共用同一份程式碼，~~**網頁版的行為一字不改**~~ — 訂正為**網頁版不出現任何行為回歸**，理由見下。
 
 > **訂正（2026-08-11，票 16）**：硬約束從「網頁版的行為一字不改」改為「**網頁版不出現任何行為回歸**」。
 >
@@ -88,7 +88,17 @@ Type: enhancement
 
 ### 路線
 
-**一、Capacitor 包殼，不重寫。** 現有 web 程式碼原封不動跑在 WKWebView 裡。否決的替代方案：Swift 原生重寫（畫面層無框架，8,700 行含測試全數作廢；且 `src/lib/cloud-crypto.ts` 的加解密必須與網頁版位元級相容，重寫是資料損毀的高風險來源）、React Native／Flutter（同樣從零重寫，卻多背一層跨平台框架，而本專案不需要 Android）。此決定應開 **ADR-0012** 記錄。
+**一、Capacitor 包殼，不重寫。** 現有 web 程式碼原封不動跑在 WKWebView 裡。否決的替代方案：Swift 原生重寫（畫面層無框架，8,700 行含測試全數作廢；且 `src/lib/cloud-crypto.ts` 的加解密必須與網頁版位元級相容，重寫是資料損毀的高風險來源）、~~React Native／Flutter（同樣從零重寫，卻多背一層跨平台框架，而本專案不需要 Android）~~ — 這一句的兩項理由都不成立，訂正見下。此決定應開 **ADR-0012** 記錄（編號已被 `docs/adr/0012-display-name-single-source.md` 佔用，改用下一個空號）。
+
+> **訂正（2026-08-18，票 `rn-spike/01`）**：上句把 React Native 與 Flutter 綁在一起否決，兩項理由都不成立。**本決定的結論（Capacitor 包殼）不變**，待 `rn-spike/01` 的盲測結果再議。
+>
+> **一、「同樣從零重寫」只對 Flutter 成立，對 React Native 不成立。** RN 同為 TypeScript，因此純邏輯的 3,638 行與其 4,732 行測試可以搬過去；要重寫的是畫面層 2,373 行，作廢的是畫面測試 1,319 行（jsdom 測 DOM，RN 沒有 DOM）。Flutter 用 Dart，才是真正的從零重寫。
+>
+> RN 這條路的實際代價不在「重寫多少行」，而在三處接不上的地方：27 處 `localStorage` 是同步的、`AsyncStorage` 是非同步的，改動會傳染到每一個呼叫端（而 localStorage 是唯一真相來源，見 ADR-0002）；6 處 `crypto.subtle` 在 RN 上沒有對應物，`cloud-crypto.ts` 要換套件重刻並維持位元級相容；**振假名沒有對應物**——`src/ui/reading-html.ts` 現在用瀏覽器內建的 `<ruby>`／`<rt>` 六行解決，RN 的 `<Text>` 不暴露 `CTRubyAnnotation`，要自寫原生模組。
+>
+> **二、「本專案不需要 Android」已不成立。** 維護者表示 iOS 正式過審上架後要 Android。但這不構成離開 Capacitor 的理由——Capacitor 加裝 `@capacitor/android` 即可出 Android，畫面一行不改；RN 要等畫面層重寫完才有第二個平台。維護者尚未決定 Android 是否也必須是原生元件，因此這一項這輪不當判準。
+>
+> **三、另有一項當初沒寫進來的分辨。** 否決 Flutter 的真正理由不是「多背一層框架」，而是它與 WebView 同類：兩者都是在一塊空白畫布上自繪，不使用系統原生元件。React Native 不同，`<Text>` 會變成 `UILabel`、`<ScrollView>` 會變成 `UIScrollView`，捲動手感、選字放大鏡、動態字級、VoiceOver 都由系統提供。維護者的動機是「畫面要是原生元件」，按這條判準 Flutter 與現況同罪，已出局。
 
 **二、同一個 repo、同一份 web 程式碼，兩個 build 產物。** 加入 `ios/` 原生專案目錄（Capacitor 慣例）。網頁版的 `base` 維持 `/va-practice/`（GitHub Pages 子路徑），iOS build 改用 `/`（WebView 從自訂 scheme 載入根路徑），以 build 參數切換，不複製第二份設定檔。
 

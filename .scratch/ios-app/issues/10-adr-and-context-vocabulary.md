@@ -14,14 +14,23 @@ Blocked by: 01
 
 ## 決定
 
-### 開 `docs/adr/0012-capacitor-ios-shell.md`
+### 開 `docs/adr/0015-capacitor-ios-shell.md`
+
+> **訂正（2026-08-18）**：原訂編號 `0012`，但那個號已被 `docs/adr/0012-display-name-single-source.md` 佔用，現有 ADR 編到 `0014`。改用 `0015`。本檔其餘提到「ADR-0012」之處一律讀作 `ADR-0015`。
 
 記錄「iOS 版以 Capacitor 包殼，不重寫原生」。
 
 被否決的選項要寫進 Considered Options 並附理由：
 
 - **Swift + SwiftUI 原生重寫**：畫面層無框架，2,480 行畫面碼與 3,642 行測試全數作廢；且 `src/lib/cloud-crypto.ts` 的加解密必須與網頁版位元級相容，重寫是資料損毀的高風險來源。
-- **React Native / Flutter**：同樣從零重寫，卻多背一層跨平台框架，而本專案不需要 Android。
+- ~~**React Native / Flutter**：同樣從零重寫，卻多背一層跨平台框架，而本專案不需要 Android。~~
+
+> **訂正（2026-08-18，票 `rn-spike/01`）**：上面那一條要拆成兩條寫，理由見 `../spec.md` 決定一底下的訂正（那裡是唯一權威出處，本票不複述數字）。寫進 ADR 時照這樣分：
+>
+> - **Flutter**：真正的從零重寫——Dart 讓純邏輯與其測試全數作廢。且它與 WebView 同類，都在空白畫布上自繪、不使用系統原生元件，因此滿足不了「畫面要是原生元件」這個動機。
+> - **React Native**：**不是**從零重寫，純邏輯與其測試可搬（同為 TypeScript），要重寫的是畫面層。否決理由改為三處接不上的地方：`localStorage` 同步轉非同步會傳染到每個呼叫端、Web Crypto 無對應物且須維持位元級相容、振假名無 `<ruby>` 對應物須自寫原生模組。**這條路尚未定案**——`.scratch/rn-spike/issues/01` 正在用探路原型加盲測驗證，ADR 寫作時請先確認那張票的結果。
+>
+> 另：「本專案不需要 Android」已不成立（維護者表示 iOS 上架後要），但那不構成改用跨平台框架的理由，寫進 ADR 時不要沿用這句。
 - **維持純 PWA、只補強現有體驗**：給不了上架、推播與原生語音，而這三項正是本次的目的。
 - **讓 WebView 載入遠端網址**：等於免送審熱更新，但離線完全失效，且是準則 4.2 最典型的退件理由。
 
@@ -56,8 +65,9 @@ Consequences 至少要載明：
 
 ## 驗收
 
-- [ ] `docs/adr/0012-capacitor-ios-shell.md` 存在，格式與既有 ADR 一致
-- [ ] 四個被否決的選項都有記錄且附理由
+- [ ] `docs/adr/0015-capacitor-ios-shell.md` 存在，格式與既有 ADR 一致
+- [ ] 五個被否決的選項都有記錄且附理由（RN 與 Flutter 拆開寫，見上方訂正）
+- [ ] React Native 那條註明「尚未定案，待 `rn-spike/01` 盲測結果」
 - [ ] Consequences 涵蓋更新節奏、4.2 風險、`ADR-0002` 與 `ADR-0003` 立場不變、額度重算
 - [ ] `CONTEXT.md` 補進「提醒」「提醒排程」「保險副本」三則，各有 `_Avoid_`
 - [ ] 「保險副本」的定義明確寫出它不是第二個真相來源
