@@ -3,7 +3,11 @@
   隱私權政策的英文版。中文版在 public/privacy.html，兩份是同一份文件的兩種語言。
 
   **兩份的內容逐句對應，改了其中一份就要改另一份。** 沒有任何測試會抓到其中一份過期——
-  src/lib/app-name.test.ts 只管 app 名字，管不到內容（見 .scratch/i18n/spec.md 決定八，那是收下的代價）。
+  src/lib/app-name.test.ts 只管 app 名字，管不到內容。
+
+  接得住的是兩道 hook（見 .scratch/i18n/spec.md 決定八）：agent 改完檔會跳一句提醒；commit 前
+  .git/hooks/commit-msg 會擋下來，要嘛去改這兩份，要嘛在 commit message 裡寫一行 Privacy-checked: 理由。
+  換一台電腦要先跑 npm run hooks 才有第二道。它們只提醒「你可能該來看一眼」，不判斷這頁寫得對不對。
 
   上架語系的對應：繁中語系指中文版，日文語系與韓國 storefront 都指這一份。
 

@@ -3,3 +3,9 @@ dist/
 dev-dist/
 *.local
 .DS_Store
+
+# .claude/settings.json 要進版控（那道隱私權政策的提醒屬於這個專案），旁邊這兩個不要：
+# 一個是某台電腦的個人設定，一個是 Claude Code 的執行期鎖檔。
+# 這台電腦另外靠全域 gitignore 擋掉了它們，但那份不會跟著 repo 走。
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

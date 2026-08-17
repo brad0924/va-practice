@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "hooks": "node scripts/install-hooks.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

@@ -63,7 +63,9 @@ export default defineConfig(({ mode }) => {
     ],
     test: {
       environment: 'node',
-      include: ['src/**/*.test.ts'],
+      // `scripts/` 那支是隱私權政策的兩道提醒 hook（見 .scratch/i18n/issues/11）。它跑在打包流程外、
+      // 不進 tsconfig 的 include，寫成 .mjs；測試跟著它放同一個目錄，所以這裡要多收一種副檔名。
+      include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
       // 介面語言在每支測試開跑前接上繁體中文，理由見 src/test-setup.ts。
       setupFiles: ['./src/test-setup.ts'],
     },

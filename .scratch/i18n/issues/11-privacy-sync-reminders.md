@@ -1,6 +1,6 @@
 # 11 — 隱私政策漏改的兩道 hook：先鋒與最後堡壘
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無（票 09 已 done，本票不改兩份 privacy 的內容）
 
@@ -15,7 +15,7 @@ Blocked by: 無（票 09 已 done，本票不改兩份 privacy 的內容）
 | 道 | 什麼時候跳 | 看什麼 | 守誰 | 態度 |
 | --- | --- | --- | --- | --- |
 | **先鋒**：Claude Code hook | agent 用 Edit／Write 改完任何檔 | 這次改動的內容 | 只有 agent | 提醒，不擋 |
-| **最後堡壘**：git pre-commit hook | 任何 commit | 這次 commit 的完整 diff | 人與 agent | 擋下來 |
+| **最後堡壘**：git commit-msg hook | 任何 commit | 這次 commit 的完整 diff | 人與 agent | 擋下來 |
 
 先鋒跳得早，但只管得到 agent。最後堡壘管人也管 agent，但要等到東西準備進版控。**兩道之間有一段真空**：人自己改 code、還沒 commit 的那段時間，什麼都沒有。那段只能靠最後堡壘補。
 
@@ -74,7 +74,7 @@ Privacy-checked: <一句話理由>
 
 **被否決的是「只印提醒不擋」。** commit 成功的訊息會把提醒推上去，很容易滑掉，而這是最後一道關卡。而且維護者自己改 code 時，這是**唯一**一道（先鋒只管 agent），不能軟。
 
-用 commit message 當出口的代價是腳本要多讀一次 message。`pre-commit` 階段讀得到暫存的 message 檔。業界有同類前例：DCO 的 `Signed-off-by`、CI 的 `[skip ci]`。
+用 commit message 當出口的代價是腳本要多讀一次 message。~~`pre-commit` 階段讀得到暫存的 message 檔。~~**這句是錯的，實作時實測推翻，改掛 `commit-msg`，見下面的 Comments。** 業界有同類前例：DCO（Developer Certificate of Origin，開發者原創聲明）的 `Signed-off-by`、CI（Continuous Integration，持續整合）的 `[skip ci]`。
 
 ### 三、Claude Code hook 只提醒，不擋
 
@@ -92,14 +92,14 @@ Privacy-checked: <一句話理由>
 
 `.git/hooks/` 不進版控，所以 hook 本體要放在 repo 裡再複製過去：
 
-- hook 本體：`scripts/hooks/pre-commit`
+- hook 本體：`scripts/hooks/commit-msg`
 - 共用訊號：`scripts/hooks/privacy-signals.mjs`
 - 安裝腳本：`scripts/install-hooks.mjs`
 - `package.json` 加一個 script（例如 `"hooks": "node scripts/install-hooks.mjs"`）
 
 前例是 `scripts/generate-icons.mjs`（`package.json:15` 的 `icons`），一次性腳本在這個 repo 不是新東西。
 
-安裝腳本要能重複跑，且**不覆寫使用者自己寫的 hook**——`.git/hooks/pre-commit` 已經存在且內容不是我們產生的時候，要說清楚而不是蓋掉。
+安裝腳本要能重複跑，且**不覆寫使用者自己寫的 hook**——`.git/hooks/commit-msg` 已經存在且內容不是我們產生的時候，要說清楚而不是蓋掉。
 
 ### 六、不加檔頂註解
 
@@ -139,14 +139,94 @@ Privacy-checked: <一句話理由>
 
 ## 驗收
 
-- [ ] 訊號清單只有一份（`scripts/hooks/privacy-signals.mjs`），兩道 hook 都 import 它
-- [ ] **考題**：把 `2b96a9a`（`ios-app 06`，密碼改存 Keychain）的變更重放一次 → git hook **要擋下來**。這一次是真的漏過的，抓不到就代表這張票沒解決問題
-- [ ] 改動命中訊號、不改 privacy、message 不寫標記 → **commit 被擋**，訊息列得出命中了哪個訊號、在哪個檔
-- [ ] 同上但 message 寫了 `Privacy-checked:` → **放行**
-- [ ] 改動命中訊號且同時改了任一份 privacy → **放行**，完全不出聲
-- [ ] 改動完全不含訊號（例如只改 `src/ui/list-view.ts` 的一段文案）→ **完全不觸發**
-- [ ] 砍掉 `.git/hooks/pre-commit` 後跑安裝腳本 → 裝得回來
-- [ ] `.git/hooks/pre-commit` 已存在且不是我們產生的 → 安裝腳本說清楚，不覆寫
-- [ ] `.claude/settings.json` 存在且進得了版控；agent 改出含訊號的內容時，提醒真的出現
-- [ ] `../spec.md` 決定八那段已改寫；兩份 privacy 開頭「沒有任何測試會抓到」那句已修
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] 訊號清單只有一份（`scripts/hooks/privacy-signals.mjs`），兩道 hook 都 import 它
+- [x] **考題**：把 `2b96a9a`（`ios-app 06`，密碼改存 Keychain）的變更重放一次 → git hook **要擋下來**。這一次是真的漏過的，抓不到就代表這張票沒解決問題
+- [x] 改動命中訊號、不改 privacy、message 不寫標記 → **commit 被擋**，訊息列得出命中了哪個訊號、在哪個檔
+- [x] 同上但 message 寫了 `Privacy-checked:` → **放行**
+- [x] 改動命中訊號且同時改了任一份 privacy → **放行**，完全不出聲
+- [x] 改動完全不含訊號（例如只改 `src/ui/list-view.ts` 的一段文案）→ **完全不觸發**
+- [x] 砍掉 `.git/hooks/commit-msg` 後跑安裝腳本 → 裝得回來
+- [x] `.git/hooks/commit-msg` 已存在且不是我們產生的 → 安裝腳本說清楚，不覆寫
+- [x] `.claude/settings.json` 存在且進得了版控；agent 改出含訊號的內容時，提醒真的出現
+- [x] `../spec.md` 決定八已補上現況兩段；兩份 privacy 開頭「沒有任何測試會抓到」那句已修。
+      那個小標題其實在票 09 不在 spec，票 09 已 `done`、屬歷史紀錄，照 issue-tracker 慣例本文不動、
+      改在 `## Comments` 註記（見票 09 底部）
+- [x] `npm run test` 與 `npm run typecheck` 全綠
+
+## Comments
+
+### 決定二寫錯了一句：`pre-commit` 讀不到這次的 commit message
+
+票裡寫「`pre-commit` 階段讀得到暫存的 message 檔」，實測不成立。git 的 `pre-commit` 依設計就跑在
+「取得 commit 訊息」**之前**——第二次 commit 時去讀 `.git/COMMIT_EDITMSG`，讀到的是硬碟上還留著的
+**上一次**的訊息。
+
+照票面實作的話，`Privacy-checked:` 出口會壞得很陰險：這次寫了標記照樣被擋，下一次無關的 commit
+反而被放行。
+
+改掛 `commit-msg`（維護者拍板）。那一關 git 會把訊息檔的路徑當第一個參數傳進來，回傳非 0 一樣中止
+commit，擋的力道與 `pre-commit` 完全相同。兩者都看得到 `git diff --cached`，也都會被 `--no-verify`
+一併跳過。唯一的代價：不加 `-m` 直接跑 `git commit` 時，是打完訊息、編輯器關掉之後才被擋。
+DCO（Developer Certificate of Origin，開發者原創聲明）的 `Signed-off-by` 檢查走的也是這一關。
+
+### 實作時多決定的四件事
+
+**一、訊號清單照票面原封不動。** 五條全部照收，一條沒加沒改。讀過兩份 privacy 的正文核對過：
+`crypto.subtle` 一條就同時蓋住政策裡「加密」與「金鑰派生」那兩節，沒有漏掉的主題。
+
+**二、四類檔不掃。** 預設是掃，例外才列——寫成白名單的話新長出來的目錄會默默不在守備範圍內，
+那又回到檔名清單那個病。例外是：兩份 privacy 自己（它們是目標，不是觸發源，改了反而該放行）、
+`scripts/hooks/`（訊號清單本身就寫滿了每一個訊號）、markdown（`.scratch/` 底下二十幾份票都提到
+`localStorage`，而改一份票不可能改到程式的行為）、repo 以外的檔（agent 在暫存目錄裡寫的拋棄式
+腳本，實際跑起來才發現會跳）。
+
+**三、刪掉的行也算命中。** 票面只講「改動的內容」。只看新增的行會漏掉「把整個功能砍掉」——
+那正是政策開始說謊的典型場景：功能沒了，政策那一節還在描述它。所以命中清單帶著 `+`／`-` 一起印，
+刪除行的行號是舊檔的行號。
+
+**四、大腦不在就放行。** checkout 到這道 hook 出現之前的 commit 時，`privacy-signals.mjs` 不存在，
+hook 會噴一坨 Node 錯誤堆疊把每一次 commit 都擋掉。那不是隱私問題，是「這份 checkout 沒有這段程式」，
+所以印一行說明後放行。
+
+### 缺口清單要再加一條：安裝的是複本，會過期
+
+`.git/hooks/commit-msg` 是 `scripts/hooks/commit-msg` 的複本。改了版控裡那份、忘了重跑 `npm run hooks`，
+跑的還是舊的。判斷邏輯全部放在 `privacy-signals.mjs`、由 hook 每次現場載入，所以真正會過期的只有那層
+薄薄的外殼，但它終究是複本。跟「缺口三、忘了裝」同一種天性。
+
+沒有加 `prepare` script 讓 `npm install` 自動安裝——那會改到每個人 `npm install` 的行為，
+超出本票範圍。要補的話是另一張票。
+
+### `npm run hooks` 換電腦要記得跑
+
+換一台電腦、或重新 clone 之後，最後堡壘不存在且不會有人提醒你（缺口三）。
+`public/privacy.html` 與 `privacy-en.html` 的檔頭註解都補上了這一句。
+
+### code review 抓到四個會讓 hook 靜靜失效的地方
+
+四個都已修，前兩個各補了測試。它們特別值得記下來，因為它們的症狀都是「**變安靜**」——不是紅燈，是本來
+該跳的時候沒跳，而隱私政策說謊沒有人會來回報。
+
+**一、整支檔被刪掉時，一個訊號都掃不到。** git 把刪掉的檔的新檔名寫成 `/dev/null`，`parse()` 因此
+把 `file` 設成 null，底下所有 `-` 行全被吃掉。實測刪掉一支含 `localStorage` 的檔 → 命中清單是空的。
+這正好打臉「刪掉的行也算命中」那段註解自己寫的理由（把整個功能砍掉，政策那一節整段開始說謊）。
+改成新檔名是 `/dev/null` 時退回舊檔名。
+
+**二、內文行長得像檔頭。** 刪掉一行 `-- 註解`，在 diff 裡就是 `--- 註解`，被當成檔頭跳過，
+後面每一行的行號都少一；`+++` 那側更糟，會把座標整個換到一個不存在的檔上。改成檔頭只在
+第一個 `@@` 之前認。
+
+**三、先鋒 hook 的 repo 根目錄取錯順序。** 原本先用 Claude Code 遞來的 `cwd`、`git rev-parse` 只當
+後備。工作目錄若不是 repo 根，算出來的相對路徑會是 `../…`，正好命中「repo 以外不掃」那條例外——
+整道提醒靜音。對調成先問 git。
+
+**四、`.claude/settings.json` 的路徑改用 `$CLAUDE_PROJECT_DIR`。** 相對路徑一樣是換個工作目錄就
+無聲失效。實測 Windows 上會正確展開。
+
+### `.gitignore` 補了兩行
+
+決定四寫「`settings.local.json` 被 `.gitignore` 的 `*.local` 忽略掉了」——這句是錯的，`*.local`
+比不到 `settings.local.json`（它結尾是 `.json`）。這台電腦上它是被使用者的全域 gitignore 擋掉的，
+那份不會跟著 repo 走。不補的話，換一台電腦 clone 下來，個人設定與 Claude Code 的執行期鎖檔
+`scheduled_tasks.lock` 都會出現在 `git status` 裡等著被誤 commit。決定四要的那條界線得在任何一份
+clone 上都成立才算數，所以兩行都補進 repo 自己的 `.gitignore`。

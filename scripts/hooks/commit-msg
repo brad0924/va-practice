@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+/**
+ * 隱私權政策的最後一道堡壘。這次 commit 碰到隱私相關的行為、卻沒動兩份政策時，把 commit 擋下來。
+ * 它管人也管 agent——先鋒那道（`privacy-notice.mjs`）只跳給 agent 看。決策見 .scratch/i18n/issues/11。
+ *
+ * **掛在 commit-msg 而不是 pre-commit。** 出口是「在 commit message 裡寫一行理由」，而 git 的
+ * pre-commit 跑在「取得 commit 訊息」之前，那時 `.git/COMMIT_EDITMSG` 裡躺的是**上一次**的訊息。
+ * 照那樣寫的話出口會壞得很陰險：這次寫了標記照樣被擋，下一次無關的 commit 反而被放行。
+ * commit-msg 收得到訊息檔的路徑（`process.argv[2]`），回傳非 0 一樣中止 commit。
+ * 業界同類前例（DCO（Developer Certificate of Origin，開發者原創聲明）的 Signed-off-by 檢查）
+ * 走的也是這一關。
+ *
+ * 這個檔會被 `scripts/install-hooks.mjs` 複製到 `.git/hooks/`，所以判斷邏輯不能用相對路徑 import
+ * ——複製過去之後相對位置就變了。改成先問 git 要 repo 根目錄，再從工作目錄裡載入那份大腦。
+ */
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+/** 命中太多時全印出來反而沒人看，超過就收尾。 */
+const MAX_SHOWN = 20;
+
+const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+const brain = join(root, 'scripts', 'hooks', 'privacy-signals.mjs');
+
+/**
+ * 那份大腦不在工作目錄裡，多半是 checkout 到了這道 hook 出現之前的 commit。那不是隱私問題，
+ * 是「這份 checkout 沒有這段程式」——這時每一次 commit 都被一坨 Node 錯誤堆疊擋下來，比不擋更糟。
+ * 所以放行，但講一句，免得它靜靜地不在。
+ */
+if (!existsSync(brain)) {
+  process.stderr.write(`（跳過隱私權政策檢查：這份 checkout 裡沒有 ${brain}）\n`);
+  process.exit(0);
+}
+
+const { blockingHits, describeHits, MARKER, PRIVACY_PAGES } = await import(pathToFileURL(brain).href);
+
+const message = readFileSync(process.argv[2], 'utf8');
+// `--unified=0` 只要改動行、不要前後文，訊息才不會被沒改到的行灌爆。行號照樣由 @@ 標頭給。
+// 環境變數原封繼承：`git commit -a` 會把要 commit 的內容放進另一份暫時的索引，靠 GIT_INDEX_FILE 指路。
+const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color'], {
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+});
+
+const hits = blockingHits(diff, message);
+if (hits.length === 0) process.exit(0);
+
+const shown = hits.slice(0, MAX_SHOWN);
+const rest = hits.length - shown.length;
+
+process.stderr.write(
+  [
+    '',
+    '✗ 這次 commit 碰到了隱私相關的行為，但兩份隱私權政策都沒動：',
+    '',
+    describeHits(shown),
+    rest > 0 ? `  …另外還有 ${rest} 處` : null,
+    '',
+    '那兩份寫的每一句都是程式的實際行為，不是宣示。行為改了、政策沒跟，它就開始說謊。',
+    '',
+    '過關有兩條路：',
+    `  1. 去改 ${PRIVACY_PAGES.join(' 與 ')}（兩份的內容逐句對應，要一起改）`,
+    '  2. 確定不用改的話，在 commit message 裡加一行：',
+    `       ${MARKER} <一句話理由>`,
+    `     例如 ${MARKER} 只是把那段讀取搬到另一個函式，行為沒變`,
+    '',
+  ]
+    .filter((line) => line !== null)
+    .join('\n') + '\n',
+);
+process.exit(1);
