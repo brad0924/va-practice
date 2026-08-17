@@ -232,7 +232,10 @@
       <p>
         The data on this device is entirely yours to control: clear this site's browser storage, or remove the app from
         the device, and the data goes with it. Press "Stop backing up" on the "Data" screen and this device no longer
-        backs up to the cloud, while the cards and progress on the device stay intact. The app currently offers no
+        backs up to the cloud, while the cards and progress on the device stay intact. The nickname and password on the
+        iOS version are the only exception: they live in the system Keychain, and removing the app does not clear them
+        — pressing "Stop backing up" does. If you have iCloud Keychain turned on, that copy is removed from the
+        keychain at the same time. The app currently offers no
         button for deleting the backup already in the cloud, and that ciphertext stays on the server; since only your
         password can decrypt it, we have no way to read it and will not use it for anything.
       </p>
