@@ -14,15 +14,20 @@
   跟中文版一樣刻意放在 public/ 而不是多開一個 Vite 進入點：它跟 app 沒有任何往來，
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。樣式與中文版逐字相同。
 
-  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts——
+  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts——
   這頁寫的每一句都是那幾支程式實際的行為，不是宣示。領域詞彙照 docs/glossary.md 的英文欄，
   畫面上的按鈕名稱照 src/i18n/en.ts（例如「停止同步」在英文介面叫 Stop backing up）。
 
   拼字一律美式（labeled、recognize），配合頁首那個美式日期格式。
 
-  唯一一個看起來踩到「英文避用」的字是 a hash of your nickname 的 hash。詞彙表避的是把**指紋**
-  叫成 Hash，而指紋依 CONTEXT.md 是由密碼算出的那兩個值——這裡講的是暱稱的雜湊，是另一個東西，
-  中文版同一句也寫「雜湊值」。避的是概念不是字，同 src/i18n/en.ts 檔頂那三個例外。
+  有兩個字看起來踩到「英文避用」。避的是概念不是字，同 src/i18n/en.ts 檔頂那三個例外：
+
+  一是 a hash of your nickname 的 hash。詞彙表避的是把**指紋**叫成 Hash，而指紋依 CONTEXT.md
+  是由密碼算出的那兩個值——這裡講的是暱稱的雜湊，是另一個東西，中文版同一句也寫「雜湊值」。
+
+  二是 they sync along with the keychain 的 sync。詞彙表避的是把**雲端備份**叫成 Sync，怕讀者
+  以為兩邊的進度會逐張合併——這裡講的是 iCloud 鑰匙圈，那是 Apple 的服務、不是本 app 的功能，
+  而 sync 就是 Apple 自己的用詞。中文版同一句寫「同步」，理由相同。
 -->
 <html lang="en">
   <head>
@@ -119,7 +124,7 @@
   <body>
     <main>
       <h1>Privacy Policy</h1>
-      <p class="updated"><span data-app-name>Vocabulary Card Practice</span> · Last updated: August 7, 2026</p>
+      <p class="updated"><span data-app-name>Vocabulary Card Practice</span> · Last updated: August 17, 2026</p>
 
       <p>
         <span data-app-name>Vocabulary Card Practice</span> (hereafter "the app") does not collect, store, or sell any
@@ -131,8 +136,8 @@
       <p>
         The vocabulary books, cards, review progress, and settings you create are all kept in this device's local
         browser storage. The app has no account system, does not ask you to register, and never asks for your email
-        address, phone number, or name. Apart from the cases spelled out in the two sections below, your data does not
-        leave this device.
+        address, phone number, or name. Apart from the cases spelled out in the two sections below, and the iCloud
+        Keychain mentioned in the cloud backup section, your data does not leave this device.
       </p>
 
       <h2>Cloud backup (optional, off by default)</h2>
@@ -155,10 +160,23 @@
           never sent in the clear. Neither the server nor whoever administers it can read what you backed up.
         </li>
         <li>
-          <strong>Your password stays on this device.</strong> So that the app can carry on backing up the next time
-          you open it, the nickname and password you type are kept in local storage, in plain text. This costs you
-          nothing extra — anyone who can reach that slot can already read every card and all the progress on the same
-          device. It is likewise never uploaded, and it does not appear in the backup file you export.
+          <strong>Your password stays on your device.</strong> So that the app can carry on backing up the next time
+          you open it, the nickname and password you type are kept on this device. How they are kept depends on the
+          platform:
+          <ul>
+            <li>
+              <strong>The web version</strong> keeps them in the browser's storage, in plain text. Anyone who can read
+              that storage can equally read every card and all the review progress on this device.
+            </li>
+            <li>
+              <strong>The iOS version</strong> keeps them in the system Keychain, held encrypted by the system. If you
+              have iCloud Keychain turned on, they sync along with the keychain to your other Apple devices — that is
+              Apple's end-to-end encrypted service, and Apple itself cannot read the contents. If you do not, they stay
+              on this device only.
+            </li>
+          </ul>
+          In either case, they never go into this app's cloud backup, and they do not appear in the backup file you
+          export.
         </li>
         <li>
           <strong>No account, no contact details.</strong> You pick the nickname and the password yourself. They serve

@@ -1,6 +1,6 @@
 # 12 — 兩份隱私政策有三句話對 iOS 版不成立（Keychain 造成）
 
-Status: ready-for-agent
+Status: done
 Type: bug
 Blocked by: 無。與票 11 平行，票 11 裝機制、本票修內容
 

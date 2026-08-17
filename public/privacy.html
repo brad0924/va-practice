@@ -14,7 +14,7 @@
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。
   樣式直接內嵌，色票抄自 src/styles.css，好讓它跟 app 看起來是同一家的。
 
-  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts——
+  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts——
   這頁寫的每一句都是那幾支程式實際的行為，不是宣示。刻意不寫 localStorage 的鍵名之類的實作細節：
   對讀者沒幫助，改名了也沒有任何測試會抓到這頁過期。
 -->
@@ -113,7 +113,7 @@
   <body>
     <main>
       <h1>隱私權政策</h1>
-      <p class="updated"><span data-app-name>Vocabulary Card Practice</span> · 最後更新：2026 年 8 月 7 日</p>
+      <p class="updated"><span data-app-name>Vocabulary Card Practice</span> · 最後更新：2026 年 8 月 17 日</p>
 
       <p>
         <span data-app-name>Vocabulary Card Practice</span>（以下稱「本 app」）不蒐集、不儲存、也不販售任何可以識別你身分的個人資料。
@@ -124,7 +124,7 @@
       <p>
         你建立的單字本、卡片、複習進度與各項設定，全部存在你這台裝置本機的瀏覽器儲存空間裡。
         本 app 沒有帳號系統，不要求你註冊，也不會向你索取電子郵件、電話或姓名。
-        除了下面兩節明確列出的情況以外，你的資料不會離開這台裝置。
+        除了下面兩節明確列出的情況、以及雲端備份那節提到的 iCloud 鑰匙圈以外，你的資料不會離開這台裝置。
       </p>
 
       <h2>雲端備份（選用，預設關閉）</h2>
@@ -144,9 +144,20 @@
           伺服器與其管理者都無法閱讀你備份的內容。
         </li>
         <li>
-          <strong>密碼留在這台裝置上。</strong>為了讓 app 下次打開就能自動接續備份，你輸入的暱稱與密碼會存在
-          本機儲存空間裡，而且是明文。這不會讓你多損失什麼——能翻到那格的人，本來就讀得到同一台裝置上的全部卡片與進度。
-          它同樣不會上傳，也不會出現在你匯出的備份檔裡。
+          <strong>密碼留在你的裝置上。</strong>為了讓 app 下次打開就能自動接續備份，你輸入的暱稱與密碼會保存在
+          這台裝置上。保存的方式依平台而定：
+          <ul>
+            <li>
+              <strong>網頁版</strong>存在瀏覽器的儲存空間裡，是明文。
+              能讀取該處的人，同樣讀得到這台裝置上的所有卡片與複習進度。
+            </li>
+            <li>
+              <strong>iOS 版</strong>存在系統的 Keychain 裡，由系統加密保管。若你開啟了 iCloud 鑰匙圈，
+              它會隨鑰匙圈同步到你其他的 Apple 裝置——那是 Apple 的端對端加密服務，Apple 自己讀不到內容。
+              沒開的話，它只留在這台裝置上。
+            </li>
+          </ul>
+          兩種情況下，它都不會進入本 app 的雲端備份，也不會出現在你匯出的備份檔裡。
         </li>
         <li>
           <strong>沒有帳號、不收集聯絡方式。</strong>暱稱與密碼都由你自取，只用來認出「這是同一個人的備份」，
