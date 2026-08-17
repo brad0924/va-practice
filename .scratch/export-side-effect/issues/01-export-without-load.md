@@ -1,6 +1,6 @@
 # 01 — 匯出不再繞經 load()
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 需求
