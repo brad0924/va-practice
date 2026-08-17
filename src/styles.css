@@ -45,6 +45,10 @@ body {
   font-family: 'Hiragino Sans', 'Noto Sans TC', 'Noto Sans JP', system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
+  /* 手指按下去時 iOS Safari 會在元素上蓋一層灰色半透明方塊，一眼看得出是網頁。
+     這個屬性會繼承，掛 body 就整站生效，不必像 touch-action 那樣掛 *。
+     關掉不會讓按鈕變得沒反應——按下的回饋各元件的 :active 自己在做。 */
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
@@ -66,6 +70,21 @@ button {
   cursor: pointer;
   border: none;
   background: none;
+}
+
+/* 長按互動元件會跳出選取控制點與放大鏡，那是瀏覽器的行為、不是 app 的行為。
+   只關互動元件，不掛在 body 上：這是單字 app，長按詞條複製去查字典是真實需求，
+   全站關掉等於修一個破綻的同時弄壞一個功能。判準是「這段文字有沒有被複製的價值」，
+   所以 .term 與 .meaning 完全不碰。
+   button 一條就涵蓋了四顆評分鈕、時間桶標頭與卡片列（.row 本身就是 <button>）；
+   .bar 是每個畫面的標題列，.toggle 與 .book-filter-item 是包著勾選框的 label。
+   輸入框所在的 .labelled 不在名單裡——關掉會連框內的文字都選不起來。 */
+button,
+.bar,
+.toggle,
+.book-filter-item {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* ---------- 頂部列 ---------- */
