@@ -1,0 +1,689 @@
+commit 2b96a9a8d4d5669d5e6abe94dfed61373f8e905e
+Author: Brad <giliguala@gmail.com>
+Date:   Mon Aug 10 11:23:30 2026 +0800
+
+    feat: 雲端備份的密碼改存 iOS Keychain，換裝置自動帶走（ios-app 06）
+    
+    Keychain 的 API 是非同步的，StorageLike 是同步的。解法照 spec 決定十二：
+    啟動時先非同步讀出來、填進一個記憶體物件，此後 getItem 由記憶體同步回答，
+    setItem 同步更新記憶體、並在背景寫回 Keychain。
+    
+    cloud-backup.ts 一行未改——CloudBackupHooks.storage 本來就是外部遞進來的，
+    iOS 改遞一個 Keychain 撐起來的實作即可（決定十一）。網頁版仍遞 localStorage。
+    
+    比決定十二多做一件事：寫回 Keychain 一律排隊，一次一趟。並行的話兩趟回來的
+    順序可能相反，落地的會是已經被推翻的那一份——「登入後立刻停止同步」正是這種前後腳。
+    
+    不做舊資料搬遷，但把 localStorage 裡那筆明文清掉：它從此不再被讀到，
+    「停止同步」也清不到它，留著只是多一個讀得到密碼的地方。
+    
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+diff --git a/.scratch/ios-app/issues/06-keychain-credentials.md b/.scratch/ios-app/issues/06-keychain-credentials.md
+index 1f82da9..bfd1cfb 100644
+--- a/.scratch/ios-app/issues/06-keychain-credentials.md
++++ b/.scratch/ios-app/issues/06-keychain-credentials.md
+@@ -1,6 +1,6 @@
+ # 06 — 雲端備份的密碼改存 Keychain，換裝置自動帶走
+ 
+-Status: ready-for-agent
++Status: ready-for-human
+ Type: enhancement
+ Blocked by: 01, 05
+ 
+@@ -46,7 +46,68 @@ Keychain 降低了忘記密碼的機率，但沒有消除它——使用者可
+ - [ ] 「停止同步」後，Keychain 裡的憑證確實被清掉，重開仍是未登入
+ - [ ] 換密碼後，新憑證正確寫回 Keychain
+ - [ ] 未啟用 iCloud 鑰匙圈的裝置上，功能正常運作，只是不同步
+-- [ ] `src/lib/cloud-backup.ts` 一行未改
+-- [ ] 網頁版的憑證仍存 localStorage，行為零變化
+-- [ ] 設定雲端備份的畫面明說「密碼遺失無法復原」，並指向匯出備份
+-- [ ] 既有測試全數通過，且一個既有測試檔都沒被修改
++- [x] `src/lib/cloud-backup.ts` 一行未改
++- [x] 網頁版的憑證仍存 localStorage，行為零變化
++- [x] 設定雲端備份的畫面明說「密碼遺失無法復原」，並指向匯出備份
++- [x] 既有測試全數通過，且一個既有測試檔都沒被修改
++
++## Comments
++
++### 2026-08-10 — 落地的東西
++
++| 檔案 | 是什麼 |
++| --- | --- |
++| `src/lib/keychain.ts` | 預載、排隊、失敗時怎麼辦。純的，不碰任何原生 API，讀寫方式由呼叫端遞進來 |
++| `src/lib/keychain.test.ts` | 上者的 11 條測試 |
++| `src/lib/keychain-native.ts` | 唯一碰 Capacitor 的檔案。順便清掉 localStorage 裡那筆過時的明文 |
++| `ios/App/App/KeychainPlugin.swift` | 原生那一端，只有 read／write／remove 三支 |
++| `MainViewController.swift`、`project.pbxproj` | 多註冊一支插件、把新的 Swift 檔掛進編譯清單 |
++| `src/main.ts`、`src/app.ts` | 啟動時多等一件事；`start()` 多收一個「暱稱與密碼存哪裡」的參數 |
++| `src/ui/data-view.ts` | 登入表單的說明字多一句，指向「手動備份」 |
++
++`src/lib/cloud-backup.ts` **一行未改**——`CloudBackupHooks.storage` 本來就是外部遞進來的，這正是決定十一要的效果。
++
++### 為什麼要有 `keychain.ts` 這個中間人
++
++Keychain 的 API 是非同步的，`StorageLike` 是同步的。做法照決定十二：啟動時先非同步讀出來、填進一個記憶體物件，此後 `getItem` 由記憶體同步回答，`setItem` 同步更新記憶體、並在背景寫回 Keychain。
++
++比決定十二多做的一件事：**寫回 Keychain 一律排隊，一次一趟**。並行的話兩趟回來的順序可能相反，落地的就會是已經被推翻的那一份——「登入後立刻停止同步」正是這種前後腳。這條有測試釘住，把排隊拿掉它就轉紅。
++
++### 不做 localStorage → Keychain 的搬遷，但把舊的那一份清掉
++
++已經在這台 iPhone 上登入過的人，更新後會變成未登入，要重新輸入一次暱稱與密碼（卡片與進度完全不受影響）。票裡沒要求搬遷，而 app 還沒上架，為一次性的事養一段永久的程式碼不划算。
++
++但**舊的那一份必須清掉**：它是明文，從此不再被讀到，「停止同步」也清不到它（那條路現在清的是 Keychain）。留著等於白白多一個讀得到密碼的地方，驗收第一條「存進 Keychain 而**非** localStorage」字面上也不成立。清除寫在 `keychain-native.ts`，只在 iOS 那條路發生。
++
++### 詞彙：不用「憑證」
++
++`CONTEXT.md` 把「憑證」列在「指紋」的 `_Avoid_` 裡，因此程式與註解一律寫「暱稱與密碼」。票與 spec 裡的「憑證」二字沒有跟著改——那是決策紀錄，不是程式。
++
++### 誠實的分界：原生那一半一行都沒被執行過
++
++與票 05 同樣的處境，開發機是 Windows，沒有 Xcode。能在本機做到的驗證只有這些：
++
++| 驗的東西 | 怎麼驗的 | 結果 |
++| --- | --- | --- |
++| 預載、排隊、失敗、只收一個鍵 | vitest 11 條 | ✅ 全過 |
++| 全部測試 | `npm test` | ✅ 391 過（18 檔） |
++| 既有測試零修改 | `git status` | ✅ 只新增一個測試檔 |
++| typecheck | `tsc --noEmit` | ✅ 乾淨 |
++| `project.pbxproj` 沒被改壞 | 用 `xcode` 套件實際 parse | ✅ 五個 Swift 檔都在 Sources，兩個 configuration 仍指到 entitlements |
++| `cap sync ios` | 實跑 | ✅ exit 0 |
++| 網頁版 build | 實跑 | ✅ `base` 仍為 `/va-practice/`，service worker 照常產出 |
++
++**兩件只有真機驗得到、且目前只有推論支撐的事**：
++
++1. **Keychain 不需要多勾任何 capability。** 項目走 app 預設的 access group，`kSecAttrSynchronizable` 也不需要 iCloud 的 entitlement。若真機上讀寫一律回 `-34018`（`errSecMissingEntitlement`），那就要在 App ID 補勾 Keychain Sharing 並在 `App.entitlements` 加 `keychain-access-groups`。
++2. **沒開 iCloud 鑰匙圈時照樣能用。** 預期是 `SecItemAdd` 照常成功、那一筆只留在本機不同步。這是驗收第六條，也是整份驗收裡唯一沒有任何程式或測試支撐的一條，**請單獨驗，不要跟其他條一起勾掉**。
++
++### 順帶記錄一個 Windows 上的坑
++
++在 Windows 跑 `npm run sync:ios`，Capacitor 會把 `ios/App/CapApp-SPM/Package.swift` 裡的相依路徑改寫成反斜線（`..\..\..\node_modules\@capacitor\filesystem`），macOS 上編不過。這次已 `git checkout` 還原。**以後在 Windows 跑完 `sync:ios`，記得檢查這個檔案有沒有被改**。
++
++### 維護者待辦
++
++1. 手動觸發 `Build iOS and upload to TestFlight`。
++2. 真機驗那六條：登入 → 關掉 app 再開仍登入 → 換密碼 → 停止同步後重開仍未登入 → 沒開 iCloud 鑰匙圈的裝置上照常運作 → 換裝置（或另一台同 Apple ID 的裝置）密碼自動帶到。
++3. 編不過的話把 Actions 的 log 貼回來——前幾趟很可能是在打 Swift 編譯錯誤，不是在測功能。
+diff --git a/ios/App/App.xcodeproj/project.pbxproj b/ios/App/App.xcodeproj/project.pbxproj
+index 118f1dc..475fb1b 100644
+--- a/ios/App/App.xcodeproj/project.pbxproj
++++ b/ios/App/App.xcodeproj/project.pbxproj
+@@ -18,6 +18,7 @@
+ 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+ 		A5C0F1020000000000000502 /* SafetyCopyPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F1010000000000000501 /* SafetyCopyPlugin.swift */; };
+ 		A5C0F1040000000000000504 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F1030000000000000503 /* MainViewController.swift */; };
++		A5C0F1070000000000000507 /* KeychainPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F1060000000000000506 /* KeychainPlugin.swift */; };
+ /* End PBXBuildFile section */
+ 
+ /* Begin PBXFileReference section */
+@@ -35,6 +36,7 @@
+ 		A5C0F1010000000000000501 /* SafetyCopyPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetyCopyPlugin.swift; sourceTree = "<group>"; };
+ 		A5C0F1030000000000000503 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+ 		A5C0F1050000000000000505 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
++		A5C0F1060000000000000506 /* KeychainPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainPlugin.swift; sourceTree = "<group>"; };
+ /* End PBXFileReference section */
+ 
+ /* Begin PBXFrameworksBuildPhase section */
+@@ -74,6 +76,7 @@
+ 				504EC3071FED79650016851F /* AppDelegate.swift */,
+ 				A5C0F1030000000000000503 /* MainViewController.swift */,
+ 				A5C0F1010000000000000501 /* SafetyCopyPlugin.swift */,
++				A5C0F1060000000000000506 /* KeychainPlugin.swift */,
+ 				A5C0F1050000000000000505 /* App.entitlements */,
+ 				504EC30B1FED79650016851F /* Main.storyboard */,
+ 				504EC30E1FED79650016851F /* Assets.xcassets */,
+@@ -170,6 +173,7 @@
+ 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+ 				A5C0F1040000000000000504 /* MainViewController.swift in Sources */,
+ 				A5C0F1020000000000000502 /* SafetyCopyPlugin.swift in Sources */,
++				A5C0F1070000000000000507 /* KeychainPlugin.swift in Sources */,
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+diff --git a/ios/App/App/KeychainPlugin.swift b/ios/App/App/KeychainPlugin.swift
+new file mode 100644
+index 0000000..f0e520a
+--- /dev/null
++++ b/ios/App/App/KeychainPlugin.swift
+@@ -0,0 +1,119 @@
++import Foundation
++import Capacitor
++import Security
++
++/// 雲端備份的暱稱與密碼，存進 iOS Keychain 並標記為可同步到 iCloud 鑰匙圈。
++///
++/// 只有 read／write／remove 三支，沒有狀態、沒有排程——預載、排隊與失敗時怎麼辦
++/// 都在 TypeScript 那一側（`src/lib/keychain.ts`），那裡測得到，這裡測不到。
++///
++/// 不存 localStorage 的理由：那份資料跟著 WebView 走，換一支手機就沒了，
++/// 而使用者可能一年沒輸入過那組密碼。Keychain 的項目則會隨 iCloud 鑰匙圈到新裝置，
++/// 且鑰匙圈是端對端加密的，Apple 自己讀不到內容（見 spec 決定十）。
++@objc(KeychainPlugin)
++public class KeychainPlugin: CAPPlugin, CAPBridgedPlugin {
++    public let identifier = "KeychainPlugin"
++    public let jsName = "Keychain"
++    public let pluginMethods: [CAPPluginMethod] = [
++        CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
++        CAPPluginMethod(name: "write", returnType: CAPPluginReturnPromise),
++        CAPPluginMethod(name: "remove", returnType: CAPPluginReturnPromise)
++    ]
++
++    /// Keychain 裡認出「這幾筆是這支 app 的」的那個名字。項目本身走 app 預設的
++    /// access group，因此不需要 Keychain Sharing 這個 capability。
++    private static let service = "io.github.brad0924.vapractice"
++
++    /// 讀、寫、刪共用同一組條件。
++    ///
++    /// `kSecAttrSynchronizable` 就是「換手機時密碼自動跟著走」那一行，它同時也是
++    /// **查詢條件**：三支方法必須一致地帶著它，否則寫進去的是可同步的那一批、
++    /// 讀的卻是只存本機的那一批，永遠對不上。
++    ///
++    /// 使用者沒開 iCloud 鑰匙圈時不會失敗，只是那一筆留在本機不同步——
++    /// 功能照常運作（見 spec 決定十）。
++    private static func query(_ key: String) -> [String: Any] {
++        [
++            kSecClass as String: kSecClassGenericPassword,
++            kSecAttrService as String: service,
++            kSecAttrAccount as String: key,
++            kSecAttrSynchronizable as String: kCFBooleanTrue!
++        ]
++    }
++
++    @objc func read(_ call: CAPPluginCall) {
++        guard let key = call.getString("key") else {
++            call.reject("沒有帶 key")
++            return
++        }
++
++        var query = Self.query(key)
++        query[kSecReturnData as String] = kCFBooleanTrue!
++        query[kSecMatchLimit as String] = kSecMatchLimitOne
++
++        var item: CFTypeRef?
++        let status = SecItemCopyMatching(query as CFDictionary, &item)
++        if status == errSecItemNotFound {
++            // 還沒登入過。不帶 value 回去，JS 那側會當成未登入照常啟動。
++            call.resolve([:])
++            return
++        }
++        guard status == errSecSuccess,
++              let data = item as? Data,
++              let value = String(data: data, encoding: .utf8) else {
++            call.reject("讀取 Keychain 失敗（\(status)）")
++            return
++        }
++        call.resolve(["value": value])
++    }
++
++    @objc func write(_ call: CAPPluginCall) {
++        guard let key = call.getString("key"), let value = call.getString("value") else {
++            call.reject("沒有帶 key 或 value")
++            return
++        }
++
++        let data = Data(value.utf8)
++        let query = Self.query(key)
++
++        // 先當作已經有那一筆（換密碼就是這條路），沒有才新增。
++        // 反過來寫（先刪再加）會在中間開出一個兩邊都沒有的窗口，沒有必要。
++        let updated = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
++        if updated == errSecSuccess {
++            call.resolve()
++            return
++        }
++        guard updated == errSecItemNotFound else {
++            call.reject("寫入 Keychain 失敗（\(updated)）")
++            return
++        }
++
++        var insert = query
++        insert[kSecValueData as String] = data
++        // 開機後第一次解鎖過就讀得到。這一份是啟動時第一件要用的東西，
++        // 而 `ThisDeviceOnly` 那幾種與 iCloud 鑰匙圈同步互斥，不能用。
++        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
++
++        let added = SecItemAdd(insert as CFDictionary, nil)
++        guard added == errSecSuccess else {
++            call.reject("寫入 Keychain 失敗（\(added)）")
++            return
++        }
++        call.resolve()
++    }
++
++    @objc func remove(_ call: CAPPluginCall) {
++        guard let key = call.getString("key") else {
++            call.reject("沒有帶 key")
++            return
++        }
++
++        let status = SecItemDelete(Self.query(key) as CFDictionary)
++        // 本來就沒有那一筆，與剛剛刪掉了是同一個結果：使用者要的是「不要再記著」。
++        guard status == errSecSuccess || status == errSecItemNotFound else {
++            call.reject("清除 Keychain 失敗（\(status)）")
++            return
++        }
++        call.resolve()
++    }
++}
+diff --git a/ios/App/App/MainViewController.swift b/ios/App/App/MainViewController.swift
+index 360ec77..6e2835d 100644
+--- a/ios/App/App/MainViewController.swift
++++ b/ios/App/App/MainViewController.swift
+@@ -1,7 +1,7 @@
+ import UIKit
+ import Capacitor
+ 
+-/// 只為了註冊 `SafetyCopyPlugin` 而存在。
++/// 只為了註冊住在 app 自己這個 target 裡的那幾支插件而存在。
+ ///
+ /// Capacitor 6 之後，住在 app 自己這個 target 裡的插件不會被自動掃描到——
+ /// 自動註冊只涵蓋 `cap sync` 從 node_modules 找到的那些。因此得自己在 bridge
+@@ -12,5 +12,6 @@ import Capacitor
+ class MainViewController: CAPBridgeViewController {
+     override func capacitorDidLoad() {
+         bridge?.registerPluginInstance(SafetyCopyPlugin())
++        bridge?.registerPluginInstance(KeychainPlugin())
+     }
+ }
+diff --git a/src/app.ts b/src/app.ts
+index 37e6100..c4d6199 100644
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,4 +1,4 @@
+-import { cardsInBooks, createStore, type ImportResult } from './lib/storage';
++import { cardsInBooks, createStore, type ImportResult, type StorageLike } from './lib/storage';
+ import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
+ import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
+ import { withSafetyCopy } from './lib/safety-copy';
+@@ -58,7 +58,11 @@ export interface App {
+   keyHandler: ((event: KeyboardEvent) => void) | null;
+ }
+ 
+-export function start(root: HTMLElement): void {
++/**
++ * `cloudStorage` 是雲端備份記暱稱與密碼的地方。網頁版遞的是 localStorage，
++ * iOS 遞的是 Keychain 撐起來的那一個（見 `main.ts`）——雲端備份自己不必知道差別。
++ */
++export function start(root: HTMLElement, cloudStorage: StorageLike): void {
+   // iOS 上的保險副本夾在 store 與 localStorage 之間，跟上每一次本機寫入。
+   // 網頁版拿到的是個什麼都不做的東西，這條路完全不發生。
+   const store = createStore(withSafetyCopy(localStorage, createNativeSafetyCopy()));
+@@ -72,7 +76,7 @@ export function start(root: HTMLElement): void {
+   let render: () => void = () => {};
+ 
+   const cloud = createCloudBackup({
+-    storage: localStorage,
++    storage: cloudStorage,
+     // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
+     fetch: fetch.bind(window),
+     onPulled(json, updatedAt) {
+diff --git a/src/lib/keychain-native.ts b/src/lib/keychain-native.ts
+new file mode 100644
+index 0000000..dcdabe1
+--- /dev/null
++++ b/src/lib/keychain-native.ts
+@@ -0,0 +1,43 @@
++/**
++ * Keychain 接上原生那一端的接線。所有 Capacitor 的東西都只出現在這裡，
++ * `keychain.ts` 因此維持可以在 vitest 裡測的純度，立場與 `safety-copy-native.ts` 相同。
++ *
++ * 原生實作是 app 自己那支插件（`ios/App/App/KeychainPlugin.swift`），沒有加任何新的
++ * npm 依賴。那一端把項目標記為可同步到 iCloud 鑰匙圈——換新 iPhone 時密碼自動跟著走，
++ * 而 iCloud 鑰匙圈是端對端加密的，Apple 自己讀不到內容（見 spec 決定十）。
++ *
++ * 本模組不寫自動測試：原生插件在 node 環境下不存在，硬要測就得造一整套假物件，
++ * 測到的只是自己寫的假貨。行為改由真機的手動驗收清單守住。
++ */
++import { registerPlugin } from '@capacitor/core';
++import { CREDENTIALS_KEY } from './cloud-backup';
++import { loadKeychainStorage } from './keychain';
++import type { StorageLike } from './storage';
++
++/** 原生那一端的三支方法。沒有那一筆時 `read` 不帶 `value` 回來。 */
++interface KeychainPlugin {
++  read(options: { key: string }): Promise<{ value?: string }>;
++  write(options: { key: string; value: string }): Promise<void>;
++  remove(options: { key: string }): Promise<void>;
++}
++
++const plugin = registerPlugin<KeychainPlugin>('Keychain');
++
++/**
++ * 啟動前先把暱稱與密碼讀出來，回傳雲端備份要用的那個 `StorageLike`。
++ * 只有 iOS 會走到，呼叫端負責判斷平台（見 `main.ts`）。
++ */
++export async function loadNativeCloudStorage(): Promise<StorageLike> {
++  const storage = await loadKeychainStorage({
++    read: async (key) => (await plugin.read({ key })).value ?? null,
++    write: (key, value) => plugin.write({ key, value }),
++    remove: (key) => plugin.remove({ key }),
++  });
++
++  // 這台 iPhone 在改用 Keychain 之前存在 localStorage 的那一份從此不再被讀到，
++  // 但它是明文，留著只是白白多一個讀得到密碼的地方，而且「停止同步」也清不到它。
++  // 刻意不把它搬進 Keychain：使用者重新輸入一次就好，換來的是不必養一段只跑一次的搬遷碼。
++  localStorage.removeItem(CREDENTIALS_KEY);
++
++  return storage;
++}
+diff --git a/src/lib/keychain.test.ts b/src/lib/keychain.test.ts
+new file mode 100644
+index 0000000..1701ff7
+--- /dev/null
++++ b/src/lib/keychain.test.ts
+@@ -0,0 +1,190 @@
++import { describe, it, expect } from 'vitest';
++import { loadKeychainStorage, type KeychainLike } from './keychain';
++import { CREDENTIALS_KEY as KEY } from './cloud-backup';
++
++/**
++ * Keychain 那一端，但每一趟寫入什麼時候完成由測試自己決定——
++ * 「登入後立刻停止同步」這種前後腳的事，非得能停在半路才測得到。
++ * 讀取則一律立刻回來：它只發生在啟動時，沒有第二件事在跟它搶。
++ */
++function fakeKeychain(initial?: string) {
++  const stored = new Map<string, string>();
++  if (initial !== undefined) stored.set(KEY, initial);
++
++  const waiting: { land: () => void; resolve: () => void; reject: (error: unknown) => void }[] = [];
++
++  /** 讓已經排好的 promise 全部跑完，排隊的下一趟才會真的開始。 */
++  const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
++
++  function defer(land: () => void): Promise<void> {
++    return new Promise((resolve, reject) => {
++      waiting.push({ land, resolve, reject });
++    });
++  }
++
++  function pick(): (typeof waiting)[number] {
++    const next = waiting.shift();
++    if (next === undefined) throw new Error('現在沒有正在等的寫入');
++    return next;
++  }
++
++  return {
++    /** Keychain 裡真的落地的東西。 */
++    stored,
++    /** 還沒回來的寫入趟數。 */
++    outstanding: () => waiting.length,
++    keychain: {
++      read: (key) => Promise.resolve(stored.get(key) ?? null),
++      write: (key, value) => defer(() => stored.set(key, value)),
++      remove: (key) => defer(() => stored.delete(key)),
++    } satisfies KeychainLike,
++    /** 放行目前這一趟。前後都讓 promise 跑完：排隊本身也是排在 microtask 上的。 */
++    async finish(): Promise<void> {
++      await settle();
++      const next = pick();
++      next.land();
++      next.resolve();
++      await settle();
++    },
++    /** 讓目前這一趟失敗，例如裝置鎖著。 */
++    async fail(): Promise<void> {
++      await settle();
++      pick().reject(new Error('Keychain 寫不進去'));
++      await settle();
++    },
++    settle,
++  };
++}
++
++/** 存進去的那一串長這樣，與 `cloud-backup.ts` 的 `remember()` 一致。 */
++function saved(nickname: string, password: string): string {
++  return JSON.stringify({ nickname, password });
++}
++
++describe('loadKeychainStorage', () => {
++  it('啟動時預載，之後 getItem 同步就答得出來', async () => {
++    const fake = fakeKeychain(saved('brad', '密碼'));
++
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    expect(storage.getItem(KEY)).toBe(saved('brad', '密碼'));
++  });
++
++  it('Keychain 裡還沒有那一筆時是未登入', async () => {
++    const fake = fakeKeychain();
++
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    expect(storage.getItem(KEY)).toBeNull();
++  });
++
++  it('讀不出來時當作未登入，不讓 app 倒在啟動', async () => {
++    const broken: KeychainLike = {
++      read: () => Promise.reject(new Error('Keychain 讀不到')),
++      write: () => Promise.resolve(),
++      remove: () => Promise.resolve(),
++    };
++
++    const storage = await loadKeychainStorage(broken);
++
++    expect(storage.getItem(KEY)).toBeNull();
++  });
++
++  it('剛存進去的立刻讀得到，不必等 Keychain 那一趟回來', async () => {
++    const fake = fakeKeychain();
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem(KEY, saved('brad', '密碼'));
++
++    // 同一拍就讀得到，中間沒有任何等待。
++    expect(storage.getItem(KEY)).toBe(saved('brad', '密碼'));
++    // 而 Keychain 那一趟這時還在路上。
++    await fake.settle();
++    expect(fake.outstanding()).toBe(1);
++  });
++
++  it('存進去的東西會寫回 Keychain', async () => {
++    const fake = fakeKeychain();
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem(KEY, saved('brad', '密碼'));
++    await fake.finish();
++
++    expect(fake.stored.get(KEY)).toBe(saved('brad', '密碼'));
++  });
++
++  it('換密碼後，Keychain 裡是新的那一份', async () => {
++    const fake = fakeKeychain(saved('brad', '舊密碼'));
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem(KEY, saved('brad', '新密碼'));
++    await fake.finish();
++
++    expect(storage.getItem(KEY)).toBe(saved('brad', '新密碼'));
++    expect(fake.stored.get(KEY)).toBe(saved('brad', '新密碼'));
++  });
++
++  it('停止同步後，Keychain 裡那一筆真的被清掉', async () => {
++    const fake = fakeKeychain(saved('brad', '密碼'));
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.removeItem(KEY);
++    await fake.finish();
++
++    expect(storage.getItem(KEY)).toBeNull();
++    expect(fake.stored.has(KEY)).toBe(false);
++  });
++
++  it('登入後立刻停止同步時，Keychain 是空的——兩趟不會前後腳顛倒', async () => {
++    const fake = fakeKeychain();
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem(KEY, saved('brad', '密碼'));
++    storage.removeItem(KEY);
++
++    // 清除那一趟要等寫入回來才輪得到它，此刻還沒被叫。
++    await fake.settle();
++    expect(fake.outstanding()).toBe(1);
++    await fake.finish();
++    expect(fake.stored.get(KEY)).toBe(saved('brad', '密碼'));
++
++    await fake.finish();
++    expect(fake.stored.has(KEY)).toBe(false);
++  });
++
++  it('進得了 Keychain 的只有暱稱與密碼那一個鍵，別人的東西不收', async () => {
++    const fake = fakeKeychain();
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem('va-practice:gemini', '別人的金鑰');
++    await fake.settle();
++
++    expect(fake.outstanding()).toBe(0);
++    expect(fake.stored.size).toBe(0);
++  });
++
++  it('寫回失敗時記憶體那一份照舊，這次開著的 app 仍然是登入狀態', async () => {
++    const fake = fakeKeychain();
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem(KEY, saved('brad', '密碼'));
++    await fake.fail();
++
++    expect(storage.getItem(KEY)).toBe(saved('brad', '密碼'));
++    // 失敗後不重試，也不留下一個轉不停的迴圈。
++    expect(fake.outstanding()).toBe(0);
++  });
++
++  it('寫回失敗後，下一次變動照樣寫得出去', async () => {
++    const fake = fakeKeychain();
++    const storage = await loadKeychainStorage(fake.keychain);
++
++    storage.setItem(KEY, saved('brad', '密碼'));
++    await fake.fail();
++
++    storage.setItem(KEY, saved('brad', '新密碼'));
++    await fake.finish();
++
++    expect(fake.stored.get(KEY)).toBe(saved('brad', '新密碼'));
++  });
++});
+diff --git a/src/lib/keychain.ts b/src/lib/keychain.ts
+new file mode 100644
+index 0000000..04c838e
+--- /dev/null
++++ b/src/lib/keychain.ts
+@@ -0,0 +1,64 @@
++/**
++ * iOS Keychain 裡的那一份暱稱與密碼，接成雲端備份吃得下的同步介面。
++ *
++ * 為什麼要有這個中間人：Keychain 的 API 是非同步的，而 `StorageLike` 是同步的
++ * （見 ADR-0002，那個介面不改）。解法是在啟動流程中先非同步讀出來、填進一個記憶體
++ * 物件；此後 `getItem` 由記憶體同步回答，`setItem` 同步更新記憶體、並在背景寫回
++ * Keychain。暱稱與密碼只有登入、換密碼、停止同步三個時機會變動，頻率極低，
++ * 這個模型足夠（見 spec 決定十二）。
++ *
++ * 這也是 `cloud-backup.ts` 一行都不必改的原因：`CloudBackupHooks.storage` 本來就是
++ * 外部遞進來的 `StorageLike`，iOS 版改遞這一個即可（見 spec 決定十一）。
++ *
++ * 本模組不碰任何原生 API：讀寫的方式一律由呼叫端遞進來，與 `safety-copy.ts` 同一個
++ * 立場。接上 Capacitor 那一端的接線在 `keychain-native.ts`。網頁版完全沒有這條支線。
++ */
++import { CREDENTIALS_KEY } from './cloud-backup';
++import type { StorageLike } from './storage';
++
++/** Keychain 那一端的三支方法。沒有那一筆時 `read` 回 null。 */
++export interface KeychainLike {
++  read(key: string): Promise<string | null>;
++  write(key: string, value: string): Promise<void>;
++  remove(key: string): Promise<void>;
++}
++
++/**
++ * 啟動時先把暱稱與密碼那一筆讀出來，回傳一個此後都同步作答的 `StorageLike`。
++ *
++ * 進得了 Keychain 的只有那一個鍵，與 `withSafetyCopy` 同樣寫死——雲端備份目前也只用
++ * 這一個鍵，但寫死比較誠實：哪天多出第二個鍵時，這裡不會默默把別人的東西也塞進去。
++ */
++export async function loadKeychainStorage(keychain: KeychainLike): Promise<StorageLike> {
++  const memory = new Map<string, string>();
++  try {
++    const preloaded = await keychain.read(CREDENTIALS_KEY);
++    if (preloaded !== null) memory.set(CREDENTIALS_KEY, preloaded);
++  } catch {
++    // 讀不出來就當作沒登入過：使用者重新輸入一次暱稱與密碼就好，本機的卡片與進度
++    // 一張都不會少，比整個 app 倒在啟動畫面好——與保險副本的還原同一個立場。
++  }
++
++  /**
++   * 寫回 Keychain 一律排隊，一次一趟。並行的話回來的順序可能相反，
++   * 落地的就會是已經被推翻的那一份——「登入後立刻停止同步」正是這種前後腳。
++   */
++  let queue: Promise<void> = Promise.resolve();
++  function enqueue(operation: () => Promise<void>): void {
++    // 失敗就算了，不重試：這一層沒有可以回報的畫面，而下一次登入或換密碼會再寫一趟
++    // （與雲端推送同一個立場）。記憶體那一份不受影響，這次開著的 app 照常運作。
++    queue = queue.then(operation).catch(() => {});
++  }
++
++  return {
++    getItem: (key) => memory.get(key) ?? null,
++    setItem: (key, value) => {
++      memory.set(key, value);
++      if (key === CREDENTIALS_KEY) enqueue(() => keychain.write(key, value));
++    },
++    removeItem: (key) => {
++      memory.delete(key);
++      if (key === CREDENTIALS_KEY) enqueue(() => keychain.remove(key));
++    },
++  };
++}
+diff --git a/src/main.ts b/src/main.ts
+index ea59cf5..7d21332 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,6 +1,7 @@
+ import './styles.css';
+ import { start } from './app';
+ import { isNative, restoreFromNative } from './lib/safety-copy-native';
++import { loadNativeCloudStorage } from './lib/keychain-native';
+ 
+ // 讓瀏覽器不要因為長期未使用而清掉複習進度。
+ void navigator.storage?.persist?.();
+@@ -8,11 +9,16 @@ void navigator.storage?.persist?.();
+ const root = document.getElementById('app');
+ if (root) {
+   if (isNative()) {
+-    // iOS 才多這一個非同步前置步驟：還原必須早於 store.load()，
+-    // 它在 localStorage 空白時會自行初始化一份新資料，晚一步使用者就先看到一個空的 app。
+-    void restoreFromNative(localStorage).then(() => start(root));
++    // iOS 才多這一個非同步前置步驟，兩件事都非得在 start() 之前做完不可：
++    // 還原必須早於 store.load()，它在 localStorage 空白時會自行初始化一份新資料，
++    // 晚一步使用者就先看到一個空的 app；暱稱與密碼則要先從 Keychain 讀出來，
++    // 雲端備份那一側才問得到「登入了沒」（它問的方式是同步的）。
++    // 兩者互不相干，一起等即可。
++    void Promise.all([restoreFromNative(localStorage), loadNativeCloudStorage()]).then(
++      ([, cloudStorage]) => start(root, cloudStorage),
++    );
+   } else {
+-    // 網頁版的啟動路徑一步都不多，仍然是同步的。
+-    start(root);
++    // 網頁版的啟動路徑一步都不多，仍然是同步的；暱稱與密碼照舊存在 localStorage。
++    start(root, localStorage);
+   }
+ }
+diff --git a/src/ui/data-view.ts b/src/ui/data-view.ts
+index d8d4d30..9123635 100644
+--- a/src/ui/data-view.ts
++++ b/src/ui/data-view.ts
+@@ -4,9 +4,15 @@ import { toMessage } from '../lib/storage';
+ import { el, button, download } from './dom';
+ import { booksSection } from './books-section';
+ 
++/**
++ * 最後一句不是客套話：密碼同時是加密金鑰，遺失即無法復原是機制決定的（見 ADR-0003）。
++ * iOS 上把密碼交給 iCloud 鑰匙圈保管降低了忘記的機率，但沒有消除它——使用者可能沒開
++ * 鑰匙圈，或整個換掉 Apple ID。因此這裡必須同時指出唯一不依賴密碼的後路（見 spec 決定十三）。
++ */
+ const CLOUD_HINT =
+   '輸入自取的暱稱與密碼，進度就會自動備份到雲端；換裝置輸入同一組就接得回來。' +
+-  '密碼同時用來加密內容，沒有人能幫你重設，遺失後雲端那份就再也讀不出來。';
++  '密碼同時用來加密內容，沒有人能幫你重設，遺失後雲端那份就再也讀不出來。' +
++  '請用下面的「手動備份」另外匯出一份檔案，那是唯一不需要密碼就打得開的後路。';
+ 
+ /**
+  * 換密碼的後果是機制決定的，不是可以藏起來的細節：密碼同時是雲端的指紋與金鑰，

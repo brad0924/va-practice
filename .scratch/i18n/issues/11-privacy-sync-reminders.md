@@ -230,3 +230,18 @@ hook 會噴一坨 Node 錯誤堆疊把每一次 commit 都擋掉。那不是隱�
 那份不會跟著 repo 走。不補的話，換一台電腦 clone 下來，個人設定與 Claude Code 的執行期鎖檔
 `scheduled_tasks.lock` 都會出現在 `git status` 裡等著被誤 commit。決定四要的那條界線得在任何一份
 clone 上都成立才算數，所以兩行都補進 repo 自己的 `.gitignore`。
+
+### 考題那一條在本機綠燈、在 CI 必爆
+
+這張票寫的「考題」（重放 `2b96a9a`）原本是 `git show 2b96a9a` 當場去翻 git 歷史。**本機一路綠燈，
+但這支測試從來沒在 CI 跑過**——它是在 `feature/ios-app` 上寫的，而那條分支直到票 12 做完才合進
+`main`。合進去的第一次 CI 就紅了：`actions/checkout` 預設 `fetch-depth: 1`，clone 裡只有最新那一個
+commit，`git show 2b96a9a` 回 `unknown revision`，整支檔在載入階段就掛掉，裡面 24 條測試一條都
+沒跑到，後面的 `npm run build` 與部署也全部沒跑。
+
+改成把那份 diff 凍在 `scripts/hooks/fixtures/2b96a9a.diff`，測試改讀檔。沒有選「叫 CI 抓完整歷史」
+（`fetch-depth: 0`）：被測的 `privacy-signals.mjs` 吃的是一段 diff **字串**，它不需要 git 歷史，
+歷史只是當初取得這份輸入的手段。凍住不會失真，commit 的內容一旦寫進去就不會再變。
+
+**教訓不是「別重放真實 commit」，是「測試依賴的東西在 CI 上不一定在」。** 這張票守的是「hook 會不會
+變安靜」，而它自己就這樣安靜了一次——差別只在這次是紅燈，看得見。

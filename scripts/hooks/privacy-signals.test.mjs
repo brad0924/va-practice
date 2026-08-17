@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { PRIVACY_SIGNALS, watches, hitsIn, hitsInDiff, blockingHits } from './privacy-signals.mjs';
 
@@ -190,9 +189,20 @@ describe('該不該擋', () => {
  * 初版計畫是盯死四支檔（`cloud-backup.ts`、`cloud-crypto.ts`、`gemini-key.ts`、`gemini-reading.ts`），
  * 那個做法在這一題上必定失敗——`keychain-native.ts` 那時候還不存在，不在任何清單裡。
  * 所以下面除了「有沒有擋」，還釘住「命中的是那四支以外的檔」，免得日後有人把做法改回按檔名。
+ *
+ * **考題的內容凍在 `fixtures/2b96a9a.diff`，不去翻 git 歷史。** 原本這裡寫的是 `git show 2b96a9a`，
+ * 在你自己的電腦上綠燈，在 CI 上必爆——`actions/checkout` 預設只抓一個 commit（`fetch-depth: 1`），
+ * 那個 commit 不在 clone 裡，`git show` 回 `unknown revision`，整支檔在載入時就掛掉。
+ *
+ * 選凍起來而不是叫 CI 抓完整歷史：被測的 `privacy-signals.mjs` 吃的是一段 diff **字串**，
+ * 它不需要 git 歷史——歷史只是當初取得這份輸入的手段。凍住也不會失真，commit 的內容一旦寫進去
+ * 就不會再變。要重新產生：`git show 2b96a9a > scripts/hooks/fixtures/2b96a9a.diff`。
+ *
+ * 那個檔滿滿都是訊號字，但它躺在 `scripts/hooks/` 底下，正好在 `UNWATCHED` 的排除範圍內，
+ * 不會害兩道 hook 對它跳。
  */
 describe('考題：重放 2b96a9a', () => {
-  const diff = execFileSync('git', ['show', '2b96a9a'], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  const diff = readFileSync(new URL('./fixtures/2b96a9a.diff', import.meta.url), 'utf8');
   const OLD_LIST = ['cloud-backup.ts', 'cloud-crypto.ts', 'gemini-key.ts', 'gemini-reading.ts'];
 
   it('要擋下來', () => {
