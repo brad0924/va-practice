@@ -33,8 +33,11 @@
 | 抖動 | Fuzz | ゆらぎ | ~~Random~~、~~Jitter~~、~~Offset~~ |
 | 到期排序 | Due Sort | 期日ソート | ~~Priority~~、~~Queue order~~（會讓人誤以為影響複習誰先出現） |
 | 時間桶 | Time Bucket | 期日グループ | ~~Category~~、~~Status~~、~~Tag~~、~~Page~~ |
+| 提醒 | Reminder | リマインド | ~~Push notification~~（把手段寫進名字）、~~Notification~~（太泛）、~~Alarm~~ |
+| 提醒排程 | Reminder Schedule | リマインド予定 | ~~Forecast~~、~~Queue~~（會與複習佇列混淆）、~~Calendar~~ |
 | 備份 | Backup | バックアップ | ~~Snapshot~~、~~Sync~~、~~Export file~~ |
 | 雲端備份 | Cloud Backup | クラウドバックアップ | ~~Sync~~（會讓人誤以為逐張合併）、~~Cloud Drive~~、~~Account~~ |
+| 保險副本 | Safety Copy | セーフティコピー | ~~Sync~~、~~Cache~~、~~Backup~~（會與雲端備份及匯出檔混淆）、~~Second source~~ |
 | 匯入單字 | Import Words | 単語の取り込み | ~~Import~~（會與備份的匯入混淆）、~~Merge~~ |
 | 暱稱 | Nickname | ニックネーム | ~~Account~~、~~Username~~、~~User ID~~ |
 | 密碼 | Password | パスワード | ~~Passphrase~~、~~Key~~ |
