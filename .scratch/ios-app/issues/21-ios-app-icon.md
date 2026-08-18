@@ -67,12 +67,33 @@ Blocked by: 無，可立即開始
 
 ## 驗收
 
-- [ ] `npm run icons` 之後，`ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` 是那疊閃卡的圖，不是藍色叉叉
-- [ ] 那張圖是 1024×1024、`colorType 2`（RGB，不帶 alpha 通道）
-- [ ] 它的圖案與 `public/icon-1024.png` 一致（逐像素比對，容許抗鋸齒造成的微小差異，作法比照 `04` 的驗收）
-- [ ] `public/icon-192.png`／`icon-512.png`／`icon-1024.png` 三個檔的 md5 與改動前一字不差
-- [ ] `Contents.json` 沒有改動
-- [ ] 網頁版行為零變化：`npm run typecheck` 乾淨、`npm test` 全綠、`dist` 產物與改動前一致
+- [x] `npm run icons` 之後，`ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` 是那疊閃卡的圖，不是藍色叉叉
+      （110522 → 10649 bytes）
+- [x] 那張圖是 1024×1024、`colorType 2`（RGB，不帶 alpha 通道）
+      IHDR 與 Capacitor 那張逐位元組相同（`0000 0400 0000 0400 0802`），只有內容換掉。
+- [x] 它的圖案與 `public/icon-1024.png` 一致（逐像素比對，容許抗鋸齒造成的微小差異，作法比照 `04` 的驗收）
+      **比 `04` 嚴格**：`04` 比的是 512 與 1024 兩次獨立運算，必須容許抗鋸齒誤差；這裡兩張同解析度、
+      同一次 `draw(1024)` 編碼兩遍，所以要求 RGB 三通道完全相同。實測 1048576 個像素、0 個通道對不上。
+- [x] `public/icon-192.png`／`icon-512.png`／`icon-1024.png` 三個檔的 md5 與改動前一字不差
+      `3fed72cf…`／`9ea3bf9d…`／`9a871ce7…`，三個都沒動。
+- [x] `Contents.json` 沒有改動
+- [x] 網頁版行為零變化：`npm run typecheck` 乾淨、`npm test` 全綠、`dist` 產物與改動前一致
+      typecheck 乾淨，547 測全綠（29 檔），`npm run build` 過。`dist` 的來源（`src/`、`public/`、
+      `index.html`、`vite.config.ts`）在 `git status` 裡完全沒動，產物必然一致。
 - [ ] 下一次跑 `Build iOS and upload to TestFlight` 之後，實機上的圖示已經換掉（這一項要等 CI 跑過，可與 `11` 一起驗）
 
 ## Comments
+
+### 2026-08-18 — 落地的東西
+
+| 檔案 | 是什麼 |
+| --- | --- |
+| `scripts/generate-icons.mjs` | `encodePng()` 多收 `{ alpha }`。`false` 時丟掉 alpha 通道、IHDR 色彩類型寫 `2`。預設仍是 `6`，所以 `public/` 那三張一個位元組都沒動 |
+| 同上，`main()` | 畫完 1024 那張之後，**同一份像素**再存一次到 `ios/`。不重畫（重畫要多花五秒），不另開腳本 |
+| 同上，檔尾的 `if (argv[1] && …) main()` | 測試要 `import { encodePng }`，import 的時候不能順手把檔案寫出去 |
+| `scripts/generate-icons.test.mjs` | 五條測試。三條守 `encodePng` 的兩種輸出，兩條守已 commit 的那張圖 |
+
+那兩條「守已 commit 的圖」是刻意的：alpha 加回去在本地不會有任何錯誤，要等上傳 App Store Connect
+被退件才知道——那是很慢又很貴的回饋迴圈，值得用一條讀檔測試換掉。
+
+Status 沒有轉 `done`。第七條驗收要等 CI 跑過才看得到，比照票 `14` 的做法，驗過再另一個 commit 轉。
