@@ -1,6 +1,6 @@
 # 21 — 手機上那張 app 圖示還是 Capacitor 的範例圖
 
-Status: ready-for-agent
+Status: done
 Type: bug
 Blocked by: 無，可立即開始
 
@@ -80,7 +80,8 @@ Blocked by: 無，可立即開始
 - [x] 網頁版行為零變化：`npm run typecheck` 乾淨、`npm test` 全綠、`dist` 產物與改動前一致
       typecheck 乾淨，547 測全綠（29 檔），`npm run build` 過。`dist` 的來源（`src/`、`public/`、
       `index.html`、`vite.config.ts`）在 `git status` 裡完全沒動，產物必然一致。
-- [ ] 下一次跑 `Build iOS and upload to TestFlight` 之後，實機上的圖示已經換掉（這一項要等 CI 跑過，可與 `11` 一起驗）
+- [x] 下一次跑 `Build iOS and upload to TestFlight` 之後，實機上的圖示已經換掉（這一項要等 CI 跑過，可與 `11` 一起驗）
+      2026-08-18 實機確認：主畫面上是那疊閃卡，不是藍色叉叉。
 
 ## Comments
 
@@ -96,4 +97,9 @@ Blocked by: 無，可立即開始
 那兩條「守已 commit 的圖」是刻意的：alpha 加回去在本地不會有任何錯誤，要等上傳 App Store Connect
 被退件才知道——那是很慢又很貴的回饋迴圈，值得用一條讀檔測試換掉。
 
-Status 沒有轉 `done`。第七條驗收要等 CI 跑過才看得到，比照票 `14` 的做法，驗過再另一個 commit 轉。
+### 2026-08-18 — 實機驗收過了，票轉 done
+
+第七條驗收要等 CI 打包一次才看得到，所以實作那個 commit 沒有轉 `done`，比照票 `14` 的做法。
+CI 跑完之後在手機上確認：主畫面上是那疊閃卡。票轉 `done`，`11` 不再被這張擋著。
+
+`Splash.imageset` 還是 Capacitor 的範例圖。那不在本票範圍內（見「這張票不做的事」），要處理另開票。
