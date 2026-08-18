@@ -95,12 +95,33 @@ function langSection(app: App): HTMLElement {
   return section;
 }
 
-/** 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止同步兩個控制項。 */
+/**
+ * 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止同步兩個控制項。
+ * iOS 上多一個狀態——**記得暱稱、但這台裝置拒絕過**，那時給的是一條反悔的路。
+ */
 function cloudSection(app: App): HTMLElement {
   const section = el('section', 'section');
   section.append(el('h2', 'section-title', t('data.cloudTitle')));
 
   const signedInAs = app.cloud.nickname();
+
+  // 拒絕過的裝置不能畫成「已登入」：暱稱與密碼確實還在（Keychain 那一筆刻意不刪），
+  // 但這台並沒有在同步。反悔的路留在這裡，按下去就接回來，一個字都不必打——
+  // 不留的話，改主意的代價是重新輸入一組可能一年沒打過的密碼（票 14）。
+  if (signedInAs !== null && app.cloudConsent?.declined() === true) {
+    section.append(
+      el('p', 'hint', t('data.declinedHint')),
+      button('primary', t('data.pullNow', { nickname: signedInAs }), () => {
+        app.cloudConsent?.grant();
+        // 與開機時同意的那條路走的是同一支，行為因此一致：比新舊、該拉就拉。
+        app.cloud.begin(app.data);
+        // 重畫成已登入的樣子。拉到雲端資料的話那一側會再重畫一次，內容相同。
+        app.showData();
+      }),
+    );
+    return section;
+  }
+
   if (signedInAs !== null) {
     section.append(
       el('p', 'hint', t('data.signedInAs', { nickname: signedInAs })),
@@ -147,8 +168,12 @@ function cloudSection(app: App): HTMLElement {
     submit.textContent = t('data.connecting');
     void app.cloud
       .signIn(nickname.value, password.value, app.data)
-      // 重畫成已登入的樣子。拉到雲端資料的情形下這裡是第二次重畫，內容相同。
-      .then(() => app.showData())
+      .then(() => {
+        // 在這台裝置上親手打完密碼就是同意了——下次開 app 再問一次是在羞辱他（票 14）。
+        app.cloudConsent?.grant();
+        // 重畫成已登入的樣子。拉到雲端資料的情形下這裡是第二次重畫，內容相同。
+        app.showData();
+      })
       .catch((reason: unknown) => {
         error.textContent = toMessage(reason);
         submit.disabled = false;

@@ -143,6 +143,10 @@ const en: typeof zhHant = {
     'Please also export a file with "Manual backup" below, it is the only way back in that does not need the password.',
   'data.signedInAs':
     'Signed in as {nickname}. Review progress is backed up automatically; enter the same nickname and password on another device to pick it up again.',
+  'data.declinedHint':
+    'This device remembers the nickname for your cloud backup, but you chose not to pick it up here, so nothing is being backed up. ' +
+    'Press the button below to pick it up after all, no password needed.',
+  'data.pullNow': 'Pick up cloud backup ({nickname})',
   'data.changePasswordTitle': 'Change password',
   'data.changeHint':
     'Once the password changes, other devices still on the old one are turned away, and each of them has to enter the new password before it can back up again.',
@@ -184,6 +188,10 @@ const en: typeof zhHant = {
     'Importing overwrites all of your current cards and progress, and cannot be undone. Continue?',
   'data.exportFailed': 'Export failed: {reason}',
   'data.importFailed': 'Import failed: {reason}',
+  'cloud.pullConfirm':
+    'This device remembers the nickname {nickname} from your cloud backup.\n\n' +
+    'Pick up the cards and review progress from the cloud on this device now?\n' +
+    'Choose Cancel and this device starts out empty. The copy in the cloud is left alone, and you can pick it up later on the Data screen.',
   'cloud.wrongPassword': 'Wrong nickname or password',
   'cloud.tooLarge':
     'The number of cards is over the limit for cloud backup, so nothing was uploaded this time. Please export a file from Manual backup on the Data screen and keep it. The cards and progress on this device are completely unaffected.',

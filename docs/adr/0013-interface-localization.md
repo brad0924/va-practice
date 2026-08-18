@@ -33,6 +33,7 @@
 | | `va-practice:reminder-time` 提醒時間 |
 | | `va-practice:gemini` Gemini 金鑰 |
 | | **`va-practice:lang` 介面語言** ← 本 ADR |
+| | `va-practice:cloud-consent` 這台要不要接雲端（票 ios-app 14） |
 
 判準是**這是「你的東西」還是「這台機器的東西」**。提醒時間、金鑰、語言都屬後者。
 

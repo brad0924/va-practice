@@ -1,5 +1,7 @@
 import { cardsInBooks, createStore, type ImportResult, type StorageLike } from './lib/storage';
 import { createCloudBackup, type CloudBackup } from './lib/cloud-backup';
+import { createNativeCloudConsent } from './lib/cloud-consent-native';
+import type { CloudConsent } from './lib/cloud-consent';
 import { createGeminiKey, type GeminiKey } from './lib/gemini-key';
 import { withSafetyCopy } from './lib/safety-copy';
 import { createNativeSafetyCopy } from './lib/safety-copy-native';
@@ -29,6 +31,11 @@ export interface App {
   readonly cloud: CloudBackup;
   /** 使用者自備的 Gemini 金鑰。只留在這台裝置，不上雲也不進匯出檔。 */
   readonly gemini: GeminiKey;
+  /**
+   * 這台裝置要不要接回雲端備份。**網頁版為 null**——那裡沒有 Keychain，密碼不會憑空
+   * 出現在一台新裝置上，這一問完全不必發生（見票 14）。
+   */
+  readonly cloudConsent: CloudConsent | null;
   /**
    * 每日提醒。**網頁版為 null**——那裡沒有系統通知這條支線，
    * 「資料」畫面因此連這個開關都不會長出來。
@@ -123,6 +130,11 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     onStatus: createSyncStatus(document.body),
   });
 
+  // 這台裝置對「要不要接回雲端」的答案。記在 localStorage 的獨立一格，與提醒開關、
+  // Gemini 金鑰同一類：只管這一台裝置，不進 AppData，因此不上雲也不進匯出檔。
+  // 網頁版拿到的是 null，底下每一個用到它的地方都是 `cloudConsent?.`，那條路完全不發生。
+  const cloudConsent = createNativeCloudConsent(localStorage);
+
   // 離線時累積下來的那一份，恢復連線就補上去。
   window.addEventListener('online', () => cloud.retry());
 
@@ -138,6 +150,7 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
     },
     cloud,
     gemini: createGeminiKey(localStorage),
+    cloudConsent,
     reminder,
     now,
 
@@ -353,10 +366,22 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   // 語音清單可能稍後才載入，屆時重畫目前畫面讓朗讀按鈕出現。
   initSpeech(() => render());
 
+  // 這台裝置要不要接回雲端，答過一次就不再問（票 14）。網頁版拿到的是 null，
+  // 這一問完全不發生，`cloud.begin()` 照舊每次都叫。
+  //
+  // 必須早於 cloud.begin()：那一支就是把整份雲端資料拉下來的動作，晚一步就變成
+  // 先拉再問，問了也沒用。也刻意早於 app.showReview()——代價是對話框會蓋在空白畫面上，
+  // 但那一刻本機也真的還沒有任何東西，空白畫面不是假象。
+  //
+  // `updatedAt` 是伺服器蓋的時間戳，非 0 代表這份資料曾經與雲端往返過（見 types.ts）——
+  // 那台裝置早就在同步了，不必問，理由見 cloud-consent.ts 的 wantsPull()。
+  const pull = cloudConsent === null || cloudConsent.wantsPull(cloud.nickname(), data.updatedAt > 0);
+
   app.showReview();
 
   // 畫面先出來，雲端在背後追。沒登入的話這一步什麼都不做。
-  cloud.begin(data);
+  // 這台裝置拒絕過的話連叫都不叫，一個網路請求都不發。
+  if (pull) cloud.begin(data);
 
   // 排的是未來 7 天，因此每開一次 app 就把窗口往前推一次——只靠資料變動觸發的話，
   // 一個「開了 app 卻沒複習」的人會在第 8 天之後完全收不到提醒。沒開提醒時不做事。
