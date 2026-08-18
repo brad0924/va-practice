@@ -2,9 +2,13 @@
 
 Status: ready-for-agent
 Type: enhancement
-Blocked by: 03, 04, 05, 06, 07, 08, 09, 10, 20
+Blocked by: 03, 04, 05, 06, 07, 08, 09, 10, 20, 21
 
 決策背景見 `../spec.md`。
+
+> **21 是後來加的**：裝在手機上的 app 圖示至今仍是 `cap add ios` 留下的 Capacitor 範例圖。
+> `04` 做的是 App Store Connect 那張，不是這張，兩者是不同的檔案。帶著範本素材送審是
+> 「App 尚未完成」這類退件的典型理由，所以擋住。實際落在哪一條準則寫進本票時再查。
 
 > **20 是後來加的**（`.scratch/i18n/` 那輪 `/grilling`）：維護者決定上架中日韓三國，App Store 頁面素材因此要出三語，而截圖要有各語言的介面、得等 i18n 做完。
 >
