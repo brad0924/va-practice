@@ -1,6 +1,6 @@
 # 01 — 點按會閃灰、長按會跳出選字放大鏡
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 沒有對應的 spec 決定——觸控行為的破綻，在一次 `/grilling` 中讀 `src/styles.css` 時發現的，不是使用者回報。
@@ -55,11 +55,24 @@ Type: bug
 
 ## 驗收
 
-- [ ] `-webkit-tap-highlight-color: transparent` 已加，且不影響現有的按下回饋
-- [ ] `user-select: none` 只套在互動元件上；詞條與釋義**仍然可以長按複製**
-- [ ] **真機驗證**：iPhone 上點按鈕不再閃灰、長按按鈕不跳選字、長按詞條**仍然**跳得出複製
-- [ ] `npm run test` 與 `npm run typecheck` 全綠
+- [x] `-webkit-tap-highlight-color: transparent` 已加，且不影響現有的按下回饋
+- [x] `user-select: none` 只套在互動元件上；詞條與釋義**仍然可以長按複製**
+- [x] **真機驗證**：iPhone 上點按鈕不再閃灰、長按按鈕不跳選字、長按詞條**仍然**跳得出複製
+- [x] `npm run test` 與 `npm run typecheck` 全綠
 
 **驗收必須用真機。** Windows 上的桌面瀏覽器測不出 tap highlight 與長按選字——那是 iOS Safari 的觸控行為。接法見既有做法：熱點加 `vite --host`，手機連過去。
 
 ## Comments
+
+2026-08-18 — 真機驗收過了，四項全綠。
+
+實作在 `a9e72bf`，當時 commit 訊息寫「真機驗收待補」，票就一直停在 `ready-for-agent`。
+
+驗收在 GitHub Pages 的線上版（PWA）上用 iPhone 做：
+
+- **點按不再閃灰。**「顯示答案」、四顆評分鈕、標題列返回鈕、單字列表的卡片列，按下去都沒有多出那層灰色方塊，而各元件自己的按下回饋仍在。
+- **長按選字只剩該有的。** 評分鈕、標題列、提醒開關、單字本篩選項都叫不出選單；**詞條與釋義仍然跳得出「拷貝」**。
+
+最後這組對照是這張票唯一可靠的驗收訊號。兩個修正做的都是拿掉東西，成功的樣子是「什麼都沒發生」——單看互動元件不跳選字，分不出是修好了還是 CSS 根本沒載到。詞條在同一個畫面上仍然跳得出來，才證明規則有生效、而且沒有關過頭。
+
+`npm run test` 527 passed／27 files，`npm run typecheck` 無輸出。
