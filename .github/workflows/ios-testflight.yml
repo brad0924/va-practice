@@ -126,11 +126,17 @@ jobs:
       # 直接把 CURRENT_PROJECT_VERSION 傳給 xcodebuild，不走 agvtool——
       # 這個專案沒有設 VERSIONING_SYSTEM = apple-generic，agvtool 改不動它。
       #
-      # 這裡留下的三個是那 8 個 SPM target 不會抗議的：用哪張憑證、憑證在哪個鑰匙圈、
-      # 以及屬於哪個 team。**team 一定要留在這裡**——那幾個 target 是會被蓋章的，
-      # 蓋章就需要一個 team，把它一起搬到 App target 上，它們會改口說
-      # 「requires a development team」（2026-08-19 第二趟 CI 實測）。
-      # 唯一不能出現在這裡的是 PROVISIONING_PROFILE_SPECIFIER。
+      # **這裡唯一不能出現的是 PROVISIONING_PROFILE_SPECIFIER**，其餘三個簽章設定
+      # 都必須留在這裡、對全體適用。四趟 CI 一項一項試出來的（見 issues/01）：
+      #
+      #   CODE_SIGN_STYLE=Manual    少了它 → 那 8 個 SPM target 退回自動簽章，
+      #                             然後跟被指定的發佈憑證打架：「conflicting provisioning settings」
+      #   DEVELOPMENT_TEAM          少了它 → 「requires a development team」
+      #   CODE_SIGN_IDENTITY        那幾個 target 是會被蓋章的，要知道用哪張憑證
+      #   OTHER_CODE_SIGN_FLAGS     憑證在臨時鑰匙圈裡，不指名就找不到
+      #
+      # 也就是說那 8 個 target 完全接受「手動簽章、用這張憑證、屬於這個 team」，
+      # 它們唯一不接受的是被塞一張 provisioning profile。
       - name: Archive
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -141,6 +147,7 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             DEVELOPMENT_TEAM="$TEAM_ID" \

@@ -7,10 +7,14 @@
  * 那一串 target，而它們不接受 provisioning profile——被硬塞就整個 archive 失敗
  * （Xcode 14 起的行為）。掛在 target 的設定只管那一個 target，那幾支就看不到了。
  *
- * **只有 profile 名稱要這樣搬，`DEVELOPMENT_TEAM` 不要。** 那 8 個 target 是會被蓋章的，
- * 蓋章就需要一個 team；把 team 一起搬走，它們會改口抱怨「requires a development team」。
- * 2026-08-19 兩趟 CI 剛好構成對照：兩個都在命令列 → 抱怨許可證；兩個都搬走 → 抱怨沒有 team。
- * 因此 team 留在命令列（全體適用），只有許可證留在 App target 上。
+ * **搬過來的只有 profile 名稱這一項，其餘簽章設定都要留在命令列。** 那 8 個 target 是會被
+ * 蓋章的，它們完全接受「手動簽章、用這張憑證、屬於這個 team」，唯一不接受的是被塞一張
+ * provisioning profile。少搬會倒、多搬也會倒，四趟 CI 一項一項試出來的：
+ *
+ *   - profile 也留在命令列        → 「does not support provisioning profiles」
+ *   - team 也搬走                 → 「requires a development team」
+ *   - CODE_SIGN_STYLE 也搬走      → 「conflicting provisioning settings」（退回自動簽章，
+ *                                   然後跟被指定的發佈憑證打架）
  *
  * 為什麼名稱不寫死在 repo 裡：`.scratch/ios-app/issues/17` 刻意讓 CI 當下從
  * `.mobileprovision` 讀出它，這樣重產一張 profile、換個名字，repo 一個字都不用改

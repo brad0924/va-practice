@@ -281,3 +281,29 @@ Signing for "GoogleUtilities_GoogleUtilities-Logger" requires a development team
 `inject-signing.mjs` 因此只掛 profile 名稱，`DEVELOPMENT_TEAM` 放回 `xcodebuild` 的指令參數（全體適用）。這一條寫進了腳本檔頭與 workflow 的註解——它是反直覺的，不寫下來下次一定再搬一次。
 
 **票 01 要證明的三件事仍然一件都沒碰到。** 前兩趟都在編譯開始之前就停了，`GoogleService-Info.plist` 有沒有被正確打包也還沒驗到。
+
+### 2026-08-19 — 第三、四趟：搬的份量試出來了
+
+第三趟（run 87380054814）白跑，原因不在程式：修正的那個 commit 沒推上去，CI 抓到的是上一版。log 裡 `xcodebuild` 根本沒有 `DEVELOPMENT_TEAM` 那一行。**教訓：改完一定要先 `git push` 再開新的 run。**
+
+第四趟（run 87382557459）換了第三句錯誤：
+
+```
+GoogleUtilities_GoogleUtilities-UserDefaults is automatically signed for development,
+but a conflicting code signing identity Apple Distribution has been manually specified.
+```
+
+上一輪連 `CODE_SIGN_STYLE=Manual` 也一起從命令列拿掉了，那 8 個 target 因此退回自動簽章，然後跟被指定的發佈憑證打架。
+
+#### 四趟拼出來的完整答案
+
+| 命令列上有什麼 | 那 8 個 SPM target 的反應 |
+| --- | --- |
+| 全部四個（含 profile） | `does not support provisioning profiles` |
+| 全部拿掉 | `requires a development team` |
+| 少了 `CODE_SIGN_STYLE` | `conflicting provisioning settings` |
+| **只拿掉 profile** | **待驗** |
+
+**結論：那 8 個 target 完全接受「手動簽章、用這張憑證、屬於這個 team」，唯一不接受的是被塞一張 provisioning profile。** 搬少了會倒，搬多了也會倒——要搬的只有 `PROVISIONING_PROFILE_SPECIFIER` 一項。
+
+這張表寫進了 workflow 與 `scripts/inject-signing.mjs` 的註解。它反直覺，不寫下來下次一定重走一遍這四趟。
