@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 /**
- * 把 provisioning profile 名稱與 team ID 掛到 Xcode 專案裡 **App 那一個 target** 上。
+ * 把 provisioning profile 的名稱掛到 Xcode 專案裡 **App 那一個 target** 上。
  *
  * 為什麼不從 `xcodebuild` 的指令參數傳：指令參數會套用到這次 build 的**每一個** target。
  * 專案裝了 Firebase 之後，SPM 會多拉進 `Firebase_*`、`GoogleUtilities_*`、`Promises_*`
  * 那一串 target，而它們不接受 provisioning profile——被硬塞就整個 archive 失敗
- * （Xcode 14 起的行為；2026-08-19 實測 8 個 target 一起報錯，連編譯都還沒開始）。
- * 掛在 target 的設定只管那一個 target，那幾支就看不到了。
+ * （Xcode 14 起的行為）。掛在 target 的設定只管那一個 target，那幾支就看不到了。
  *
- * 為什麼兩個值不寫死在 repo 裡：`.scratch/ios-app/issues/17` 刻意讓 CI 當下從
- * `.mobileprovision` 讀出 profile 名稱，這樣重產一張 profile、換個名字，repo 一個字都不用改
- * （`docs/ios-signing-renewal.md` 那句「名字隨你取」靠的就是這一點）。team ID 則留在 secret。
+ * **只有 profile 名稱要這樣搬，`DEVELOPMENT_TEAM` 不要。** 那 8 個 target 是會被蓋章的，
+ * 蓋章就需要一個 team；把 team 一起搬走，它們會改口抱怨「requires a development team」。
+ * 2026-08-19 兩趟 CI 剛好構成對照：兩個都在命令列 → 抱怨許可證；兩個都搬走 → 抱怨沒有 team。
+ * 因此 team 留在命令列（全體適用），只有許可證留在 App target 上。
+ *
+ * 為什麼名稱不寫死在 repo 裡：`.scratch/ios-app/issues/17` 刻意讓 CI 當下從
+ * `.mobileprovision` 讀出它，這樣重產一張 profile、換個名字，repo 一個字都不用改
+ * （`docs/ios-signing-renewal.md` 那句「名字隨你取」靠的就是這一點）。
  *
  * 掛的位置靠 App target Release 設定裡那行 `CODE_SIGN_STYLE = Manual` 定位——全檔只有那一處。
  * 數量不對就當場停下來：那代表專案檔的形狀變了，這時候硬猜一個位置寫下去，
  * 換來的是一支簽章方式不明的 build。
  *
- * 用法：node scripts/inject-signing.mjs "<profile 名稱>" "<team ID>"
+ * 用法：node scripts/inject-signing.mjs "<profile 名稱>"
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -40,7 +44,7 @@ const ANCHOR = `${INDENT}CODE_SIGN_STYLE = Manual;`;
  * 行尾原樣保留。專案檔是 CRLF，整份換成 LF 不會讓 build 失敗，但會讓 diff 從兩行變成整份，
  * 之後沒有人看得出這一步實際動了什麼。
  */
-export function injectSigning(source, { profileName, teamId }) {
+export function injectSigning(source, profileName) {
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
   const anchor = ANCHOR + newline;
 
@@ -51,21 +55,18 @@ export function injectSigning(source, { profileName, teamId }) {
 
   return source.replace(
     anchor,
-    anchor +
-      `${INDENT}DEVELOPMENT_TEAM = "${teamId}";${newline}` +
-      `${INDENT}PROVISIONING_PROFILE_SPECIFIER = "${profileName}";${newline}`,
+    anchor + `${INDENT}PROVISIONING_PROFILE_SPECIFIER = "${profileName}";${newline}`,
   );
 }
 
 // 被 import 進測試時不要執行。
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [profileName, teamId] = process.argv.slice(2);
-  if (!profileName || !teamId) {
-    console.error('用法：node scripts/inject-signing.mjs "<profile 名稱>" "<team ID>"');
+  const profileName = process.argv[2];
+  if (!profileName) {
+    console.error('用法：node scripts/inject-signing.mjs "<profile 名稱>"');
     process.exit(1);
   }
 
-  writeFileSync(PROJECT, injectSigning(readFileSync(PROJECT, 'utf8'), { profileName, teamId }));
-  // 刻意不印 team ID：CI 的 log 在 public repo 上全世界可讀。
-  console.log(`簽章設定已掛到 App target，profile 名稱：${profileName}`);
+  writeFileSync(PROJECT, injectSigning(readFileSync(PROJECT, 'utf8'), profileName));
+  console.log(`profile 已掛到 App target：${profileName}`);
 }

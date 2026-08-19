@@ -259,3 +259,25 @@ target 層的設定只管那一個 target，SPM 那幾支看不到。三件事�
 - 憑證、profile、`IOS_PROVISIONING_PROFILE` secret 三者都是對的。
 - 新加的那道 `Package.swift` 防線（發現一）在真的 CI 上通過了。
 - **`GoogleService-Info.plist` 有沒有被正確打包，這趟還沒驗到**——build 在編譯之前就停了。留給下一趟。
+
+### 2026-08-19 — 第二趟：搬過頭了，team 要留在命令列
+
+第二趟（run 87378217962）一樣倒在 archive，但**錯誤換了一句**，同樣那 8 個 target：
+
+```
+Signing for "GoogleUtilities_GoogleUtilities-Logger" requires a development team.
+```
+
+兩趟剛好構成一組乾淨的對照，這是本票關於簽章最有用的產出：
+
+| | `DEVELOPMENT_TEAM` | `PROVISIONING_PROFILE_SPECIFIER` | 那 8 個 SPM target 的反應 |
+| --- | --- | --- | --- |
+| 第一趟 | 命令列 | 命令列 | 抱怨**許可證**（不接受 provisioning profile） |
+| 第二趟 | 都拿掉 | 移到 App target | 抱怨**沒有 team** |
+| 第三趟 | 命令列 | 移到 App target | 待驗 |
+
+**結論：那 8 個 target 是會被蓋章的，所以需要 team；它們不接受的只有 provisioning profile。** 上一輪一次搬了兩個，搬過頭。
+
+`inject-signing.mjs` 因此只掛 profile 名稱，`DEVELOPMENT_TEAM` 放回 `xcodebuild` 的指令參數（全體適用）。這一條寫進了腳本檔頭與 workflow 的註解——它是反直覺的，不寫下來下次一定再搬一次。
+
+**票 01 要證明的三件事仍然一件都沒碰到。** 前兩趟都在編譯開始之前就停了，`GoogleService-Info.plist` 有沒有被正確打包也還沒驗到。

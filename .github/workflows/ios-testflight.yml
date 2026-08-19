@@ -119,17 +119,21 @@ jobs:
       # provisioning profile 與 team 必須掛在 App 這個 target 上，**不能**從 xcodebuild
       # 的指令參數傳。理由與那支腳本守著什麼，都寫在 scripts/inject-signing.mjs 的檔頭，
       # 那支有 scripts/inject-signing.test.mjs 守著（跑得進 npm test）。
-      - name: 把簽章設定掛到 App target 上
-        env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: node scripts/inject-signing.mjs "$PROFILE_NAME" "$TEAM_ID"
+      - name: 把 provisioning profile 掛到 App target 上
+        run: node scripts/inject-signing.mjs "$PROFILE_NAME"
 
       # TestFlight 不接受重複的 build number，用 run_number 保證遞增。
       # 直接把 CURRENT_PROJECT_VERSION 傳給 xcodebuild，不走 agvtool——
       # 這個專案沒有設 VERSIONING_SYSTEM = apple-generic，agvtool 改不動它。
       #
-      # 這裡只留下那 8 個 SPM target 不會抗議的兩個：用哪張憑證、憑證在哪個鑰匙圈。
+      # 這裡留下的三個是那 8 個 SPM target 不會抗議的：用哪張憑證、憑證在哪個鑰匙圈、
+      # 以及屬於哪個 team。**team 一定要留在這裡**——那幾個 target 是會被蓋章的，
+      # 蓋章就需要一個 team，把它一起搬到 App target 上，它們會改口說
+      # 「requires a development team」（2026-08-19 第二趟 CI 實測）。
+      # 唯一不能出現在這裡的是 PROVISIONING_PROFILE_SPECIFIER。
       - name: Archive
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           xcodebuild archive \
             -project ios/App/App.xcodeproj \
@@ -139,6 +143,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }}
 
       - name: 匯出 ipa

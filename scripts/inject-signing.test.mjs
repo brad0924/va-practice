@@ -16,20 +16,19 @@ import { injectSigning } from './inject-signing.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = join(ROOT, 'ios/App/App.xcodeproj/project.pbxproj');
 
-const ARGS = { profileName: 'va-practice App Store', teamId: 'ABCDE12345' };
+const NAME = 'va-practice App Store';
 
 describe('把簽章設定掛到 App target', () => {
   it('真的那份專案檔剛好有一處錨點，掛得上去', () => {
     const source = readFileSync(PROJECT, 'utf8');
 
-    const output = injectSigning(source, ARGS);
+    const output = injectSigning(source, NAME);
 
     expect(output).toContain('PROVISIONING_PROFILE_SPECIFIER = "va-practice App Store";');
-    expect(output).toContain('DEVELOPMENT_TEAM = "ABCDE12345";');
   });
 
   it('掛進去的位置是 App target 的 Release 區塊，不是別人的', () => {
-    const output = injectSigning(readFileSync(PROJECT, 'utf8'), ARGS);
+    const output = injectSigning(readFileSync(PROJECT, 'utf8'), NAME);
 
     // 從 App target 的 Release 區塊起頭，切到該區塊的結尾為止
     const block = output
@@ -37,25 +36,24 @@ describe('把簽章設定掛到 App target', () => {
       .split('name = Release;')[0];
 
     expect(block).toContain('PROVISIONING_PROFILE_SPECIFIER');
-    expect(block).toContain('DEVELOPMENT_TEAM');
   });
 
   it('行尾原樣保留，不會把整份 CRLF 換成 LF', () => {
     const crlf = '\t\t\t\tCODE_SIGN_STYLE = Manual;\r\n\t\t\t\tINFOPLIST_FILE = App/Info.plist;\r\n';
 
-    const output = injectSigning(crlf, ARGS);
+    const output = injectSigning(crlf, NAME);
 
     expect(output).not.toMatch(/[^\r]\n/);
-    expect(output.split('\r\n')).toHaveLength(5);
+    expect(output.split('\r\n')).toHaveLength(4);
   });
 
   it('錨點一個都沒有就停下來，不要猜一個位置寫下去', () => {
-    expect(() => injectSigning('\t\t\t\tCODE_SIGN_STYLE = Automatic;\n', ARGS)).toThrow('實際 0 處');
+    expect(() => injectSigning('\t\t\t\tCODE_SIGN_STYLE = Automatic;\n', NAME)).toThrow('實際 0 處');
   });
 
   it('錨點不只一處也停下來——分不出哪一個才是 App target', () => {
     const two = '\t\t\t\tCODE_SIGN_STYLE = Manual;\n'.repeat(2);
 
-    expect(() => injectSigning(two, ARGS)).toThrow('實際 2 處');
+    expect(() => injectSigning(two, NAME)).toThrow('實際 2 處');
   });
 });
