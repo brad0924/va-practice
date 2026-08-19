@@ -186,6 +186,11 @@ throw new AppError('book.scopeEmpty');   // 錯誤本身不再帶文字
 
 `APP_NAME` 維持 `VocabCard` / `Vocabulary Card Practice`，三語通用。票 `app-name 02` 刻意選拉丁字母就是為了這個需求，`ADR-0012` 的單一來源架構完全不用動。
 
+> **2026-08-19 更新**：`APP_NAME` 已改為 `JP Vocab` / `Japanese Vocabulary Cards`（票 `app-name 03`），
+> `vite.config.ts:48` 的描述也補上了 `Japanese`。上句保留為當時的字。
+> **這則決定本身沒有變**——名字仍是三語通用、不跟著語言切、仍是拉丁字母，
+> `ADR-0012` 一樣沒動；變的只是那個不翻的字串。
+
 `vite.config.ts:48` 的 PWA 安裝描述從 `'自建單字本，間隔複習，離線可用'` 改成英文，`:49` 的 `lang` 從 `'zh-Hant'` 改成 `'en'`——跟名稱同一國。
 
 **被否決的是「名稱也跟著切」**：`APP_NAME` 要從單一字串改成每語一組，且 iOS 端要加 `InfoPlist.strings` 多語系檔才能讓主畫面圖示跟著變，`ADR-0012` 與 `app-name.test.ts` 那套守門要重做——而票 `app-name 02` 刻意選拉丁字母的理由就消失了。
