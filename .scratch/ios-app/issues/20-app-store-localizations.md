@@ -34,9 +34,11 @@ App Store 頁面素材出**繁中、日文兩組**，**韓國 storefront 用英�
 
 ### 名稱不翻
 
-`APP_NAME.short` 是 `VocabCard`，各語系通用。理由見 `.scratch/app-name/issues/02-rename.md`：拉丁字母的名字各語系都認得，中文名字會讓非中文使用者的主畫面出現看不懂的字。
+`APP_NAME.short` 是 `JP Vocab`，各語系通用。理由見 `.scratch/app-name/issues/02-rename.md`：拉丁字母的名字各語系都認得，中文名字會讓非中文使用者的主畫面出現看不懂的字。
 
 `.scratch/i18n/spec.md` 決定九也再次確認了這一點。
+
+**2026-08-19 更新**：短名原本是 `VocabCard`，票 `app-name 03` 把它換成 `JP Vocab`、全名換成 `Japanese Vocabulary Cards`。「不翻」這條決定本身沒有變，變的只是那個不翻的字串。
 
 ### 副標題、描述、關鍵字
 
@@ -76,8 +78,8 @@ App Store 頁面素材出**繁中、日文兩組**，**韓國 storefront 用英�
 - [x] App Store Connect 上三個語系的頁面素材齊全：繁中用中文、日文用日文、英文用英文
 - [x] 中文與日文的領域用詞與 `docs/glossary.md` 逐條相符
 - [ ] 三組截圖，且**截圖裡的介面語言與該語系的素材語言相符**（繁中／日文／英文）　←（**唯一未完成項**，待 Mac 上的模擬器截圖）
-- [x] App Store Connect 三個語系的 `Name` 欄位都是 `Vocabulary Card Practice`
-- [x] 裝置主畫面顯示名稱維持 `VocabCard`（`Info.plist`），三個語系都不切換
+- [x] App Store Connect 三個語系的 `Name` 欄位都是 `Japanese Vocabulary Cards`（2026-08-19 由票 `app-name 03` 從 `Vocabulary Card Practice` 換過來）
+- [x] 裝置主畫面顯示名稱三個語系都不切換，值是 `JP Vocab`（`Info.plist`，同上票換名）
 - [x] 隱私政策網址：繁中語系指 `privacy.html`，日文與英文語系指 `privacy-en.html`，兩個網址都回 200
 - [x] 發行地區（Availability）不含韓國
 - [ ] 票 11 的 `Blocked by` 因本票完成而解除

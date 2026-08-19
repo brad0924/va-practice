@@ -1,6 +1,6 @@
 # 03 — 名字改成日文導向
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無
 
@@ -143,16 +143,16 @@ Blocked by: 無
 
 - [x] `Japanese Vocabulary Cards` 已在 App Store Connect 的繁中、日文、English 三格各試過，結果記在 `## Comments`
 - [x] 三格都可用 → 繼續；任一格被佔 → 整張票轉 `wontfix`，理由記在 `## Comments`，程式碼不動
-- [ ] `src/lib/app-name.ts` 改為 `JP Vocab`／`Japanese Vocabulary Cards`
-- [ ] `vite.config.ts` 的 description 改為補上 `Japanese` 的版本
-- [ ] `npm run test` 全綠（守門測試會逼出 `Info.plist` 與兩份 `privacy.html` 的修改）
-- [ ] `npm run typecheck` 乾淨
-- [ ] `npm run build` 的 `dist/index.html` 分頁標題是 `Japanese Vocabulary Cards`、`apple-mobile-web-app-title` 是 `JP Vocab`，manifest 的 `name`／`short_name`／`description` 三項都正確
-- [ ] `npm run build:ios` 產出同樣正確，無 `{{APP_NAME_*}}` 佔位符殘留
+- [x] `src/lib/app-name.ts` 改為 `JP Vocab`／`Japanese Vocabulary Cards`
+- [x] `vite.config.ts` 的 description 改為補上 `Japanese` 的版本
+- [x] `npm run test` 全綠（守門測試會逼出 `Info.plist` 與兩份 `privacy.html` 的修改）
+- [x] `npm run typecheck` 乾淨
+- [x] `npm run build` 的 `dist/index.html` 分頁標題是 `Japanese Vocabulary Cards`、`apple-mobile-web-app-title` 是 `JP Vocab`，manifest 的 `name`／`short_name`／`description` 三項都正確
+- [x] `npm run build:ios` 產出同樣正確，無 `{{APP_NAME_*}}` 佔位符殘留
 - [x] App Store Connect 三個語系的 `Name` 都已改為新名字
-- [ ] `.scratch/ios-app/store-listing.md` 第 1 節那張表已更新
-- [ ] 票 `20` 的「名稱不翻」一節與兩條驗收已更新
-- [ ] `git grep "VocabCard\|Vocabulary Card Practice"` 在 `.scratch/` 以外沒有殘留
+- [x] `.scratch/ios-app/store-listing.md` 第 1 節那張表已更新
+- [x] 票 `20` 的「名稱不翻」一節與兩條驗收已更新
+- [x] `git grep "VocabCard\|Vocabulary Card Practice"` 在 `.scratch/` 以外沒有殘留
 
 ## Comments
 
@@ -167,3 +167,13 @@ Blocked by: 無
 **連帶：舊名字 `Vocabulary Card Practice` 已經釋出，要不回來了。** 這是「決定」一節寫明並接受的單向門，現在它已經關上。此後這張票若要退回舊名字，等於要重新去搶一個已經公開的名字，不保證搶得到。
 
 商店那一格的驗收因此提前完成，程式碼部分尚未開工——**維護者選擇先不動程式碼**（2026-08-19）。
+
+### 2026-08-19：程式碼改完，測試全綠
+
+`src/lib/app-name.ts` 兩行改成 `JP Vocab`／`Japanese Vocabulary Cards`。守門測試當場紅 12 項，指出 9 個位置（`Info.plist` 的 `CFBundleDisplayName` 一處、兩份隱私權政策各 4 處），照著改完轉綠——`ADR-0012` 那套機制照設計運作，沒有漏改任何一處。
+
+`vite.config.ts:48` 的 description 補上 `Japanese`，其餘照舊。
+
+驗證：`npm run typecheck` 乾淨；`npm run test` 551 項全綠；`npm run build` 的 `dist/index.html` 分頁標題為 `Japanese Vocabulary Cards`、`apple-mobile-web-app-title` 為 `JP Vocab`，manifest 的 `name`／`short_name`／`description` 三項皆正確；`npm run build:ios` 產出同樣正確，無 `{{APP_NAME_*}}` 佔位符殘留；`git grep` 在 `.scratch/` 以外零殘留。
+
+**`.scratch/ios-app/store-listing.md` 第 1 節多改了一處，超出本票列的範圍。** 那張表更新之後，底下引言區塊最後一句「台、日兩區三格都填 `Vocabulary Card Practice`」會與表格直接矛盾。原句保留為 8/18 當時的紀錄，另加一段 2026-08-19 的註記說明現行值以表為準。檔頭那則 8-18 引言（韓國區撞名）維持原字不動，它敘述的是當時的事件。

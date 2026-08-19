@@ -45,7 +45,7 @@ export default defineConfig(({ mode }) => {
               manifest: {
                 name: APP_NAME.full,
                 short_name: APP_NAME.short,
-                description: 'Build your own vocabulary books, review at spaced intervals, works offline',
+                description: 'Japanese vocabulary flashcards. Build your own books, review at spaced intervals, works offline',
                 lang: 'en',
                 start_url: webBase,
                 scope: webBase,

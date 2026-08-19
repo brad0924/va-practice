@@ -22,8 +22,8 @@
 
 | 欄位 | 值 | 唯一性 |
 | --- | --- | --- |
-| App Store Connect 的 `Name`（商店頁面上的商品名） | `Vocabulary Card Practice` | **按 storefront 各查各的**。台、日兩區可用；韓國區已被別人佔走 |
-| 裝置主畫面圖示底下（`Info.plist` / `APP_NAME.short`） | `VocabCard` | 無唯一性限制 |
+| App Store Connect 的 `Name`（商店頁面上的商品名） | `Japanese Vocabulary Cards` | **按 storefront 各查各的**。繁中、日本語、English 三格都已存檔（票 `app-name 03`，2026-08-19） |
+| 裝置主畫面圖示底下（`Info.plist` / `APP_NAME.short`） | `JP Vocab` | 無唯一性限制 |
 
 **三個語系都填同一個值，不翻。** 理由見 `.scratch/app-name/issues/02-rename.md`
 與 `.scratch/i18n/spec.md` 決定九：拉丁字母的名字各語系都認得。
@@ -33,6 +33,12 @@
 >
 > 這次韓國區撞名沒有動用這個處方——維護者選擇該區暫不上架，理由是不想為了一個市場
 > 讓三個語系的商店名稱各不相同。台、日兩區三格都填 `Vocabulary Card Practice`。
+
+> **2026-08-19 更新**：名字改成日文導向的 `Japanese Vocabulary Cards`／`JP Vocab`，
+> 動機是圖示已經是日文的、名字卻看不出在學什麼語言，經過見票 `app-name 03`。
+> 上面那段講的是舊名字當時的處境，保留為紀錄；**現行值以本節的表為準**。
+> 那張票同樣不接受各語系名稱不一致：三格都能存檔才改，任一格被佔就整組退回。
+> 三格都已存檔，舊名字 `Vocabulary Card Practice` 因此釋出，要不回來了。
 
 ---
 
