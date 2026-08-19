@@ -108,13 +108,21 @@ Blocked by: 無，可立即開始
 
 ## 驗收
 
-- [ ] `scripts/icon.svg` 存在，且檔案裡**沒有任何 `<text>` 元素**（字都轉成 `<path>` 了）
-- [ ] `npm run icons` 產出四張 PNG，圖案是鉄紺底、玻璃板、横排「単語」加上方「たんご」
-- [ ] `ios/.../AppIcon-512@2x.png` 是 1024×1024、`colorType 2`（RGB，不帶 alpha 通道）
-- [ ] 四張 PNG 的圖案一致（逐像素比對，作法比照票 `21`：同解析度的兩張要求三通道完全相同，不同解析度容許抗鋸齒誤差）
-- [ ] `scripts/generate-icons.test.mjs` 重寫，至少守住：SVG 母檔沒有 `<text>`、iOS 那張沒有 alpha、已 commit 的 PNG 沒有意外變動
-- [ ] `npm run typecheck` 乾淨、`npm test` 全綠
-- [ ] `npm run build` 過，網頁版 favicon 換成新圖
+- [x] `scripts/icon.svg` 存在，且檔案裡**沒有任何 `<text>` 元素**（字都轉成 `<path>` 了）
+      也沒有 `font-family`。字是用 fontkit 把系統上的 Noto 可變字型定在 wght 700 之後轉出來的，
+      repo 裡沒有留字型檔。
+- [x] `npm run icons` 產出四張 PNG，圖案是鉄紺底、玻璃板、横排「単語」加上方「たんご」
+- [x] `ios/.../AppIcon-512@2x.png` 是 1024×1024、`colorType 2`（RGB，不帶 alpha 通道）
+      `public/` 那三張仍是 `colorType 6`。sharp 預設輸出帶 alpha，iOS 那張是明確 `.removeAlpha()` 出來的。
+- [x] 四張 PNG 的圖案一致（逐像素比對，作法比照票 `21`：同解析度的兩張要求三通道完全相同，不同解析度容許抗鋸齒誤差）
+      iOS 那張與 `icon-1024.png`：3145728 個通道、0 個對不上。512 與 192 各自跟 1024 都縮到 64 見方再比，
+      平均通道差異 0.27 與 0.76（門檻 4）。不同解析度是各自原生畫的，不是把大圖縮小——縮小會讓 192 的字糊掉一圈。
+- [x] `scripts/generate-icons.test.mjs` 重寫，至少守住：SVG 母檔沒有 `<text>`、iOS 那張沒有 alpha、已 commit 的 PNG 沒有意外變動
+      九條測試。舊的 `encodePng` 三條沒了——那支手刻的編碼器整個退場。
+- [x] `npm run typecheck` 乾淨、`npm test` 全綠
+      551 測全綠（29 檔）。
+- [x] `npm run build` 過，網頁版 favicon 換成新圖
+      `index.html` 本來就指著 `/icon-192.png`，那個檔換掉 favicon 就跟著換，沒有另外改程式。
 - [ ] **實機確認（要等 CI 打包一次）**：主畫面上是新圖示
 - [ ] **實機確認，在深色桌布上**：圖示邊界跟背景分得開。鉄紺是五個候選裡偏深的一個，深色桌布上有黏在一起的風險。若真的分不開，補救方式是加強玻璃亮邊或在四周留一圈亮色——**但那要另開票**，不要在這張票裡順手改設計
 
@@ -164,3 +172,26 @@ Blocked by: 無，可立即開始
 **第三次轉折：兩個字。** 使用者問「単語會不會太擠」。會，但擠的不是字本身——是讀音。「ご」一個假名跟「たんご」三個假名，橫向空間差三倍，而讀音正是這張圖唯一在講「這個 app 會逼你標假名」的部分。畫出主畫面模擬的並排對照之後，使用者看過仍選兩字，接受小尺寸的損失。
 
 過程中的所有候選（六個圖案、四級質感、五個底色、主畫面模擬）都在同一個 artifact 的版本紀錄裡。
+
+### 2026-08-19 — 落地的東西
+
+| 檔案 | 是什麼 |
+| --- | --- |
+| `scripts/icon.svg` | 新的母檔，72 行。上半是 `<defs>` 裡七個漸層與兩個 `feDropShadow`，下半是三層底、玻璃板、兩道高光弧、兩組字的 `<path>` |
+| `scripts/generate-icons.mjs` | 從 160 行縮到 55 行。手刻的 PNG 編碼器、CRC 表、圓角矩形距離場全部刪掉，換成 `sharp(SOURCE, { density })` |
+| `scripts/generate-icons.test.mjs` | 九條測試。母檔兩條、iOS 那張兩條、網頁版三張四條 |
+| `package.json` | `sharp` 進 devDependencies |
+
+三件值得記的事：
+
+**字怎麼變成路徑的。** 用 fontkit 開 `C:/Windows/Fonts/NotoSansJP-VF.ttf` 與 `NotoSerifJP-VF.ttf`，
+`getVariation({ wght: 700 })` 把可變字型定在 700，再照 `text-anchor="middle"` 的算法把字距鋪開、
+把 y 軸翻過來，最後把每個 glyph 的路徑烤進母檔。轉換腳本沒有留在 repo 裡——它跑一次就沒事了，
+留著反而會讓人以為母檔是可以重新生成的。
+
+**小尺寸是原生畫的，不是縮的。** `render()` 用 `density = 72 × size / 1024` 讓 rsvg 直接在目標解析度重畫。
+把 1024 縮到 192 的話，272 級的漢字會糊掉一圈。後面那道 `.resize(size, size)` 只是保險，
+rsvg 換算 dpi 偶爾會差一個像素。
+
+**檔案大了 40 倍。** 舊的平塗圖 12KB，現在 454KB——漸層本來就壓不動。試過 `compressionLevel: 9`
+只省 1%，調色盤模式省很多但會讓漸層出現色帶，而且 iOS 那張要 `colorType 2`，所以維持預設。
