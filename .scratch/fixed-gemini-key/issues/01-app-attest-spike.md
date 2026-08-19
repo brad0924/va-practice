@@ -209,3 +209,53 @@ Spec 軸建議為 `GoogleService-Info.plist` 也加一道 CI 檢查。**不加�
 plist 一旦被加進 `project.pbxproj` 的資源清單，檔案不在就是 `xcodebuild` 的 `Build input file cannot be found`——當場倒、訊息清楚。多一道 `grep` 擋的是同一件事。
 
 寫下這段時的風險是「pbxproj 還沒有那個引用」，但那個中間狀態在本次實作結束前就消失了——plist 與引用都已進版控。擋點因此確定不加。
+
+### 2026-08-19 — 第一趟 TestFlight 倒在 archive：簽章設定被廣播給 SPM 相依
+
+第一趟 build（run 87371010571）失敗。**不是憑證或 profile 的問題**——前 9 步全過，包含匯入憑證、匯入 profile，以及發現一那道新加的 `grep`。倒在第 10 步 archive，而且**連編譯都還沒開始**（log 裡 `CompileSwift` 零次）。
+
+8 個錯誤，全部同一句：
+
+```
+Firebase_FirebaseCore does not support provisioning profiles, but provisioning
+profile va-practice App Store has been manually specified.
+```
+
+出錯的 8 個 target 一個都不是我們的 app：
+
+```
+Firebase_FirebaseCore              GoogleUtilities_GoogleUtilities-Environment
+Firebase_FirebaseCoreInternal      GoogleUtilities_GoogleUtilities-Logger
+Promises_FBLPromises               GoogleUtilities_GoogleUtilities-NSData
+Promises_Promises                  GoogleUtilities_GoogleUtilities-UserDefaults
+```
+
+#### 原因
+
+workflow 原本把簽章設定寫在 `xcodebuild` 的**指令參數**上。指令參數會套用到這次 build 的**每一個** target，不是只有 App。Xcode 14 起這件事變成硬性錯誤：SPM 拉進來的 target 不接受 provisioning profile，被硬塞就整個 archive 失敗。
+
+這些 target 全是本票裝 Firebase 才帶進來的。**為什麼 Capacitor 那三支不會觸發同樣的錯，沒有實證**——log 在做任何事之前就停了。不影響修法，因此不編一個理由填上去。
+
+#### 修法：把設定掛到 App 那個 target 上
+
+target 層的設定只管那一個 target，SPM 那幾支看不到。三件事：
+
+1. `project.pbxproj` 裡 App target 的 **Release** 設定改成 `CODE_SIGN_STYLE = Manual`（Debug 那份維持 Automatic，本專案沒有 Debug 的發佈路徑）。
+2. 新增 `scripts/inject-signing.mjs`。CI 在 archive 之前呼叫它，把 profile 名稱與 team ID 填進那個區塊。
+3. `xcodebuild archive` 的指令參數只留下 `CODE_SIGN_IDENTITY` 與 `OTHER_CODE_SIGN_FLAGS`（用哪張憑證、憑證在哪個鑰匙圈）——那 8 個 target 對這兩件事不會抗議。
+
+**兩個值仍然不進 repo**（維護者拍板）。profile 名稱是 CI 當下從 `.mobileprovision` 讀出來的，team ID 留在 secret 裡。這保住 `.scratch/ios-app/issues/17` 刻意建立的性質，也保住 `docs/ios-signing-renewal.md` 那句「名字隨你取，CI 會自己讀」。
+
+#### 那支腳本靠一行字定位，所以替它寫了測試
+
+`inject-signing.mjs` 認的是 App target Release 設定裡那行 `CODE_SIGN_STYLE = Manual`——全檔唯一一處。**這是腳本與 `project.pbxproj` 之間的耦合，而沒有任何工具看得出來**：有人在 Xcode 裡改一下簽章方式、或重新產生原生專案，那行就沒了或變成兩行，而 `npm test` 與 `tsc` 都不會有反應，錯誤要到 CI 的 archive 那一步才炸。
+
+`scripts/inject-signing.test.mjs` 把這件事拉進 `npm test`（5 條，`vite.config.ts` 的 `include` 本來就收 `scripts/**/*.test.mjs`）：真的那份專案檔錨點剛好一處、掛進去的位置確實在 App target 的 Release 區塊內、CRLF 行尾原樣保留、以及錨點是 0 處或 2 處時當場丟錯而不是猜一個位置寫下去。
+
+腳本本身也在真的專案檔上實跑驗過，diff 剛好三行、行尾沒被換掉。
+
+#### 這一趟證明的事
+
+- 憑證、profile、`IOS_PROVISIONING_PROFILE` secret 三者都是對的。
+- 新加的那道 `Package.swift` 防線（發現一）在真的 CI 上通過了。
+- **`GoogleService-Info.plist` 有沒有被正確打包，這趟還沒驗到**——build 在編譯之前就停了。留給下一趟。
