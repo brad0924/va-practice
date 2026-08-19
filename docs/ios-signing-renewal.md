@@ -4,6 +4,8 @@
 
 憑證是 2026-08-12 建的，所以**大約 2027 年 8 月**要做這件事。背景與當初為什麼這樣設計，見 `.scratch/ios-app/issues/17-ci-fixed-signing-certificate.md`。
 
+> **你可能不是來續期的。** 如果你只是在 App ID 上多勾了一個 capability，憑證好好的，不必走下面整套——跳到最後那節「[另一種情況：App ID 的 capability 改了](#另一種情況app-id-的-capability-改了)」。
+
 ## 怎麼知道該做了
 
 兩個訊號，先到哪個算哪個：
@@ -111,3 +113,57 @@ Test-Path "$cert\ios_distribution.p12"
 ```
 
 然後照第 1 步產 CSR，其餘完全一樣。**後台現有的憑證一張都救不回來**——能下載的只有公開那半，簽不了章。
+
+## 另一種情況：App ID 的 capability 改了
+
+**這不是續期。** 憑證沒到期、也沒換，變的只有 App ID 的能力——例如 2026-08-19 為了 App Attest 勾了一個新的 capability（`.scratch/fixed-gemini-key/issues/01`）。
+
+會扯上這份文件是因為：**provisioning profile 是產生的那一刻對 App ID 能力拍下的快照。** App ID 一改，Apple 立刻把既有的 profile 標成 Invalid，CI 那張就過期了。
+
+**憑證完全不用碰。** 上面第 1 到第 3 步（CSR、換憑證、合成 `.p12`）整段跳過，`IOS_DIST_CERT_P12` 與 `IOS_DIST_CERT_PASSWORD` 一個字都不要動。要做的只有第 4 步與半個第 5 步：
+
+### 1. 先在 App ID 上勾那個 capability
+
+[Identifiers](https://developer.apple.com/account/resources/identifiers/list) → `io.github.brad0924.vapractice` → 勾起來 → Save。
+
+**順序不能顛倒。** 先產 profile 再開 capability 的話，快照裡不會有它，而且畫面上看不出哪裡不對。
+
+### 2. 重新產生 profile
+
+[Profiles](https://developer.apple.com/account/resources/profiles/list) → 找到 `va-practice App Store`（此時應顯示 Invalid）→ Edit → **憑證選原本那張 Apple Distribution，不要建新的** → Save → Download，覆蓋掉 `$cert\vapractice_App_Store.mobileprovision`。
+
+### 3. 貼進 secret 之前先驗一次
+
+profile 是二進位的 CMS 封裝，裡面那份 plist 用 openssl 攤得開。**這一步能在推 secret 之前擋掉錯誤，省一趟 CI**：
+
+```powershell
+& $ssl smime -inform DER -verify -noverify -in "$cert\vapractice_App_Store.mobileprovision" 2>$null | Select-String <capability 的 entitlement 名稱>
+```
+
+App Attest 那次查的是 `appattest`，要印出這一段才算對：
+
+```
+<key>com.apple.developer.devicecheck.appattest-environment</key>
+<array>
+        <string>development</string>
+        <string>production</string>
+</array>
+```
+
+**`production` 必須在清單裡**，因為 `ios/App/App/App.entitlements` 寫死了 `production`。profile 給的值涵蓋不了 entitlements 要的值，`codesign` 就會倒。
+
+印出空的代表你抓到的還是舊那張，回第 2 步。
+
+### 4. 只更新一個 secret
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$cert\vapractice_App_Store.mobileprovision")) | Set-Content "$cert\profile.b64" -NoNewline -Encoding ascii
+```
+
+三個旗標的理由見上面第 5 步，一個都不能省。然後到 Settings → Secrets and variables → Actions 只更新 **`IOS_PROVISIONING_PROFILE`**。
+
+貼完把 `profile.b64` 刪掉。
+
+### 5. 收尾
+
+手動觸發一趟 `Build iOS and upload to TestFlight`。profile 若少了 capability，會倒在簽章那一步而不是安靜地出一個壞 build——這是刻意的，`App.entitlements` 明寫 entitlement 就是為了讓它早點倒。
