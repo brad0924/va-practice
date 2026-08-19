@@ -23,6 +23,7 @@
 		A5C0F10B000000000000050B /* HapticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F10A000000000000050A /* HapticsPlugin.swift */; };
 		A5C0F10D000000000000050D /* DailyReminderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F10C000000000000050C /* DailyReminderPlugin.swift */; };
 		A5C0F10F000000000000050F /* ForegroundPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C0F10E000000000000050E /* ForegroundPlugin.swift */; };
+		A5C0F1110000000000000511 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A5C0F1100000000000000510 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 		A5C0F10A000000000000050A /* HapticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsPlugin.swift; sourceTree = "<group>"; };
 		A5C0F10C000000000000050C /* DailyReminderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyReminderPlugin.swift; sourceTree = "<group>"; };
 		A5C0F10E000000000000050E /* ForegroundPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundPlugin.swift; sourceTree = "<group>"; };
+		A5C0F1100000000000000510 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +96,7 @@
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
+				A5C0F1100000000000000510 /* GoogleService-Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
@@ -171,6 +174,7 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				A5C0F1110000000000000511 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -31,6 +31,18 @@ jobs:
       # cap sync 把它複製進 ios/App/App/public
       - run: npm run sync:ios
 
+      # `cap sync` 寫不出 Package.swift 的時候**仍然回傳 0**（在 Windows 上實測到：
+      # 建不了符號連結就是這個下場）。真的發生的話 build 會一路跑完、外掛卻不在產物裡，
+      # 要裝到 iPhone 上按下去才發現——一輪 TestFlight 就這樣白費。當場擋下來便宜得多。
+      #
+      # 連路徑一起檢查，不是只找套件名：Capacitor 8.5 在 Windows 上會把分隔符號寫成
+      # 反斜線（`symlinks\Capacitor…`），那在 Swift 裡是非法的跳脫字元，檔案根本解析不了。
+      # 只比對套件名的話，那份壞掉的 Package.swift 照樣過關。
+      - name: 確認 Firebase 外掛真的進了 Package.swift
+        run: |
+          grep -q 'symlinks/CapacitorFirebaseAppCheck' ios/App/CapApp-SPM/Package.swift \
+            || { echo "Package.swift 裡找不到 symlinks/CapacitorFirebaseAppCheck——cap sync 沒寫進去，或分隔符號是反斜線"; exit 1; }
+
       # App Store Connect API 金鑰。簽章已改成固定憑證（見下一步），
       # 這把金鑰現在只剩最後 altool 上傳那一步在用。
       - name: 寫入 App Store Connect API 金鑰

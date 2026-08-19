@@ -50,6 +50,14 @@ export function dataView(app: App): HTMLElement {
   if (reminder) main.append(reminder);
   main.append(fileSection(app));
 
+  // 票 01 的探路按鈕，驗完就拆（`.scratch/fixed-gemini-key/issues/01`）。
+  // `import.meta.env.MODE` 在打包時就被換成字面值，網頁版這整段是死碼，
+  // 連帶那個動態 import 的 chunk 也不會產出——firebase 不會進網頁版產物。
+  // 動態 import 而不是頂端的 import：後者無論如何都會被打包進來。
+  if (import.meta.env.MODE === 'ios') {
+    void import('./app-check-spike').then(({ spikePanel }) => main.append(spikePanel()));
+  }
+
   screen.append(header, main);
   return screen;
 }
