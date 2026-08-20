@@ -23,6 +23,7 @@ import { initializeApp } from 'firebase/app';
 import { CustomProvider, initializeAppCheck } from 'firebase/app-check';
 
 import { AppError, SilentError } from './app-error';
+import { record, timed } from '../ui/prefill-probe';
 import { toReadingError } from './ai-logic-error';
 import { MODEL, RESPONSE_SCHEMA, TIMEOUT_MS, parseReply, promptFor } from './gemini-reading';
 
@@ -112,9 +113,7 @@ function ensure(): Promise<GenerativeModel> {
  * 會再走一次同一條路。
  */
 export function prepare(): void {
-  void ensure()
-    .then(appCheckToken)
-    .catch(() => {});
+  void timed('暖機', ensure().then(appCheckToken)).catch(() => {});
 }
 
 /**
@@ -125,16 +124,23 @@ export function prepare(): void {
  */
 export async function askReadingNative(term: string): Promise<unknown> {
   // 接線失敗（外掛沒進去、plist 沒被打包）使用者一點辦法都沒有，一個字都不必說。
-  const model = await ensure().catch(() => {
+  const model = await timed('接線', ensure()).catch(() => {
+    record('→ 靜默，畫面上不會有字');
+    throw new SilentError();
+  });
+
+  // 憑證自己一份預算，與問模型那一份分開。要不到、或要太久，一律靜默。
+  await timed('憑證', budgeted(appCheckToken())).catch(() => {
+    record('→ 靜默，畫面上不會有字');
     throw new SilentError();
   });
 
   let text: string;
   try {
-    const result = await model.generateContent(promptFor(term));
+    const result = await timed('模型', model.generateContent(promptFor(term)));
     text = result.response.text();
   } catch (error) {
-    // 憑證拿不到時 SDK 只在主控台留一句警告，照樣把請求送出去，換回來的是 401。
+    // 憑證明明剛拿到卻還是被退，那是 Google 那端不認這張票，換回來的是 401。
     // 那條路因此也在這裡收斂——`toReadingError()` 認得 401 就是 App Check 沒過。
     throw toReadingError(error);
   }
@@ -142,4 +148,26 @@ export async function askReadingNative(term: string): Promise<unknown> {
   if (text === '') throw new AppError('gemini.emptyReply');
 
   return parseReply(text);
+}
+
+/**
+ * 給憑證那一段自己的碼表。
+ *
+ * 非做不可的理由寫在 SDK 的原始碼裡：`makeRequest()` 是**先按下碼表、再去要 App Check
+ * 權杖**（`headers: await getHeaders(url)` 那一行才去要）。也就是說要憑證與問模型共吃
+ * 同一份 10 秒。憑證慢一點，使用者就會看到「等超過 10 秒沒有回覆」——而那句話是講給
+ * 「模型太慢」聽的，不是講給 App Check 聽的。App Check 的麻煩使用者一點辦法都沒有，
+ * 該做的是閉嘴（spec 決定十一）。
+ *
+ * 這裡先把憑證要到手，SDK 稍後在自己的窗口裡再要一次時就是從快取拿，不再吃掉模型的預算。
+ *
+ * 逾時不取消底下那件事——原生層那一趟繼續跑完，順便把快取暖起來，下一張卡就快了。
+ * 秒數沿用同一個常數：現在還沒有真機量到的數字，等探針回報再決定要不要分開。
+ */
+function budgeted<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const expiry = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SilentError()), TIMEOUT_MS);
+  });
+  return Promise.race([work, expiry]).finally(() => clearTimeout(timer));
 }
