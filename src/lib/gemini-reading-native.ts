@@ -23,7 +23,6 @@ import { initializeApp } from 'firebase/app';
 import { CustomProvider, initializeAppCheck } from 'firebase/app-check';
 
 import { AppError, SilentError } from './app-error';
-import { record, recordFailure } from '../ui/prefill-probe';
 import { toReadingError } from './ai-logic-error';
 import { MODEL, RESPONSE_SCHEMA, TIMEOUT_MS, parseReply, promptFor } from './gemini-reading';
 
@@ -65,25 +64,9 @@ async function wire(): Promise<GenerativeModel> {
       storageBucket: options.storageBucket,
       databaseURL: options.databaseUrl,
     },
-    // ⚠ 探針（丟棄品，驗完必須改回 `reading-prefill`）：App Check 的 JS 層把權杖存在
-    // IndexedDB 裡，鍵是 `${appId}-${app 名稱}`，啟動時讀到還沒過期的就**根本不會呼叫
-    // provider**——上面那個亂寫的權杖會送不出去，這一輪就白跑了。換個名字＝換把鑰匙＝
-    // 沒有舊快取。
-    'reading-prefill-401probe',
+    'reading-prefill',
   );
-  // ⚠ 探針（丟棄品，驗完必須改回去）：故意餵一個 Google 一定不認的權杖，逼出那個 401。
-  // 真的那一行是 `getToken: appCheckToken`。
-  //
-  // 只換這一支，不換 `budgeted()` 那一支——後者仍然走真的外掛，所以「跟 Apple 要憑證」
-  // 這件事在這個 build 上照樣會發生、照樣會失敗得出來，被換掉的只有真正上線的那張票。
-  await initializeAppCheck(app, {
-    provider: new CustomProvider({
-      getToken: async () => ({
-        token: 'not-a-real-token',
-        expireTimeMillis: Date.now() + 60_000,
-      }),
-    }),
-  });
+  await initializeAppCheck(app, { provider: new CustomProvider({ getToken: appCheckToken }) });
 
   // 後端明寫出來讓決定看得見：`getAI()` 的預設本來就是 Gemini Developer API，不是 Vertex。
   // 逾時掛在這裡，管的是送出去到收回來那一段；跟 Apple 要憑證那一段不在它的預算裡，
@@ -143,13 +126,11 @@ export function prepare(): void {
 export async function askReadingNative(term: string): Promise<unknown> {
   // 接線失敗（外掛沒進去、plist 沒被打包）使用者一點辦法都沒有，一個字都不必說。
   const model = await ensure().catch(() => {
-    record('接線失敗 → 靜默，畫面上不會有字');
     throw new SilentError();
   });
 
   // 憑證自己一份預算，與問模型那一份分開。要不到、或要太久，一律靜默。
   await budgeted(appCheckToken()).catch(() => {
-    record('拿憑證失敗 → 靜默，畫面上不會有字');
     throw new SilentError();
   });
 
@@ -157,14 +138,11 @@ export async function askReadingNative(term: string): Promise<unknown> {
   try {
     const result = await model.generateContent(promptFor(term));
     text = result.response.text();
-    record('問模型成功');
   } catch (error) {
     // 憑證明明剛拿到卻還是被退，那是 Google 那端不認這張票，換回來的是 401。
     // 那條路因此也在這裡收斂——`toReadingError()` 認得 401 就是 App Check 沒過。
-    const translated = toReadingError(error);
-    // 探針（丟棄品）：畫面靜默的時候，這裡是唯一看得到發生什麼事的地方。
-    recordFailure(error, translated);
-    throw translated;
+    // 2026-08-20 在真機上驗過：畫面上一個字都沒有，小框裡是 status 401。
+    throw toReadingError(error);
   }
   // 沒有候選回覆時 `text()` 回空字串而不是丟錯，與網頁版挖不到那一格是同一件事。
   if (text === '') throw new AppError('gemini.emptyReply');

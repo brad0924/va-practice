@@ -1,6 +1,6 @@
 # 02 — iOS 讀音預填改走 Firebase AI Logic，移除 iOS 的金鑰設定介面
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 Blocked by: 01
 
@@ -262,3 +262,48 @@ msg AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/
 手機上要看的是**同樣這五行**，加上一件開發機答不出來的事：**讀音區上方真的一個字都沒有**。
 
 兩者都成立，「App Check 被拒時完全靜默」才算端到端驗過。
+
+### 2026-08-20 — 401 probe 的結果：端到端成立，臨時改動已拆
+
+真機上收到的與開發機那次**一字不差**：
+
+```
+15:17:18 ── 問模型失敗
+15:17:18 status 401 / statusText ""
+15:17:18 code fetch-error / name FirebaseError
+15:17:18 → 判成靜默，畫面上不會有字
+15:17:18 msg AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/
+         projects/va-practice/models/gemini-3.6-flash:generateContent:
+         [401 ] Firebase App Check token is invalid. (AI/fetch-error)
+```
+
+**而畫面上「讀音」與那兩個空格之間一個字都沒有**——這是驗收的正主，開發機答不出來的那一段。讀音格照常開了兩格（追／加），儲存鍵沒有被鎖。五行時間戳全是 `15:17:18`，401 是立刻回來的，沒有等到逾時。
+
+「App Check 被拒時完全靜默」因此是**端到端驗過的**，不再是三段各自的證據。
+
+#### 拆掉的東西
+
+| 拆掉 | 回到 |
+| --- | --- |
+| 亂寫的權杖 | `getToken: appCheckToken` |
+| `reading-prefill-401probe` | `reading-prefill` |
+| `src/ui/prefill-probe.ts` 與所有呼叫點 | 整支刪除 |
+
+`budgeted()`（憑證自己一份預算）**留下**——那不是探針，是決定十一的一部分。
+
+計時探針要是日後還用得到，在 git 歷史裡：`fa328b7` 加的，`19c815c` 補了「SDK 自己去要權杖」那一行。`reading-prefill` 票 06 動工時直接從那兩個 commit 撿回來。
+
+#### 驗收總表
+
+| 驗收 | 結果 |
+| --- | --- |
+| 網頁版產物裡搜不到 firebase | 過（0 個位元組） |
+| 網頁版金鑰區塊在、貼金鑰後照常運作 | 過（維護者實測，小寫 schema 可用） |
+| iOS 沒有「Gemini API 金鑰」區塊 | 過（真機） |
+| 全新安裝、不設定，打完詞條讀音自動填入 | 過（真機） |
+| App Check 被拒時讀音格留空且畫面上沒有錯誤字 | 過（真機，本節） |
+| 離線時預填失敗不變成關卡 | 由當天三次逾時涵蓋，不另測 |
+| `npm test` 全綠，`gemini-reading-native.test.ts` 未放寬任何斷言 | 過（564 條） |
+| 票 01 的探路按鈕與程式碼已清掉 | 過 |
+
+**留給後面的票**：讀音預填常常等超過 10 秒（三條路都會，比本票早存在）——`reading-prefill` 票 06，當天的分段量測已補進該票。
