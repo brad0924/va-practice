@@ -1,6 +1,6 @@
 # 01 — 探路：App Attest 在 Capacitor 裡拿得到權杖，並打通一個 Firebase AI Logic 請求
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 
 決策背景見 `../spec.md`，本票對應決定四、五、六、七與「測試決定」。
@@ -389,3 +389,80 @@ Firebase 主控台已確認：這支 app **已註冊，認證服務是 App Attes
 `ios/App/App/Info.plist` 沒有 `ITSAppUsesNonExemptEncryption` 這個鍵。少了它，每一版上傳後都會停在 App Store Connect 等維護者回答「有沒有使用非豁免加密」，回答完才變成可安裝——**這段等待會被誤認成「還在處理」**。
 
 補上那個鍵可以永久免除這一步，但那屬於商店申報，是**票 05** 的範圍，本票不動。記在這裡是因為它直接影響上面那個往返時間。
+
+### 2026-08-20 — 走通了，三件事全部成立
+
+`AppDelegate` 那個順序的修正**證實有效**，推測成立。在 **App Check 基準防護「已強制執行」**的狀態下，A 完整走完：
+
+```
+A：帶權杖…
+原生設定：projectId=va-practice appId=1:868881672534:ios:0101e57fef7da60adccef7
+原生 App Check 初始化完成
+拿到權杖：長度 1032，開頭 eyJraWQiOiJr…
+到期：2026-08-21T01:11:31.000Z
+JS SDK 的 App Check 掛上了
+回覆：[{"splittable":true,"cells":[{"kanji":"吹","reading":"ふ"},{"kanji":"雪","reading":"ぶき"}]}]
+—— 完成
+```
+
+Firebase 主控台的狀態列：`基本 - 已強制執行` / `重播 - 未強制執行`。
+
+#### 硬證據：App Check 的請求指標
+
+| 類別 | 筆數 | 對應 |
+| --- | --- | --- |
+| 已驗證的要求 | **5** | 按 A 的那幾次 |
+| 未驗證：逾期的用戶端要求 | **2** | 按 B 的那兩次（Firebase 把「完全沒帶權杖」歸在這一類） |
+| 未經驗證：來源未知 | 0 | |
+| 未經驗證：無效的要求 | 0 | |
+| 未驗證：重複使用的權杖 | 0 | |
+
+**「已驗證」不是零**，代表那個從 App Attest 換來、經由 `CustomProvider` 交給 JS SDK 的權杖，Google 那端認得也接受。決定四與決定五**不需要推翻**。
+
+#### 逐項回答票裡「要回報的發現」
+
+| 要回報的 | 結果 |
+| --- | --- |
+| `FirebaseAppCheck.initialize()` 在 Capacitor 8 的 iOS 殼上跑不跑得起來 | **可以。** 外掛走 SPM 裝得上（需 symlink，見發現一），原生初始化成功 |
+| `getToken()` 在 TestFlight 安裝的 build 上回得出權杖嗎 | **可以。** 長度 1032 的 JWT，含到期時間。TestFlight 走的是 production 環境，正是 App Check 唯一接受的那個 |
+| AI Logic 的回覆是否真的通過 App Check 驗證 | **是。** 強制執行下 A 成功、B 被 401 擋下，指標顯示 5 筆已驗證 / 2 筆未驗證 |
+| `Schema.*` 能不能表達現有的 `RESPONSE_SCHEMA` 形狀 | **可以**，見發現三。`required` 要反過來寫成 `optionalProperties` |
+| iOS 產物實際大了多少 | **整支 app 6.4 MB**（含 firebase 原生 SDK）。JS 那一側 +75.19 kB（gzip 23.71 kB） |
+| 一次 TestFlight 往返實際花多久 | **約 35 分鐘**：CI build 5 分 17 秒，App Store Connect 處理約 30 分鐘 |
+
+#### 關鍵發現：App Check 的強制執行有兩層，第二層不能一起開
+
+Firebase 主控台開強制執行的精靈有兩步，**它們是兩件不同的事**：
+
+| 層 | 這次設成 | 說明 |
+| --- | --- | --- |
+| **基準防護** | 已強制執行 | 擋掉沒帶權杖的請求。**這是驗收要的那一層** |
+| **重放攻擊防護** | 未強制執行 | 擋掉重複使用舊權杖的客戶端 |
+
+**第二層開了會把自己擋在門外。** 精靈頁面上就寫著「應用程式必須設為傳送限定用途的權杖，才能強制執行重放攻擊防護機制」，而 Firebase AI Logic 的 `useLimitedUseAppCheckTokens` 預設是 `false`，探路程式碼也沒有開它。
+
+**這正是 2026-08-20 09:12 那次 A 失敗的原因**（維護者確認該輪第二層設成「已強制執行」）。當時的錯誤是：
+
+```
+—— 失敗：FirebaseError: AI: Error fetching from …:generateContent: Load failed (AI/error)
+```
+
+**沒有 HTTP 狀態碼**，跟 B 被擋時的 `[401] Firebase App Check token is invalid` 完全不同。被重放防護擋掉時，WebView 只拿得到一句 `Load failed`，看不出理由——這一點值得記住，否則會誤判成權杖無效。
+
+日後若要開啟重放防護，程式碼只要在 `getAI()` 的 `AIOptions` 加上 `useLimitedUseAppCheckTokens: true`，不必重寫。那是另一張票。
+
+#### 附帶觀察：同一句提示，模型給過兩種答案
+
+09:11 那次回 `吹=ふぶ`／`雪=き`（錯），09:27 那次回 `吹=ふ`／`雪=ぶき`（對）。
+
+**這不是本票的問題**——探路按鈕用的是隨手寫的一句話，不是 `gemini-reading.ts` 那段花了兩次事故（吹雪、剃刀）才調好的 `INSTRUCTIONS`。要驗的是 schema 形狀，形狀兩次都正確。
+
+但它順帶佐證了 `ADR-0005` 把讀音預填做成「草稿、儲存前一律人工確認」的立場：**同一個詞，同一個模型，答案會變。**
+
+#### 留給票 02 的事
+
+1. **刪掉探路程式碼**：`src/ui/app-check-spike.ts` 與 `src/ui/data-view.ts` 那三行接線。
+2. **`AppDelegate.swift` 那段留著**——它不是探路程式碼，是這條路能走通的前提。註解已寫明理由。
+3. **`RESPONSE_SCHEMA` 收斂成一份**（spec 決定十六），模型名 `gemini-3.6-flash` 目前也寫死在兩處。
+4. **三個 npm 相依留著**（`firebase`、`@capacitor-firebase/app`、`@capacitor-firebase/app-check`），那是票 02 的主體。
+5. **`ITSAppUsesNonExemptEncryption`**：Info.plist 缺這個鍵，每一版都要人工回答出口合規，那段等待會被誤認成「還在處理」。屬於票 05。
