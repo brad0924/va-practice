@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { askReading } from './gemini-reading';
+import { askReading, remoteOrDefault } from './gemini-reading';
 import type { Key } from '../i18n';
 
 const KEY = '我的金鑰';
@@ -115,5 +115,22 @@ describe('問 Gemini 讀音', () => {
 
     expect((sent?.headers as Record<string, string>)['x-goog-api-key']).toBe(KEY);
     expect(String(sent?.body)).toContain(TERM);
+  });
+});
+
+describe('遠端調過的值與程式碼裡的預設值', () => {
+  it('遠端有值就用遠端那份', () => {
+    expect(remoteOrDefault('gemini-3.7-flash', 'gemini-3.6-flash')).toBe('gemini-3.7-flash');
+  });
+
+  it('遠端是空的或只有空白：當成沒調過，用預設值', () => {
+    // 主控台上把值清成空白是手滑，不是「請你送出一句空的判準」。
+    expect(remoteOrDefault('', 'gemini-3.6-flash')).toBe('gemini-3.6-flash');
+    expect(remoteOrDefault('  \n ', 'gemini-3.6-flash')).toBe('gemini-3.6-flash');
+  });
+
+  it('遠端那份前後帶空白：去掉再用', () => {
+    // 模型名字前後多一個換行就會變成 404，而判準那一段去頭尾空白不影響任何事。
+    expect(remoteOrDefault('\n gemini-3.7-flash \n', 'gemini-3.6-flash')).toBe('gemini-3.7-flash');
   });
 });

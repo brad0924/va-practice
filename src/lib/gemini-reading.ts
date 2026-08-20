@@ -22,6 +22,12 @@ import { AppError } from './app-error';
  * 也宣稱支援 generateContent），但新金鑰已經叫不動它。改成 Google 指定的接班
  * `gemini-3.6-flash`。這裡刻意不用 `gemini-flash-latest` 那種別名：模型在腳下
  * 換人的話，同一個詞的讀音會無預警改答案，寫死才知道自己在跟誰講話。
+ *
+ * iOS 那條路改成先問 Firebase Remote Config 的 `gemini_model`，問不到才用這個字串
+ * （issue 03）。這不牴觸上一段：那裡拒絕的是 Google 想換就換、我們不知道；Remote Config
+ * 是維護者自己按發布才換，知道換成什麼、什麼時候換。方向盤在誰手上，差別在這裡。
+ *
+ * 網頁版沒有 Firebase SDK，永遠用這個字串。
  */
 export const MODEL = 'gemini-3.6-flash';
 
@@ -76,8 +82,11 @@ export const RESPONSE_SCHEMA: SchemaRequest = {
  * `吹雪` 整串一格；改成含糊的「對應得到」之後又反過來把 `剃刀` 硬拆成
  * `剃[かみ]`／`刀[そり]`。兩次都是判準不夠具體，這一版改問一個可以逐格檢查的問題，
  * 並把兩個詞一正一反寫進去標出界線。
+ *
+ * iOS 那條路改成先問 Firebase Remote Config 的 `gemini_instructions`，問不到才用這一段
+ * （issue 03）。判準改過兩次都是踩到坑才發現的，能不送審就改是這張票的重點之一。
  */
-const INSTRUCTIONS = [
+export const INSTRUCTIONS = [
   '你是日語讀音標注助手。使用者給一個日文詞條，請標出其中每一串連續漢字的讀音。',
   '規則：',
   '1. 讀音一律用平假名。',
@@ -90,11 +99,30 @@ const INSTRUCTIONS = [
 ].join('\n');
 
 /**
- * 送出去的那句話。判準與詞條的接法兩條路徑共用——模型看到的字一模一樣，
- * 差別只在誰把它交出去（spec 決定十六）。
+ * 送出去的那句話：判準在前、詞條在後。接法兩條路徑共用（spec 決定十六）。
+ *
+ * 判準本身要用參數遞進來，不在這裡直接讀 `INSTRUCTIONS`——iOS 那條路遞的是 Remote Config
+ * 抓回來的那一段，網頁版遞的是模組裡這一份。寫成必填而不是預設值，是要讓「這句話是誰
+ * 決定的」在呼叫端讀得到。
  */
-export function promptFor(term: string): string {
-  return `${INSTRUCTIONS}\n\n詞條：${term}`;
+export function promptFor(term: string, instructions: string): string {
+  return `${instructions}\n\n詞條：${term}`;
+}
+
+/**
+ * 遠端調過的那個字串，與程式碼裡這一份預設值之間選一個。
+ *
+ * 空白一律當成「沒調」：主控台上把值清成空白是手滑，不是「請你送出一句空的判準」。
+ * 回傳的是去掉頭尾空白的值——模型名字前後多一個換行就會變成 404，判準那一段
+ * 去掉頭尾空白則不影響任何事。
+ *
+ * 只有 iOS 那條路用得到（`gemini-reading-native.ts`），放在這裡是因為這裡測得動：
+ * 那支檔案 import 了 Capacitor 外掛，在 node 底下根本載不起來。程式碼裡那兩份預設值
+ * （`MODEL`、`INSTRUCTIONS`）本來也就住在這個模組。
+ */
+export function remoteOrDefault(remote: string, fallback: string): string {
+  const value = remote.trim();
+  return value === '' ? fallback : value;
 }
 
 /**
@@ -148,7 +176,7 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: promptFor(term) }] }],
+          contents: [{ parts: [{ text: promptFor(term, INSTRUCTIONS) }] }],
           generationConfig: {
             responseMimeType: 'application/json',
             responseSchema: RESPONSE_SCHEMA,

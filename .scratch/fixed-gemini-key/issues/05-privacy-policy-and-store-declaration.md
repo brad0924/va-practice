@@ -66,3 +66,11 @@ App Privacy 那份表（商店頁上「App 隱私」欄位的來源）要重跑�
 - App Store Connect 的 App Privacy 表重新填過並存檔。
 - 沒有加入任何 ATT 提示。
 - `npm test` 全綠（含 `scripts/` 那兩支 hook 的測試）。
+
+## Comments
+
+### 2026-08-20 — 票 03 交棒：多了一個裝置識別碼要交代
+
+票 03 讓 iOS build 用上 Firebase Remote Config，而 **Remote Config 抓設定前一定會先跟 Google 要一組 Firebase Installation ID**（`@firebase/remote-config` 依賴 `@firebase/installations`，抓取請求帶 `X-Goog-Firebase-Installations-Auth` 標頭）。這是一組存在裝置上、註冊到 Google 的識別碼，App Attest 那條沒有涵蓋它。
+
+本票的 iOS 那段要多寫一句對得上它的話。**票 03 只留這條交棒註記，不替本票決定措辭。** App Privacy 表的 Identifiers 類別也要一併重看。

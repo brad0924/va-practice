@@ -68,3 +68,54 @@ Remote Config 連不上時直接用預設值，不重試、不出提示、不擋
 - 飛航模式下全新安裝、開啟 app，Remote Config 抓不到，讀音預填仍用預設模型正常運作（有網路後）。
 - 網頁版產物完全不受影響，`npm run build` 產物裡沒有 Remote Config 相關程式碼。
 - `npm test` 全綠。
+
+## Comments
+
+### 2026-08-20 — 實作完成，Status 留在 ready-for-human
+
+`tsc --noEmit` 乾淨、`npm test` 567 條全綠、網頁版產物裡搜不到 Remote Config 的任何痕跡。**驗收有三條只有維護者做得到**（主控台建參數、跑一輪 TestFlight、飛航模式那條），沒驗完不改 `done`。
+
+#### 動了哪些檔案
+
+| 檔案 | 做什麼 |
+| --- | --- |
+| `src/lib/gemini-reading.ts` | `INSTRUCTIONS` 改成 export；`promptFor(term, instructions)` 多一個必填參數；新增純函式 `remoteOrDefault()` |
+| `src/lib/gemini-reading.test.ts` | 3 條，守 `remoteOrDefault()` |
+| `src/lib/gemini-reading-native.ts` | 掛上 Remote Config、抓取、讀值 |
+
+用的是 **JS SDK 的 `firebase/remote-config`**，不是 Capacitor 外掛。理由：`firebase` 已經是相依套件，這條路不必動 `Package.swift`、不必 `cap sync`、不必多一個原生相依；而且它掛在票 02 已經建好的那支 `reading-prefill` app 上，App Check 憑證自動帶著走。
+
+#### 抓取間隔定為一小時
+
+12 小時（JS SDK 預設）在「所有人同時停擺」的情境下等於出事當天多數人整天救不回來。往下不再壓，是因為救援以外的每次抓取都只是白跑一趟網路。一小時也正是票裡記的 Capacitor 外掛預設值，不是憑空挑的。
+
+`fetchTimeoutMillis` 維持 SDK 預設的 60 秒，**這一項刻意不明確設定**——票要求明確設定的是「間隔」，而這一趟沒有人在等它，縮短只會在網路不穩時白丟一次救援機會。
+
+#### 「不擋住讀音預填」是怎麼做到的
+
+一個字都不 `await`。開編輯畫面時 `prepare()` 把抓取丟出去就不管，回頭沒有人在等結果。`getGenerativeModel()` 因此從 `wire()` 搬到每次提問時才建（它只是組個物件、不上網），這樣後來才落地的新設定同一次開 app 就用得上——擺在 `wire()` 裡的話會永遠是接線那一刻的舊值。
+
+抓取放在 `prepare()` 而不是 `wire()`：接線一輩子只做一次，`prepare()` 每開一次編輯畫面就叫一次。真正上不上網由 SDK 的間隔決定，沒到期它直接從快取回答。
+
+#### 三件票裡沒寫、但做了的事
+
+**一、`Wiring.config` 允許是 null。** `getRemoteConfig()` 那三行包在 try 裡，掛不起來就回 null，整條路照走、用程式碼裡的後備值。票裡「它是保險，不是前置條件」那句話因此寫進了型別，不是靠祈禱。code review 抓出來的：原本沒包 try，Remote Config 一炸讀音預填就整條靜默死掉。
+
+**二、空字串當成沒設定。** 主控台上把值清成空白是手滑，不是「請你送出一句空的判準」。`remoteOrDefault()` 順便去掉頭尾空白——模型名字前後多一個換行就會變成 404。
+
+**三、抓新的之前先 `activate()` 一次。** `fetchAndActivate()` 抓不到時（離線、或間隔沒到）走不到它自己那一步套用，上一次開 app 抓回來卻沒來得及套上的那一份就永遠醒不過來。多這一步純本地、幾毫秒。
+
+#### 據實記錄：又寫了單元測試
+
+spec 的「測試決定」說這條路不靠單元測試，理由是「靠 SDK 而非 `fetch`，`doFetch` 那個接縫接不上」。那句話對的是**送出請求**那一段，仍然沒測。`remoteOrDefault()` 是純函式，那個理由套不到它，而它守的正是本票的核心承諾——抓不到就用預設值。所以它住在 `gemini-reading.ts`（測得動），不住在 native 那支（載不起來）。成本是 3 條測試。
+
+#### 交棒給票 05
+
+Remote Config 抓設定前一定會先跟 Google 要一組 **Firebase Installation ID**，那是一組存在裝置上、註冊到 Google 的識別碼，App Attest 那條沒涵蓋它。隱私權政策與 App Privacy 表都要交代。已在票 05 留下註記。
+
+#### 維護者待辦（只有你做得到）
+
+1. **在 Firebase 主控台建那兩個參數並發布**：`gemini_model`（值 `gemini-3.6-flash`）、`gemini_instructions`（值就是 `gemini-reading.ts` 裡 `INSTRUCTIONS` 那一整段）。**不建也不會壞**——抓不到就用程式碼裡的後備值，但那樣就驗不出「值真的被讀到了」。
+2. **跑一輪 TestFlight**，驗三件事：把 `gemini_model` 改成不存在的模型名並發布，讀音預填開始失敗（畫面上會出「Gemini 回了 404：⋯」）；改一個字到 `gemini_instructions`，確認送出去的提示詞真的變了；飛航模式下全新安裝、開 app，有網路後讀音預填仍用預設模型正常運作。
+3. **測試時要知道的兩件事**：（a）改完主控台後**最快要等一小時**才抓得到新值，這是間隔設定；（b）想立刻看到效果的話**把 app 砍掉重裝**——快取存在 IndexedDB 裡，重裝等於清空，下一次開編輯畫面就會真的去抓。
+4. 票 01 量到一輪 TestFlight 約 35 分鐘。票 02 還留著兩項真機驗收，**建議跟本票攢成同一次送審**。
