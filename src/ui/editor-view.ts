@@ -6,7 +6,7 @@ import { assertTermAvailable } from '../lib/storage';
 import type { Card } from '../lib/types';
 import { toMarkup, toPlainText, type KanjiRun, type ReadingCell } from '../lib/reading';
 import { askReading } from '../lib/gemini-reading';
-import { createReadingEditor, type Change, type Note } from './reading-editor';
+import { createReadingEditor, type Ask, type Change, type Note } from './reading-editor';
 import { createRequiredFields, type FieldRef } from './required-fields';
 import { el, button } from './dom';
 import { createToast } from './toast';
@@ -28,13 +28,12 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   header.append(cancel, el('span', 'bar-title', card ? t('editor.titleEdit') : t('editor.titleNew')));
 
   // 讀音格的規則全在這台機器裡，畫面只負責畫、接事件、照它回的變更單辦事。
-  // 金鑰在這裡取一次就夠：要改金鑰得離開這個畫面，回來時整個 editorView 已重建。
-  const key = app.gemini.read();
+  // 去問讀音的那支函式在這裡取一次就夠：要改金鑰得離開這個畫面，回來時整個 editorView 已重建。
+  const ask = createAsk(app);
   const makeEditor = () =>
     createReadingEditor({
       markup: card?.text,
-      // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
-      ask: key === null ? null : (term) => askReading(key, term, fetch.bind(window)),
+      ask,
     });
 
   // 讀音格由這台機器持有，「儲存並繼續」要把它們清空，因此換一台空的就是清空——
@@ -379,6 +378,29 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   // toast 只有「儲存並繼續」會跳，編輯模式不必長這個節點。
   if (!card) screen.append(toast.node);
   return screen;
+}
+
+/**
+ * 去問讀音的那支函式，兩條路在這裡分岔（spec 決定一、二）。
+ *
+ * 網頁版走使用者自備的金鑰直接打 Gemini，沒設金鑰就回 null、讀音預填全程不發生；
+ * iOS 走固定金鑰與 Firebase AI Logic，沒有「金鑰」這回事，因此一律回得出一支。
+ *
+ * `import.meta.env.MODE` 在打包時就換成字面值，另一條整段是死碼，連帶那個動態 import
+ * 的 chunk 也不會產出——firebase 不會進網頁版產物（spec 決定十六）。動態 import 而不是
+ * 頂端的 import：後者無論如何都會被打包進來。
+ */
+function createAsk(app: App): Ask | null {
+  if (import.meta.env.MODE === 'ios') {
+    const native = import('../lib/gemini-reading-native');
+    // 先去排憑證的隊，不等它。使用者接下來要打詞條，那幾秒剛好夠 App Attest 跑完。
+    void native.then((module) => module.prepare());
+    return (term) => native.then((module) => module.askReadingNative(term));
+  }
+
+  const key = app.gemini.read();
+  // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
+  return key === null ? null : (term) => askReading(key, term, fetch.bind(window));
 }
 
 /** 狀態代號翻成使用者看到的那一行字與樣式。措辭與樣式屬於畫面，不進讀音編輯器。 */

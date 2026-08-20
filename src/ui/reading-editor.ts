@@ -10,7 +10,7 @@
  */
 
 import { t } from '../i18n';
-import { AppError, toMessage } from '../lib/app-error';
+import { AppError, SilentError, toMessage } from '../lib/app-error';
 import {
   parseReading,
   toDraft,
@@ -33,6 +33,15 @@ export interface Change {
   /** 提示字要換。 */
   note: boolean;
 }
+
+/**
+ * 去問 AI（Artificial Intelligence，人工智慧）讀音的那支函式。回的是還沒被信任的原始
+ * 回覆——收不收由 `acceptPrefill`（`reading.ts`）決定，這裡只負責把它拿回來。
+ *
+ * 誰去問由 `editor-view.ts` 的 `createAsk()` 決定：網頁版是使用者自備金鑰打 Gemini，
+ * iOS 是固定金鑰走 Firebase AI Logic。這一層兩條都不認識。
+ */
+export type Ask = (term: string) => Promise<unknown>;
 
 /** 讀音區上方那一行的狀態。中文與樣式由畫面決定。 */
 export type Note =
@@ -72,8 +81,8 @@ const NOTHING: Change = { term: false, runs: false, note: false };
 export function createReadingEditor(options: {
   /** 舊卡的標記字串；新卡不傳。 */
   markup?: string;
-  /** 去問 AI（Artificial Intelligence，人工智慧）的那支函式。null 代表沒金鑰，全程靜默。 */
-  ask: ((term: string) => Promise<unknown>) | null;
+  /** null 代表根本沒有人可問（網頁版沒設金鑰），讀音預填全程靜默。 */
+  ask: Ask | null;
 }): ReadingEditor {
   const { markup, ask } = options;
 
@@ -211,6 +220,13 @@ export function createReadingEditor(options: {
       return { term: false, runs: true, note: true };
     } catch (reason) {
       if (term !== asked) return NOTHING;
+      // 說不出口的那一種：iOS 拿不到 App Check 憑證，使用者一點辦法都沒有，
+      // 讀音格留空、畫面上一個字都不出（spec 決定十一）。仍然回「提示字要換」——
+      // 換成沒有：`prefill()` 已經掛上「詢問中」，不收掉就變成一場問不完的等待。
+      if (reason instanceof SilentError) {
+        note = null;
+        return { term: false, runs: false, note: true };
+      }
       // 讀音格維持原狀留空，接下來得自己填——必填之後，填好之前這張卡存不下去。
       // 這裡走 toMessage()：問 Gemini 的失敗現在帶的是 key，直接讀 `.message` 只會拿到那條 key。
       // 外面那層 `instanceof Error` 不是多餘的——連 Error 都不是的東西 toMessage() 會吐

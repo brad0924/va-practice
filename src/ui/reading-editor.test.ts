@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createReadingEditor, type Change } from './reading-editor';
 import zhHant from '../i18n/zh-Hant';
+import { SilentError } from '../lib/app-error';
 
 /** 什麼都不必動的變更單。多數斷言都是拿它比對。 */
 const NOTHING: Change = { term: false, runs: false, note: false };
@@ -34,6 +35,10 @@ function fakeAsk() {
     },
     fail(message: string) {
       pending.shift()!.reject(new Error(message));
+    },
+    /** iOS 上 App Check 沒過的那一種：問不成，但一個字都不必說。 */
+    stayQuiet() {
+      pending.shift()!.reject(new SilentError());
     },
   };
 }
@@ -128,6 +133,21 @@ describe('讀音預填', () => {
 
     expect(await later).toEqual({ term: false, runs: false, note: true });
     expect(editor.note).toEqual({ kind: 'failed', reason: '等超過 10 秒沒有回覆' });
+  });
+
+  it('說不出口的失敗：提示字整個收掉，讀音格留空', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    const { later } = editor.prefill();
+    expect(editor.note).toEqual({ kind: 'asking' });
+    ai.stayQuiet();
+
+    // 提示字仍然要「換」——換成沒有。詢問中那句留在畫面上會變成一場問不完的等待。
+    expect(await later).toEqual({ term: false, runs: false, note: true });
+    expect(editor.note).toBeNull();
+    expect(editor.runs).toEqual([{ start: 0, cells: [{ kanji: '焦', reading: '' }] }]);
   });
 
   it('回覆採用後讀音格要重畫，提示字換成填好了', async () => {

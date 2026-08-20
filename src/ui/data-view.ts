@@ -45,18 +45,15 @@ export function dataView(app: App): HTMLElement {
   // 介面語言排在那幾區之首：語言是「app 用什麼話跟你說」，比底下四區都基礎，
   // 而看不懂畫面的人來找語言選單時，越上面越容易找到（spec 決定十）。
   // 提醒緊接在 Gemini 金鑰之後：兩者同樣是「只管這一台裝置」的偏好，擺在一起。
-  main.append(booksSection(app), langSection(app), cloudSection(app), geminiSection(app));
+  // iOS 上沒有金鑰那一區，提醒因此接在雲端備份之後。
+  main.append(booksSection(app), langSection(app), cloudSection(app));
+  // 金鑰區塊只長在網頁版。iOS 上讀音預填走固定金鑰、使用者什麼都不必設定，
+  // 這一區留著只會讓人以為自己還漏了一步（spec 決定二）。
+  // `import.meta.env.MODE` 在打包時就換成字面值，兩份產物各自只留下自己那一半。
+  if (import.meta.env.MODE !== 'ios') main.append(geminiSection(app));
   const reminder = reminderSection(app);
   if (reminder) main.append(reminder);
   main.append(fileSection(app));
-
-  // 票 01 的探路按鈕，驗完就拆（`.scratch/fixed-gemini-key/issues/01`）。
-  // `import.meta.env.MODE` 在打包時就被換成字面值，網頁版這整段是死碼，
-  // 連帶那個動態 import 的 chunk 也不會產出——firebase 不會進網頁版產物。
-  // 動態 import 而不是頂端的 import：後者無論如何都會被打包進來。
-  if (import.meta.env.MODE === 'ios') {
-    void import('./app-check-spike').then(({ spikePanel }) => main.append(spikePanel()));
-  }
 
   screen.append(header, main);
   return screen;

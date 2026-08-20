@@ -10,6 +10,8 @@
  * 那部分有 `gemini-reading.test.ts` 守著。真正的文字要到畫面顯示的當下才查表。
  */
 
+import type { SchemaRequest } from 'firebase/ai';
+
 import { AppError } from './app-error';
 
 /**
@@ -21,11 +23,13 @@ import { AppError } from './app-error';
  * `gemini-3.6-flash`。這裡刻意不用 `gemini-flash-latest` 那種別名：模型在腳下
  * 換人的話，同一個詞的讀音會無預警改答案，寫死才知道自己在跟誰講話。
  */
-const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+export const MODEL = 'gemini-3.6-flash';
 
-/** 超過這個秒數就當失敗。使用者已經在打釋義了，不能無限等。 */
-const TIMEOUT_MS = 10_000;
+/** 網頁版那條路的端點。iOS 那條走 Firebase AI Logic 的 SDK，不經過這個網址。 */
+const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+/** 超過這個秒數就當失敗。使用者已經在打釋義了，不能無限等。兩條路徑同一個預算。 */
+export const TIMEOUT_MS = 10_000;
 
 /**
  * 結構化輸出的形狀：一串漢字一個物件，裡面是拆不拆得開的自述與各格。
@@ -33,20 +37,27 @@ const TIMEOUT_MS = 10_000;
  *
  * `splittable` 排在 `cells` 前面不是隨便放的：模型是一個欄位一個欄位往下生的，
  * 先寫下判斷再填格子，格子才會照著那個判斷走。
+ *
+ * **兩條路徑共用這一份**（spec 決定十六）。型別名寫小寫是為了共用：Firebase AI Logic 的
+ * SDK 只認小寫，寫大寫連編譯都過不了；而這一份原本的大寫走的是 REST 端點。Google 兩份
+ * 文件各給一種寫法、都沒有明講另一種收不收，最後是維護者拍板改小寫、自己在網頁版實測。
+ *
+ * 型別借 Firebase 的 `SchemaRequest`——那一側的要求比 REST 嚴，過得了它就一定過得了
+ * REST。這是 `import type`，打包時整行消失，網頁版產物裡不會有 firebase。
  */
-const RESPONSE_SCHEMA = {
-  type: 'ARRAY',
+export const RESPONSE_SCHEMA: SchemaRequest = {
+  type: 'array',
   items: {
-    type: 'OBJECT',
+    type: 'object',
     properties: {
-      splittable: { type: 'BOOLEAN' },
+      splittable: { type: 'boolean' },
       cells: {
-        type: 'ARRAY',
+        type: 'array',
         items: {
-          type: 'OBJECT',
+          type: 'object',
           properties: {
-            kanji: { type: 'STRING' },
-            reading: { type: 'STRING' },
+            kanji: { type: 'string' },
+            reading: { type: 'string' },
           },
           required: ['kanji', 'reading'],
           propertyOrdering: ['kanji', 'reading'],
@@ -77,6 +88,26 @@ const INSTRUCTIONS = [
   '6. 依詞條中漢字串出現的順序回答，每一串一個物件；cells 各格的 kanji 接起來必須等於原本那串漢字，不可增刪或改寫。',
   '假名、送假名、標點都不要出現在回答裡。',
 ].join('\n');
+
+/**
+ * 送出去的那句話。判準與詞條的接法兩條路徑共用——模型看到的字一模一樣，
+ * 差別只在誰把它交出去（spec 決定十六）。
+ */
+export function promptFor(term: string): string {
+  return `${INSTRUCTIONS}\n\n詞條：${term}`;
+}
+
+/**
+ * 模型塞在回覆裡的那份 JSON 字串解析成值。回的是 `unknown`——形狀由 schema 保證，
+ * 內容要不要信是 `acceptPrefill`（`reading.ts`）的事，不在這裡判斷。
+ */
+export function parseReply(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new AppError('gemini.notJson');
+  }
+}
 
 /** 回覆的外層形狀，只挖需要的那一段。 */
 interface GenerateContentResponse {
@@ -117,7 +148,7 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${INSTRUCTIONS}\n\n詞條：${term}` }] }],
+          contents: [{ parts: [{ text: promptFor(term) }] }],
           generationConfig: {
             responseMimeType: 'application/json',
             responseSchema: RESPONSE_SCHEMA,
@@ -148,11 +179,7 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
     }
     if (typeof text !== 'string') throw new AppError('gemini.emptyReply');
 
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new AppError('gemini.notJson');
-    }
+    return parseReply(text);
   } finally {
     clearTimeout(timer);
   }

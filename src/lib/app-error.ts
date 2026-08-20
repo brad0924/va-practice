@@ -8,8 +8,11 @@
  * 獨立一支檔案而不是塞進 `storage.ts`：雲端備份、Gemini、複習佇列、讀音編輯器
  * 都會用到它，收在 storage 裡會讓那支變成所有人都要 import 的雜物櫃。
  *
- * 刻意只有一種錯誤類別，不分 `ValidationError`／`NetworkError` 之類的階層——
- * 目前沒有任何一處程式碼需要按類別分流，接住錯誤的地方一律只做同一件事：顯示它。
+ * 有訊息的錯只有一種類別，不分 `ValidationError`／`NetworkError` 之類的階層——
+ * 沒有任何一處程式碼需要按那種類別分流，接住的地方一律只做同一件事：顯示它。
+ *
+ * 底下的 `SilentError` 是唯一的例外，而它分的不是「哪一種錯」而是「說不說得出口」：
+ * 接住它的地方要做的是**不顯示**。這是後來加的，加的時候檢查過上面那一條仍然成立。
  */
 import { t, type Key } from '../i18n';
 
@@ -26,6 +29,24 @@ export class AppError extends Error {
     this.name = 'AppError';
     this.key = key;
     this.params = params;
+  }
+}
+
+/**
+ * 說不出口的失敗：問不成，但畫面上一個字都不出。
+ *
+ * 只有一種用途——iOS 的讀音預填拿不到 App Check 憑證、或憑證被 Google 退回。
+ * 那條錯誤使用者一點辦法都沒有（他連金鑰設定都看不到），看了只會焦慮，因此讀音格
+ * 單純留空，與網頁版「沒設金鑰就什麼都不發生」一致（spec 決定十一）。
+ *
+ * 刻意不做成 `AppError` 的一條 key：它不帶訊息，接住它的地方要做的是**不顯示**，
+ * 而不是顯示另一句話。用型別分開，接的人就不會不小心把它印出來。
+ */
+export class SilentError extends Error {
+  constructor() {
+    // 這串只會出現在堆疊追蹤裡，永遠不會到使用者眼前，因此不進翻譯檔。
+    super('silent');
+    this.name = 'SilentError';
   }
 }
 
