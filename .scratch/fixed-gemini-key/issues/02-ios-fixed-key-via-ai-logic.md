@@ -223,3 +223,42 @@ toReadingError() 之後 → SilentError
 #### 一個知情的鬆散處
 
 程式把**任何 401** 都當成 App Check 沒過。這個端點的 401 目前應該只有這一個來源，但沒有證據說死。要更精準得再比對訊息裡有沒有 `App Check` 字樣，代價是綁死一串英文，因此不做。
+
+### 2026-08-20 — 401 probe build：三處臨時改動，驗完必須改回去
+
+維護者決定補那一次端到端的真機觀察。這個 build **只為了這件事存在**，讀音預填在它上面一定不會成功。
+
+#### 改了哪三處（全在 `src/lib/gemini-reading-native.ts`）
+
+| 改動 | 現在 | 驗完要改回 |
+| --- | --- | --- |
+| 餵給 SDK 的權杖 | 寫死 `'not-a-real-token'` | `getToken: appCheckToken` |
+| Firebase app 名稱 | `'reading-prefill-401probe'` | `'reading-prefill'` |
+| 探針輸出 | 原始錯誤與狀態碼 | 計時（或整支拆掉） |
+
+**只換餵給 SDK 的那一支，不換 `budgeted()` 那一支**——後者仍然走真的外掛，所以「跟 Apple 要憑證」在這個 build 上照樣會發生、失敗也照樣看得出來，被換掉的只有真正上線的那張票。
+
+#### 為什麼非換 app 名稱不可
+
+App Check 的 JS 層把權杖存進 **IndexedDB**，鍵是 `${appId}-${app 名稱}`（`@firebase/app-check` 的 `computeKey()`）。啟動時讀到還沒過期的就**根本不會呼叫 provider**——那個亂寫的權杖會送不出去，整輪白跑。
+
+維護者手機上那張是當天 13:48 換的、存留時間設定 1 天，還活著。換個名字等於換一把鑰匙，沒有舊快取可讀。
+
+**這正是「改團隊 ID 那一招為什麼沒效」的三個候選解釋之一**，但仍然只是候選——這次是繞開快取，不是證明當初就是快取擋的。
+
+#### 要比對什麼
+
+開發機上那次量到的是：
+
+```
+status 401 / statusText ""
+code fetch-error / name FirebaseError
+msg AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/
+    projects/va-practice/models/gemini-3.6-flash:generateContent:
+    [401 ] Firebase App Check token is invalid. (AI/fetch-error)
+→ SilentError
+```
+
+手機上要看的是**同樣這五行**，加上一件開發機答不出來的事：**讀音區上方真的一個字都沒有**。
+
+兩者都成立，「App Check 被拒時完全靜默」才算端到端驗過。

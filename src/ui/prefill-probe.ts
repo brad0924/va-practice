@@ -21,8 +21,8 @@
 /** 畫面右下角那個框。第一次 `record()` 時才長出來。 */
 let box: HTMLElement | null = null;
 
-/** 留幾行。多了會蓋住編輯畫面。 */
-const KEEP = 6;
+/** 留幾行。一次失敗要印五行，其中訊息那行會折成好幾行。 */
+const KEEP = 8;
 
 function ensureBox(): HTMLElement {
   if (box !== null) return box;
@@ -63,15 +63,26 @@ export function record(label: string, seconds?: number): void {
   shown.textContent = lines.slice(-KEEP).join('\n');
 }
 
-/** 量一段非同步工作花了多久，成敗都記。回傳原本那顆 promise 的結果。 */
-export async function timed<T>(label: string, work: Promise<T>): Promise<T> {
-  const started = Date.now();
-  try {
-    const value = await work;
-    record(label, (Date.now() - started) / 1000);
-    return value;
-  } catch (error) {
-    record(`${label} ✗`, (Date.now() - started) / 1000);
-    throw error;
-  }
+/**
+ * 問模型失敗時，把 SDK 給的原始資料原樣攤開。
+ *
+ * 印的欄位刻意與 2026-08-20 在開發機上跑的那次一字對齊，這樣兩邊擺在一起就比得出
+ * 手機上收到的是不是同一個東西。訊息放最後——它最長，被行數上限擠掉也不影響前面幾行。
+ */
+export function recordFailure(error: unknown, translated: Error): void {
+  const raw = error as {
+    name?: unknown;
+    code?: unknown;
+    message?: unknown;
+    customErrorData?: { status?: unknown; statusText?: unknown };
+  };
+  record('── 問模型失敗');
+  record(`status ${String(raw.customErrorData?.status)} / statusText "${String(raw.customErrorData?.statusText)}"`);
+  record(`code ${String(raw.code)} / name ${String(raw.name)}`);
+  record(
+    translated.name === 'SilentError'
+      ? '→ 判成靜默，畫面上不會有字'
+      : `→ 判成要顯示：${(translated as { key?: unknown }).key ?? translated.message}`,
+  );
+  record(`msg ${String(raw.message)}`);
 }
