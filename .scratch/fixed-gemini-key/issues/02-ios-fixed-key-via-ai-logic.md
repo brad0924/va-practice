@@ -48,7 +48,7 @@ Blocked by: 01
 - **網頁版**：`npm run build` 的產物裡搜不到 `firebase` 相關程式碼；資料畫面的金鑰區塊在、行為與現在一字不差；貼上金鑰後讀音預填照常運作。
 - **iOS build**：資料畫面上沒有「Gemini API 金鑰」區塊；全新安裝、不做任何設定，新增卡片打完詞條後讀音格自動填入。
 - 真機（TestFlight）驗證上一項，模擬器驗不出來。
-- 把 App Check 在 Firebase 主控台暫時改成拒絕，確認 iOS 上讀音格留空且**畫面上沒有任何錯誤字**、儲存不被擋。
+- 確認 App Check 被拒時讀音格留空且**畫面上沒有任何錯誤字**。（原本寫「在主控台暫時改成拒絕」，那條路走不通——主控台沒有取消註冊的按鈕。改用「餵一個亂寫的權杖」重現，做法與結果見下方 2026-08-20 的 Comments。）
 - 離線狀態下 iOS 新增卡片，讀音格留空給人自己填，且**讀音預填的失敗本身不會變成一道關卡**（不跳錯誤框、不鎖按鈕）；人工填完讀音照樣存得下去。（原本這條寫的是「儲存不被擋」，那句話與「讀音是必填格」自相矛盾——格子空著本來就存不下去。2026-08-20 更正，原意見 `ADR-0005` 的保底路徑。）
 - `npm test` 全綠。`gemini-reading.test.ts` 不需要為了這張票放寬任何斷言。
 - 票 01 留下的探路按鈕與程式碼已清掉。
@@ -166,3 +166,55 @@ response = await fetch(...)
 #### 更正票 01 的一條紀錄
 
 發現六寫著「註冊 App Attest **不需要上傳 `.p8` 私密金鑰、也不需要填 Team ID**」。前半正確，**後半是錯的**——主控台的 App Attest 面板有一個「團隊 ID」欄位且必須有值（本專案是 `LR56L89886`）。同一個面板還有「權杖存留時間」，本專案設的是 **1 天**（不是 Firebase 文件講的預設 1 小時），這個數字決定了任何「弄壞 App Check」的測試最久要等多久才看得到效果。
+
+### 2026-08-20 — 那個 401 在這台開發機上重現了，不必實機
+
+「App Check 被拒時完全靜默」這條驗收，先後試過兩種做法都失敗：
+
+- **主控台取消註冊**：沒有那個按鈕。App Check 頁面右上選單只有「隱藏詳細資料」「管理偵錯符記」，App Attest 面板底下只有「儲存」「取消」。
+- **把團隊 ID 改成錯的值**（`LR56L89886` → 改一碼），存檔後砍掉 app 重裝，試四次。**無效**——App Check 指標四次全是「已驗證」。為什麼無效不知道，三個都說得通的解釋（權杖快取活過重裝、設定未生效、Firebase 驗 App Attest 不看那個欄位）都沒有證據，不挑一個寫進來。團隊 ID 已改回。
+
+#### 走得通的做法：餵一個亂寫的權杖
+
+**不必動主控台任何設定，也不必實機。** App Check 是在 Google 那一端擋的，它不管那個權杖是從 iPhone 送的還是從 Windows 上的 node 送的。
+
+```ts
+await initializeAppCheck(app, {
+  provider: new CustomProvider({
+    getToken: async () => ({ token: 'not-a-real-token', expireTimeMillis: Date.now() + 60_000 }),
+  }),
+});
+```
+
+用 `GoogleService-Info.plist` 裡那份公開設定（決定七），透過 vitest 跑（要 vite 的模組解析），打真的 `firebasevertexai.googleapis.com`。請求在 App Check 那關就被擋掉，碰不到 Gemini，不吃額度。
+
+#### 量到的東西
+
+```
+name           : FirebaseError
+code           : fetch-error
+customErrorData: {"status":401,"statusText":""}
+message        : AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/
+                 projects/va-practice/models/gemini-3.6-flash:generateContent:
+                 [401 ] Firebase App Check token is invalid. (AI/fetch-error)
+
+toReadingError() 之後 → SilentError
+```
+
+**這條鏈現在每一段都有實物**：
+
+| 段 | 證據 |
+| --- | --- |
+| Google 因 App Check 拒絕時回 HTTP 401 | 上面這次重現（真端點） |
+| 那個錯的 `customErrorData.status` 真的是 401 | 同上。**原本只是讀 SDK 原始碼推論的，現在是量到的** |
+| 認出 401 → 產出 `SilentError` | 同上，餵的是真的錯誤物件 |
+| `SilentError` → 提示字收掉、格子留空 | `reading-editor.test.ts` |
+| 錯誤從原生模組傳得到讀音編輯器 | 當天真機探針：逾時那三次的錯誤字正確顯示在畫面上 |
+
+#### 順帶更正測試裡一個編錯的字串
+
+`statusText` 實測是**空的**，所以訊息裡是 `[401 ]` 而不是原本假設的 `[401 Unauthorized]`。`ai-logic-error.test.ts` 的樣本已改成實際的形狀，429 那條也一併把狀態字留空——挖原因那段字串處理不該依賴它。
+
+#### 一個知情的鬆散處
+
+程式把**任何 401** 都當成 App Check 沒過。這個端點的 401 目前應該只有這一個來源，但沒有證據說死。要更精準得再比對訊息裡有沒有 `App Check` 字樣，代價是綁死一串英文，因此不做。

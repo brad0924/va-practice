@@ -6,9 +6,11 @@ import { AppError, SilentError } from './app-error';
  * 這一支守的是「Firebase 那條路的失敗也落回同一組 key」。網頁版的同一件事由
  * `gemini-reading.test.ts` 守著，兩邊的斷言形狀刻意長得一樣。
  *
- * 樣本訊息不是編的，是照 SDK 實際的組法抄下來的：
- * `AI: Error fetching from <網址>: [<狀態> <狀態字>] <原因> (AI/<代號>)`。
- * 其中 401 那一句是票 01 在真 iPhone 上實際收到的。
+ * 樣本訊息不是編的。401 那一組是 2026-08-20 對真的 Firebase AI Logic 端點餵一個亂寫的
+ * App Check 權杖、把回來的錯誤原樣抄下來的（見 `fixed-gemini-key` 票 02 的 Comments）。
+ * 組法是 `AI: Error fetching from <網址>: [<狀態> <狀態字>] <原因> (AI/<代號>)`，而實測
+ * **`<狀態字>` 是空的**——所以方括號裡長的是 `[401 ]`，不是 `[401 Unauthorized]`。這一點
+ * 直接決定挖原因那段字串處理對不對，樣本因此照實際的寫。
  */
 const ENDPOINT = 'https://firebasevertexai.googleapis.com/v1beta/projects/va-practice/models/gemini-3.6-flash:generateContent';
 
@@ -32,7 +34,7 @@ describe('Firebase AI Logic 的失敗翻回同一組 key', () => {
 
   it('App Check 沒過：完全不出聲，連一條 key 都不給', () => {
     const rejected = sdkError(
-      `Error fetching from ${ENDPOINT}: [401 Unauthorized] Firebase App Check token is invalid.`,
+      `Error fetching from ${ENDPOINT}: [401 ] Firebase App Check token is invalid.`,
       'fetch-error',
       401,
     );
@@ -42,7 +44,7 @@ describe('Firebase AI Logic 的失敗翻回同一組 key', () => {
 
   it('額度用完：狀態碼與 Google 那句原因一起帶出去', () => {
     const exhausted = sdkError(
-      `Error fetching from ${ENDPOINT}: [429 Too Many Requests] Resource has been exhausted (e.g. check quota).`,
+      `Error fetching from ${ENDPOINT}: [429 ] Resource has been exhausted (e.g. check quota).`,
       'fetch-error',
       429,
     );
@@ -50,7 +52,8 @@ describe('Firebase AI Logic 的失敗翻回同一組 key', () => {
     expect(toReadingError(exhausted)).toEqual(
       expect.objectContaining({
         key: 'gemini.httpError',
-        // 原因裡那組括號不可以被當成尾巴那個 (AI/fetch-error) 一起剪掉。
+        // 兩件事一起守：狀態字是空的（方括號裡只有數字加一個空格），而且原因裡那組
+        // 括號不可以被當成尾巴那個 (AI/fetch-error) 一起剪掉。
         params: { status: 429, reason: 'Resource has been exhausted (e.g. check quota).' },
       }),
     );
