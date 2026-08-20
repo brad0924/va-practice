@@ -67,7 +67,20 @@ async function wire(): Promise<GenerativeModel> {
     },
     'reading-prefill',
   );
-  await initializeAppCheck(app, { provider: new CustomProvider({ getToken: appCheckToken }) });
+  // 探針（丟棄品）：SDK 在自己的窗口裡也會來要權杖，而那一段被算在「模型」那一格裡面。
+  // 不印出來的話，「模型 9 秒」分不出是 Gemini 慢還是這裡快取沒中。剩餘效期一起印——
+  // 外掛若沒回到期時間，`?? 0` 會讓它變成一個離譜的負數，那本身就是答案。
+  await initializeAppCheck(app, {
+    provider: new CustomProvider({
+      getToken: async () => {
+        const started = Date.now();
+        const token = await appCheckToken();
+        const left = Math.round((token.expireTimeMillis - Date.now()) / 1000);
+        record(`└ SDK 要權杖 ${((Date.now() - started) / 1000).toFixed(1)}s，剩 ${left}s`);
+        return token;
+      },
+    }),
+  });
 
   // 後端明寫出來讓決定看得見：`getAI()` 的預設本來就是 Gemini Developer API，不是 Vertex。
   // 逾時掛在這裡，管的是送出去到收回來那一段；跟 Apple 要憑證那一段不在它的預算裡，
