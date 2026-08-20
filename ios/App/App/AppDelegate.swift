@@ -1,5 +1,17 @@
 import UIKit
 import Capacitor
+import FirebaseCore
+import FirebaseAppCheck
+
+/// App Check 一律走 App Attest，不要退回 DeviceCheck。
+///
+/// 部署目標是 iOS 15，`AppAttestProvider`（需要 iOS 14）永遠可用，因此不寫版本判斷。
+/// 回傳 nil 代表這台裝置不支援，那時 Firebase 自己會處理，我們不要偷偷換一套。
+final class AppAttestOnlyProviderFactory: NSObject, AppCheckProviderFactory {
+    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+        AppAttestProvider(app: app)
+    }
+}
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +19,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // App Check 的 provider 必須在 `FirebaseApp.configure()` **之前**指定，晚了就來不及——
+        // App Check 會在 configure 的時候用出廠預設（iOS 上是 DeviceCheck）把自己建好，
+        // 之後再指定也換不回來。
+        //
+        // `@capacitor-firebase/app-check` 這兩件事分在兩個時間點做：它在外掛載入時就
+        // `FirebaseApp.configure()`，而「請用 App Attest」要等 JS 呼叫 `initialize()` 才發生。
+        // 順序因此一定是反的。2026-08-20 真機實測到的後果：權杖請求打到
+        // `…:exchangeDeviceCheckToken`，Firebase 回 `App not registered`——
+        // 後台只登記了 App Attest，app 卻拿 DeviceCheck 去換（見 .scratch/fixed-gemini-key/issues/01）。
+        //
+        // 這裡搶在外掛之前把兩件事按正確順序做完。`didFinishLaunchingWithOptions` 跑在
+        // Capacitor 建立 bridge、載入外掛之前，是這支 app 裡最早的接縫。
+        // 外掛的 `load()` 只在 `FirebaseApp.app() == nil` 時才 configure，因此不會重複做。
+        AppCheck.setAppCheckProviderFactory(AppAttestOnlyProviderFactory())
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
         return true
     }
 

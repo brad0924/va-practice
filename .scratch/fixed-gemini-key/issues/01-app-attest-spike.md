@@ -307,3 +307,66 @@ but a conflicting code signing identity Apple Distribution has been manually spe
 **結論：那 8 個 target 完全接受「手動簽章、用這張憑證、屬於這個 team」，唯一不接受的是被塞一張 provisioning profile。** 搬少了會倒，搬多了也會倒——要搬的只有 `PROVISIONING_PROFILE_SPECIFIER` 一項。
 
 這張表寫進了 workflow 與 `scripts/inject-signing.mjs` 的註解。它反直覺，不寫下來下次一定重走一遍這四趟。
+
+### 2026-08-20 — 第一次裝上真 iPhone：三件事成立，卡在權杖那一格
+
+第五趟 CI 通過，build 上了 TestFlight，裝進 iPhone。兩種狀態（App Check 未強制／已強制）各按 A、B 一次，共四筆結果。
+
+#### 已經證明成立
+
+| 項目 | 證據 |
+| --- | --- |
+| **`GoogleService-Info.plist` 被正確打包** | 畫面印出 `原生設定：projectId=va-practice appId=1:868881672534:ios:…`，那是原生從 plist 讀出來的 |
+| **`FirebaseAppCheck.initialize()` 在 Capacitor 8 的 iOS 殼上跑得起來** | 印出「原生 App Check 初始化完成」。**這是票裡「要回報的發現」第一條，答案是可以** |
+| **Firebase AI Logic 已啟用、端點打得到** | B 打到 `firebasevertexai.googleapis.com/v1beta/projects/va-practice/models/gemini-3.6-flash:generateContent`，回的是 **401**，不是 404 也不是「API 未啟用」 |
+| **iOS 產物體積** | 待補（維護者回報） |
+
+#### 意外收穫：「未帶權杖會被拒」已經驗完，而且比原設計更強
+
+B 在**未強制**與**已強制**兩種狀態下**都失敗**，訊息一字不差：
+
+```
+FirebaseError: AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/
+projects/va-practice/models/gemini-3.6-flash:generateContent:
+[401] Firebase App Check token is invalid. (AI/fetch-error)
+```
+
+B 原本設計成「強制執行前會成功、之後會失敗」的對照組。**實際上 AI Logic 一律要求 App Check，那個開關對它沒有作用。** 這印證 spec 決定五那句「App Check 不是選配：Firebase 對 AI Logic 強制啟用」——不是靠開關擋，是天生就擋。
+
+驗收那條「確認未帶權杖的請求會被拒」因此成立。A／B 兩顆按鈕的設計前提有誤，但結論比原本更硬。
+
+#### 卡點：走的是 DeviceCheck，不是 App Attest
+
+A 在兩種狀態下都停在同一格——`getToken()`：
+
+```
+—— 失敗：Error: The operation couldn't be completed. Too many attempts.
+ - URL: https://firebaseappcheck.googleapis.com/v1/projects/va-practice/apps/
+        1:868881672534:ios:0101e57fef7da60adccef7:exchangeDeviceCheckToken
+ - HTTP status code: 400
+ - "message": "App not registered: 1:868881672534:ios:0101e57fef7da60adccef7."
+ - "status": "FAILED_PRECONDITION"
+```
+
+網址結尾是 **`exchangeDeviceCheckToken`**。DeviceCheck 是 Firebase 在 iOS 上的**出廠預設** provider，不是外掛指定的 App Attest。
+
+Firebase 主控台已確認：這支 app **已註冊，認證服務是 App Attest**。所以 `App not registered` 的意思是「這支 app 沒有登記 DeviceCheck 這一套」——後台與客戶端用的不是同一套。
+
+外掛也沒有提供選 provider 的開關（`InitializeOptions` 只有 debug 相關）。它一律用 App Attest。**所以我們指定的那一套根本沒生效。**
+
+#### 推測的原因與修法（尚未證實）
+
+外掛把兩件事分在兩個時間點做：
+
+| 什麼時候 | 做什麼 |
+| --- | --- |
+| 外掛載入（app 一啟動） | `FirebaseApp.configure()` |
+| JS 呼叫 `initialize()` | `AppCheck.setAppCheckProviderFactory(CustomAppCheckProviderFactory())` |
+
+而 Firebase 官方文件要求：**provider factory 必須在 `configure()` 之前指定**。App Check 會在 configure 的時候用出廠預設把自己建好，之後再指定也換不回來。探路按鈕更是要等使用者按下去才呼叫 `initialize()`，時間差更大。
+
+這解釋了觀察到的每一個現象，**但沒有實證**——只有一份吻合的推理。
+
+修法：在 `ios/App/App/AppDelegate.swift` 的 `didFinishLaunchingWithOptions` 裡，搶在 Capacitor 建立 bridge、載入外掛之前，先 `setAppCheckProviderFactory` 再 `configure()`。約十行 Swift，含一個只回傳 `AppAttestProvider` 的小 factory。
+
+**這超出本票原本的預期**（原本只打算寫 JS，探路程式碼「可以醜、可以是一顆暫時的按鈕」），維護者知情後同意先試一輪。兩個風險據實記錄：推測可能是錯的；`import FirebaseCore`／`FirebaseAppCheck` 在 App target 裡不一定看得到那些模組，真的看不到的話 CI 會在編譯階段就倒（幾分鐘，不浪費 TestFlight 往返）。
