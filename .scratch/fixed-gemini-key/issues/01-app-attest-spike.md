@@ -370,3 +370,22 @@ Firebase 主控台已確認：這支 app **已註冊，認證服務是 App Attes
 修法：在 `ios/App/App/AppDelegate.swift` 的 `didFinishLaunchingWithOptions` 裡，搶在 Capacitor 建立 bridge、載入外掛之前，先 `setAppCheckProviderFactory` 再 `configure()`。約十行 Swift，含一個只回傳 `AppAttestProvider` 的小 factory。
 
 **這超出本票原本的預期**（原本只打算寫 JS，探路程式碼「可以醜、可以是一顆暫時的按鈕」），維護者知情後同意先試一輪。兩個風險據實記錄：推測可能是錯的；`import FirebaseCore`／`FirebaseAppCheck` 在 App target 裡不一定看得到那些模組，真的看不到的話 CI 會在編譯階段就倒（幾分鐘，不浪費 TestFlight 往返）。
+
+### 2026-08-20 — 一輪 TestFlight 往返的實測時間
+
+票裡「要回報的發現」最後一條。第一次走完全程的樣本：
+
+| 段落 | 實測 | 我們控制得到嗎 |
+| --- | --- | --- |
+| CI build（`workflow_dispatch` 到綠燈） | **5 分 17 秒** | 是。Firebase 那幾個原生套件要編譯，日後只會更久 |
+| App Store Connect 處理（綠燈到 TestFlight 可安裝） | **20 分以上**（記錄當下仍未完成） | 否，完全是 Apple 的排隊 |
+
+**瓶頸不在我們這邊。** build 只佔五分鐘，其餘全是等 Apple。
+
+**對後面幾票的影響：一輪往返至少半小時，因此要驗的東西必須攢成一批再送。** 票 02、03 動的是同一段程式碼，spec「建議的實作順序」把它們排在相鄰位置本來就對；這個數字進一步說明它們的**驗證**應該合成一次 TestFlight，而不是各送一輪。
+
+#### 順帶查到：每一版都要人工回答一次出口合規
+
+`ios/App/App/Info.plist` 沒有 `ITSAppUsesNonExemptEncryption` 這個鍵。少了它，每一版上傳後都會停在 App Store Connect 等維護者回答「有沒有使用非豁免加密」，回答完才變成可安裝——**這段等待會被誤認成「還在處理」**。
+
+補上那個鍵可以永久免除這一步，但那屬於商店申報，是**票 05** 的範圍，本票不動。記在這裡是因為它直接影響上面那個往返時間。
