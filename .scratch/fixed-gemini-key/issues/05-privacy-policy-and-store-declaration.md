@@ -1,6 +1,6 @@
 # 05 — 隱私權政策分岔成兩段，商店隱私申報重跑
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 Blocked by: 01
 
@@ -210,3 +210,29 @@ Linked to the user's identity → `No`；Used for tracking → `No`。
 `privacy-en.html`（對應見 `.scratch/ios-app/store-listing.md`；日文共用英文版是 `.scratch/i18n/spec.md` 決定八）。
 
 小抄（同樣內容的可讀版）：https://claude.ai/code/artifact/926802fd-3080-468a-8922-b60fe1c956e3
+
+### 2026-08-21 — 表填完了，五條驗收全過，票收掉
+
+**App Privacy 表已填妥並存檔。** 依上一則的四項結論勾選。
+
+**上一則列的那個「待判斷」在表單上不成立，記錄下來免得日後有人重推一遍。**
+那一則把雲端備份的密文寫成一道判斷題（端對端加密算不算 Apple 定義裡的 access）。
+實際填的時候發現：**Apple 的表問的是「你收不收這個型別」，沒有一格讓你分開兩個來源。**
+`User Content › Other User Content` 打一個勾，讀音預填的詞條與雲端備份的密文一起被涵蓋，
+那道岔路根本沒有岔開。保守的那條路是預設生效的，不是選出來的。
+
+**隱私政策網址三格都填了**：繁中指 `privacy.html`，日本語與 English 指 `privacy-en.html`。
+
+**驗收對照**
+
+- 兩份政策的 Gemini 那一節分成網頁版與 iOS 版兩段，網頁版原文一字未改 — 過
+- iOS 那段每一句對得上實際行為 — 過（code review 抓出四句寫太滿的，已改，見 2026-08-21 第二則）
+- 「同意主體換人」兩種語言都寫出來了 — 過
+- App Store Connect 的 App Privacy 表重新填過並存檔 — 過
+- 沒有加入任何 ATT 提示 — 過
+- `npm test` 全綠（含 `scripts/` 那兩支 hook 的測試）— 過，31 檔 571 條
+
+**留給日後的一條線**：spec 決定九（改成綁卡付費）列了四個要先知道的事，
+**這裡是第五個**——付費層 Google 明說不拿去改進模型，那時
+`User Content › Other User Content` 的申報理由就消失了，這份表要重看。
+決定九原文沒有提到這一項。
