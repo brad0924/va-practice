@@ -21,6 +21,8 @@
 | 讀音格 | Reading Cell | 読みセル | ~~Field~~、~~Input~~（太泛）、~~Split~~（聽起來像破壞資料） |
 | 必填格 | Required Cells | 必須セル | ~~Validator~~、~~Required Field~~（太泛） |
 | 讀音預填 | Reading Prefill | 読みの下書き入力 | ~~Auto-generate~~、~~AI Furigana~~（都會讓人以為程式對結果負責） |
+| 固定金鑰 | Fixed Key | アプリ提供のキー | ~~Built-in key~~、~~Embedded key~~（金鑰不在 app 裡）、~~Shared key~~（共用的是額度） |
+| 自備金鑰 | User-Supplied Key | 自分で用意するキー | ~~API key~~（太泛）、~~Personal key~~、~~Password~~ |
 | 讀音編輯器 | Reading Editor | 読みエディタ | ~~State machine~~、~~Controller~~ |
 | 到期 | Due | 期日 | ~~Frequency~~、~~Weight~~ |
 | 逾期 | Overdue | 期限切れ | ~~Expired~~、~~Late~~ |
