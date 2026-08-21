@@ -172,56 +172,92 @@ async function reason(response: Response): Promise<string | null> {
 }
 
 /**
+ * 值得再問一次的那幾個狀態碼：伺服器那端出事，跟我們送的東西無關。
+ *
+ * 503 那句話字面就是「請稍後再試」，這是最該自動重試的一種。其餘全部一次就放棄：
+ * 400／403 金鑰不會自己變對、404 模型不會自己回來、429 額度重試只會燒更快，
+ * 連不上多半是使用者自己的網路，逾時本身就是把預算燒光的那種失敗（票 07 決定二）。
+ */
+const TRANSIENT = new Set([500, 502, 503, 504]);
+
+/**
  * 問一個詞條。成功時回傳 AI 那份 JSON 解析後的值（型別是 `unknown`，還沒被信任）。
  *
  * 失敗一律拋出「可以直接顯示給使用者」的訊息——瀏覽器原生的
  * `Failed to fetch`、`AbortError` 對使用者沒有意義，在這裡就翻成人話。
  *
+ * 撞到 `TRANSIENT` 那幾個狀態碼就自動再問，**次數不設上限、中間不停頓**，問到成功或
+ * 碼表到期為止。碼表按在整支函式最外層，重試沒有自己的預算——像微波爐轉 10 分鐘的旋鈕，
+ * 中途換一盤菜進去，旋鈕不會回到 10 分。使用者的等待上限因此一秒都沒變。
+ * 沒裝次數煞車是刻意的，理由與要量的兩個數字記在票 07。
+ *
  * `doFetch` 必填，與 `storage` 同待遇：讓「這個模組會上網」在呼叫端就讀得到。
+ * `onAttempt` 選填：開始第 N 次嘗試前叫一聲，N 從 2 起算，畫面靠它把次數顯示出來。
  */
-export async function askReading(key: string, term: string, doFetch: typeof fetch): Promise<unknown> {
+export async function askReading(
+  key: string,
+  term: string,
+  doFetch: typeof fetch,
+  onAttempt?: (attempt: number) => void,
+): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  /**
+   * 這一輪最後收到的那個 5xx。碼表到期時要丟它而不是 `gemini.timeout`——
+   * 使用者真正撞到的是 503，講成「等超過 10 秒」跟事實對不上（票 07）。
+   */
+  let lastTransient: AppError | null = null;
+  /** 碼表到期時該講的那句話：撞過 5xx 就講 5xx，單純是慢才講逾時。 */
+  const expired = () =>
+    lastTransient ?? new AppError('gemini.timeout', { seconds: TIMEOUT_MS / 1000 });
   try {
-    let response: Response;
-    try {
-      response = await doFetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptFor(term, INSTRUCTIONS) }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: RESPONSE_SCHEMA,
-          },
-        }),
-        signal: controller.signal,
-      });
-    } catch {
-      throw controller.signal.aborted
-        ? new AppError('gemini.timeout', { seconds: TIMEOUT_MS / 1000 })
-        : new AppError('gemini.offline');
-    }
-    // 金鑰不對是 400／403，額度用完是 429，模型名或版本路徑不對是 404，
-    // 503 是那顆模型同時太多人用、Google 那端先擋掉一部分——四種裡唯一與我們無關的一種。
-    // 光看狀態碼分不出是哪一種，錯誤回應裡那句 message 才講得出原因，一起帶出去。
-    if (!response.ok) {
-      const why = await reason(response);
-      throw why === null
-        ? new AppError('gemini.httpErrorNoReason', { status: response.status })
-        : new AppError('gemini.httpError', { status: response.status, reason: why });
-    }
+    for (let attempt = 1; ; attempt++) {
+      // 碼表到期就收手。`AbortController` 踩過一次就永遠是踩下的狀態，因此這裡不會誤判。
+      if (controller.signal.aborted) throw expired();
+      if (attempt > 1) onAttempt?.(attempt);
 
-    let text: unknown;
-    try {
-      const body = (await response.json()) as GenerateContentResponse;
-      text = body.candidates?.[0]?.content?.parts?.[0]?.text;
-    } catch {
-      throw new AppError('gemini.unreadable');
-    }
-    if (typeof text !== 'string') throw new AppError('gemini.emptyReply');
+      let response: Response;
+      try {
+        response = await doFetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptFor(term, INSTRUCTIONS) }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: RESPONSE_SCHEMA,
+            },
+          }),
+          signal: controller.signal,
+        });
+      } catch {
+        throw controller.signal.aborted ? expired() : new AppError('gemini.offline');
+      }
+      // 金鑰不對是 400／403，額度用完是 429，模型名或版本路徑不對是 404，
+      // 5xx 是伺服器那端出事——四種裡唯一與我們無關、也唯一再問一次會好的一種。
+      // 光看狀態碼分不出是哪一種，錯誤回應裡那句 message 才講得出原因，一起帶出去。
+      if (!response.ok) {
+        const why = await reason(response);
+        const failure =
+          why === null
+            ? new AppError('gemini.httpErrorNoReason', { status: response.status })
+            : new AppError('gemini.httpError', { status: response.status, reason: why });
+        if (!TRANSIENT.has(response.status)) throw failure;
+        lastTransient = failure;
+        continue;
+      }
 
-    return parseReply(text);
+      let text: unknown;
+      try {
+        const body = (await response.json()) as GenerateContentResponse;
+        text = body.candidates?.[0]?.content?.parts?.[0]?.text;
+      } catch {
+        throw new AppError('gemini.unreadable');
+      }
+      if (typeof text !== 'string') throw new AppError('gemini.emptyReply');
+
+      return parseReply(text);
+    }
   } finally {
     clearTimeout(timer);
   }

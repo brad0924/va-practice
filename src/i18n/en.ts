@@ -129,6 +129,7 @@ const en: typeof zhHant = {
   'editor.deleteCard': 'Delete this card',
   'editor.deleteConfirm': 'Delete the card "{meaning}"? This cannot be undone.',
   'editor.noteAsking': 'Asking…',
+  'editor.noteRetrying': 'Retrying (attempt {attempt})…',
   'editor.noteFilled': 'The reading was filled in by AI, please check it',
   'editor.noteFailed': 'Reading prefill failed: {reason}',
   'data.langTitle': 'Interface language',

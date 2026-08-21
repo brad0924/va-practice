@@ -40,12 +40,16 @@ export interface Change {
  *
  * 誰去問由 `editor-view.ts` 的 `createAsk()` 決定：網頁版是使用者自備金鑰打 Gemini，
  * iOS 是固定金鑰走 Firebase AI Logic。這一層兩條都不認識。
+ *
+ * `onAttempt` 是問的那一方回報「開始第 N 次嘗試」的管道，N 從 2 起算——伺服器那端出事時
+ * 網頁版會自動再問（`gemini-reading.ts`）。iOS 那條路還沒有重試，不接這個參數也合法。
  */
-export type Ask = (term: string) => Promise<unknown>;
+export type Ask = (term: string, onAttempt?: (attempt: number) => void) => Promise<unknown>;
 
 /** 讀音區上方那一行的狀態。中文與樣式由畫面決定。 */
 export type Note =
   | { kind: 'asking' }
+  | { kind: 'retrying'; attempt: number }
   | { kind: 'filled' }
   | { kind: 'failed'; reason: string };
 
@@ -72,7 +76,11 @@ export interface ReadingEditor {
   setReading(ri: number, ci: number, value: string): Change;
   mergeAt(ri: number, seam: number): Change;
   splitAt(ri: number, ci: number, at: number): Change;
-  prefill(): { now: Change; later: Promise<Change> };
+  /**
+   * `onProgress` 是「問到一半就要動畫面」那條路：重試時提示字要換成第幾次，而那一刻
+   * `now` 早就交出去、`later` 還沒到。收到單子就照辦，內容一樣現取 `note`。
+   */
+  prefill(onProgress?: (change: Change) => void): { now: Change; later: Promise<Change> };
   commit(): Commit;
 }
 
@@ -109,6 +117,15 @@ export function createReadingEditor(options: {
     term !== askedTerm;
 
   /**
+   * 這一輪的詢問還沒收掉：問出去了，或伺服器那端出事、正在再問一次。
+   *
+   * 抽出來的理由與 `willAsk()` 同一條——`prefilling` 與 `settle()` 兩處都要讀它。
+   * 少了「重試中」那一格會出兩件事：換欄鍵在重試期間把游標送進讀音格（`willAsk()` 此時
+   * 已經因為問過同一串而回 false），以及成功的回覆被整份丟掉、畫面卡在「重試中」收不掉。
+   */
+  const awaiting = () => note?.kind === 'asking' || note?.kind === 'retrying';
+
+  /**
    * 詞條一改，上一次的提示就過期了——但改詞條會保留已填的讀音，
    * AI 填的假名還活著時「請確認」那行絕不能跟著消失，那是唯一擋得住讀音幻覺的東西。
    */
@@ -134,7 +151,7 @@ export function createReadingEditor(options: {
       return note;
     },
     get prefilling() {
-      return note?.kind === 'asking' || willAsk();
+      return awaiting() || willAsk();
     },
 
     setTerm(raw) {
@@ -182,14 +199,24 @@ export function createReadingEditor(options: {
      * 刻意不宣告成 `async`：守門與掛提示字要當場做完（那是 `now` 這張單子），
      * 等回覆才做的事包成 Promise 交出去（那是 `later`）。
      */
-    prefill() {
+    prefill(onProgress) {
       // 守門在 willAsk 裡：已經填過的格子不覆蓋（開舊卡也因此不會觸發）、沒金鑰全程靜默。
       // 「沒金鑰」那條再問一次是為了型別——包在函式裡的檢查，編譯器看不出 ask 已經不是 null。
       if (!willAsk() || ask === null) return silent();
 
       const asked = term;
       askedTerm = asked;
-      return { now: setNote({ kind: 'asking' }), later: settle(ask(asked), asked) };
+      const now = setNote({ kind: 'asking' });
+      const later = settle(
+        ask(asked, (attempt) => {
+          // 等待期間使用者改了詞條，這一輪已經沒人在乎了。掛上去就再也收不掉：
+          // 回覆進來時 settle 會先認出詞條變了、原地返回，那句「重試中」會留在畫面上過夜。
+          if (term !== asked) return;
+          onProgress?.(setNote({ kind: 'retrying', attempt }));
+        }),
+        asked,
+      );
+      return { now, later };
     },
 
     commit() {
@@ -218,10 +245,11 @@ export function createReadingEditor(options: {
       // 這一刻要再問一次——不然使用者等不下去自己打的字會整組被換掉，畫面上還沒有任何線索
       // 可以追查（`.scratch/reading-prefill/issues/05`）。
       //
-      // 只收得掉「詢問中」那一句：不收就變成一場問不完的等待。其餘一律不動——這幾個字也
-      // 可能是另一份回覆剛填的（同一串問過兩次、後發的先到），那時「請確認」還得掛在上面。
+      // 只收得掉這一輪自己掛上去的那一句（詢問中、重試中）：不收就變成一場問不完的等待。
+      // 其餘一律不動——這幾個字也可能是另一份回覆剛填的（同一串問過兩次、後發的先到），
+      // 那時「請確認」還得掛在上面。
       if (anyFilled()) {
-        if (note?.kind !== 'asking') return NOTHING;
+        if (!awaiting()) return NOTHING;
         note = null;
         return { term: false, runs: false, note: true };
       }

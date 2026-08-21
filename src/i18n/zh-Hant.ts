@@ -138,6 +138,7 @@ export default {
   'editor.deleteCard': '刪除這張卡',
   'editor.deleteConfirm': '確定刪除「{meaning}」這張卡？此動作無法復原。',
   'editor.noteAsking': '詢問中…',
+  'editor.noteRetrying': '重試中（第 {attempt} 次）…',
   'editor.noteFilled': '讀音由 AI 填入，請確認',
   'editor.noteFailed': '自動填讀音失敗：{reason}',
 

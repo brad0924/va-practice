@@ -21,14 +21,19 @@ function fakeAsk() {
   const pending: Array<{
     resolve: (value: unknown) => void;
     reject: (reason: unknown) => void;
+    onAttempt?: (attempt: number) => void;
   }> = [];
   return {
     asked,
-    ask(term: string): Promise<unknown> {
+    ask(term: string, onAttempt?: (attempt: number) => void): Promise<unknown> {
       asked.push(term);
       return new Promise((resolve, reject) => {
-        pending.push({ resolve, reject });
+        pending.push({ resolve, reject, onAttempt });
       });
+    },
+    /** 伺服器那端出事、正在再問一次：把第 attempt 次的回報送出去。 */
+    retrying(attempt: number, at = 0) {
+      pending[at]!.onAttempt?.(attempt);
     },
     /** 回覆還沒回的第 at 份請求，預設最早那一份。 */
     reply(value: unknown, at = 0) {
@@ -231,6 +236,76 @@ describe('讀音預填', () => {
       { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
       { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
     ]);
+  });
+});
+
+describe('重試期間的提示字', () => {
+  it('第 2 次起換成重試中，次數跟著跑，單子交給 onProgress', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    const progress: Change[] = [];
+    const { now, later } = editor.prefill((change) => progress.push(change));
+
+    // 第一次維持「詢問中…」，不必換字。
+    expect(now).toEqual({ term: false, runs: false, note: true });
+    expect(editor.note).toEqual({ kind: 'asking' });
+
+    ai.retrying(2);
+    expect(editor.note).toEqual({ kind: 'retrying', attempt: 2 });
+    ai.retrying(3);
+    expect(editor.note).toEqual({ kind: 'retrying', attempt: 3 });
+    expect(progress).toEqual([
+      { term: false, runs: false, note: true },
+      { term: false, runs: false, note: true },
+    ]);
+
+    ai.reply([replyRun('焦', 'こ')]);
+    expect(await later).toEqual({ term: false, runs: true, note: true });
+    expect(editor.note).toEqual({ kind: 'filled' });
+  });
+
+  it('重試期間仍算「AI 會動到讀音格」，換欄避讓不失效', () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    editor.prefill();
+    ai.retrying(2);
+
+    // 這一刻 willAsk() 已經因為問過同一串而回 false，靠的完全是 note 這一邊（ADR-0006）。
+    expect(editor.prefilling).toBe(true);
+  });
+
+  it('重試期間使用者自己打了字：回覆不覆蓋，重試中那句要收掉', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    const { later } = editor.prefill();
+    ai.retrying(2);
+    editor.setReading(0, 0, 'こげ');
+    ai.reply([replyRun('焦', 'こ')]);
+
+    expect(await later).toEqual({ term: false, runs: false, note: true });
+    expect(editor.note).toBeNull();
+    expect(editor.runs).toEqual([{ start: 0, cells: [{ kanji: '焦', reading: 'こげ' }] }]);
+  });
+
+  it('重試期間改了詞條：遲到的回報不上畫面，不然會掛著收不掉', () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('焦がす');
+
+    const progress: Change[] = [];
+    editor.prefill((change) => progress.push(change));
+    editor.setTerm('考え込む');
+    ai.retrying(2);
+
+    // 這份回報對的是舊的那串漢字。掛上去的話 settle 之後不會收（它也認得詞條變了）。
+    expect(editor.note).toBeNull();
+    expect(progress).toEqual([]);
   });
 });
 

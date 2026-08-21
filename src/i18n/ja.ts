@@ -115,6 +115,7 @@ const ja: typeof zhHant = {
   'editor.deleteCard': 'このカードを削除',
   'editor.deleteConfirm': '「{meaning}」のカードを削除しますか？この操作は元に戻せません。',
   'editor.noteAsking': '問い合わせ中…',
+  'editor.noteRetrying': '再試行中（{attempt} 回目）…',
   'editor.noteFilled': '読みは AI が入力しました。確認してください',
   'editor.noteFailed': '読みの下書き入力に失敗しました：{reason}',
   'data.langTitle': '表示言語',

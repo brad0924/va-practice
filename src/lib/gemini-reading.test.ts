@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { askReading, remoteOrDefault } from './gemini-reading';
+import { askReading, remoteOrDefault, TIMEOUT_MS } from './gemini-reading';
 import type { Key } from '../i18n';
 
 const KEY = '我的金鑰';
@@ -31,6 +31,29 @@ function responds(make: () => Response): typeof fetch {
   return async () => make();
 }
 
+/** 503 時 Google 真的回的那句話（`reading-prefill` 票 07 的病灶）。 */
+const HIGH_DEMAND = 'This model is currently experiencing high demand.';
+
+/** 伺服器那端出事時 Google 回的那一份，狀態碼與那句原因都照它的樣子。 */
+function serverError(status: number, message = HIGH_DEMAND): Response {
+  return json({ error: { message } }, status);
+}
+
+/**
+ * 排好順序的假 fetch：第 N 次呼叫回第 N 份，排完之後一直回最後那份。
+ * 重試那一組全靠它——「第一次壞、第二次好」就是這一串的頭兩格。
+ * `calls()` 數呼叫次數，那是「到底有沒有再問一次」唯一數得出來的證據。
+ */
+function inTurn(...makers: Array<() => Response>) {
+  let calls = 0;
+  const doFetch: typeof fetch = async () => {
+    const make = makers[Math.min(calls, makers.length - 1)]!;
+    calls += 1;
+    return make();
+  };
+  return { doFetch, calls: () => calls };
+}
+
 describe('問 Gemini 讀音', () => {
   it('成功：把模型那份 JSON 解析後原封不動回傳', async () => {
     const value = await askReading(
@@ -43,8 +66,8 @@ describe('問 Gemini 讀音', () => {
   });
 
   it('等太久沒回覆：訊息講的是秒數，不是換算前的毫秒', async () => {
-    // 全檔只有這一條用假時鐘：秒數是模組拿自己的常數算的，
-    // 改傳一個很短的逾時進去測，反而沒人守著上線那句話。
+    // 用假時鐘而不是改傳一個很短的逾時進去：秒數是模組拿自己的常數算的，
+    // 傳短的測反而沒人守著上線那句話。重試那一組另外有兩條也用假時鐘，理由同上。
     vi.useFakeTimers();
     try {
       // 被取消就 reject，這正是真 fetch 的行為——訊息要對，signal 必須真的被 abort。
@@ -115,6 +138,107 @@ describe('問 Gemini 讀音', () => {
 
     expect((sent?.headers as Record<string, string>)['x-goog-api-key']).toBe(KEY);
     expect(String(sent?.body)).toContain(TERM);
+  });
+});
+
+describe('伺服器那端出事時自動再問一次', () => {
+  const OK = () => reply('[{"splittable":true,"cells":[{"kanji":"焦","reading":"こ"}]}]');
+  const PARSED = [{ splittable: true, cells: [{ kanji: '焦', reading: 'こ' }] }];
+
+  // 500／502／503／504 都是「再送一次會成功」的那一種，Google 自己叫你等一下再試。
+  for (const status of [500, 502, 503, 504]) {
+    it(`${status}：再問一次就好，使用者看不到錯誤`, async () => {
+      const { doFetch, calls } = inTurn(() => serverError(status), OK);
+
+      await expect(askReading(KEY, TERM, doFetch)).resolves.toEqual(PARSED);
+      expect(calls()).toBe(2);
+    });
+  }
+
+  // 金鑰不對、模型叫不動、額度用完——再送一百次都一樣，429 重試還會把額度燒更快。
+  for (const status of [400, 403, 404, 429]) {
+    it(`${status}：不會自己變對，問一次就放棄`, async () => {
+      const { doFetch, calls } = inTurn(() => serverError(status), OK);
+
+      await expect(askReading(KEY, TERM, doFetch)).rejects.toThrow(
+        failure('gemini.httpError', { status, reason: HIGH_DEMAND }),
+      );
+      expect(calls()).toBe(1);
+    });
+  }
+
+  it('連不上：多半是使用者自己的網路，重試沒有意義', async () => {
+    let calls = 0;
+    const offline: typeof fetch = () => {
+      calls += 1;
+      return Promise.reject(new TypeError('Failed to fetch'));
+    };
+
+    await expect(askReading(KEY, TERM, offline)).rejects.toThrow(failure('gemini.offline'));
+    expect(calls).toBe(1);
+  });
+
+  it('一直撞 503 撞到碼表到期：講的是 503，不是逾時', async () => {
+    // 重試與第一次共用同一顆碼表，撞久了一定會被 abort 砍掉。那一刻使用者真正撞到的是
+    // 503，不是「等太久」——原因要跟事實對得上（票 07）。
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const doFetch: typeof fetch = async () => {
+        calls += 1;
+        // 第三次回覆的同時把碼表撥到底，模擬「一直撞、撞到預算用完」。
+        if (calls === 3) vi.advanceTimersByTime(TIMEOUT_MS);
+        return serverError(503);
+      };
+
+      await expect(askReading(KEY, TERM, doFetch)).rejects.toThrow(
+        failure('gemini.httpError', { status: 503, reason: HIGH_DEMAND }),
+      );
+      expect(calls).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('撞過 503 之後那次 fetch 飛在半空被砍掉：講的還是 503', async () => {
+    // 跟上一條走的是不同的分支。上一條在迴圈頂端就發現碼表到期，這一條是碼表在等回覆的
+    // 途中到期、`controller.abort()` 把那次 fetch 砍掉——票 07 描述的正是這一種。
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const doFetch: typeof fetch = (_url, init) => {
+        calls += 1;
+        if (calls === 1) return Promise.resolve(serverError(503));
+        // 第二次一去不回，等著被 abort，這正是真 fetch 被取消時的行為。
+        return new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      };
+
+      const asking = askReading(KEY, TERM, doFetch);
+      const settled = expect(asking).rejects.toThrow(
+        failure('gemini.httpError', { status: 503, reason: HIGH_DEMAND }),
+      );
+      await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
+      await settled;
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('回報的次數從 2 起算，逐次遞增', async () => {
+    // 第一次不回報：畫面上那句「詢問中…」講的就是第一次，不必換字。
+    const { doFetch } = inTurn(
+      () => serverError(503),
+      () => serverError(503),
+      OK,
+    );
+    const attempts: number[] = [];
+
+    await askReading(KEY, TERM, doFetch, (attempt) => attempts.push(attempt));
+
+    expect(attempts).toEqual([2, 3]);
   });
 });
 

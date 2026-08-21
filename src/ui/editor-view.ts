@@ -152,12 +152,17 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
   // 詞條的 blur 底下還有一支（下面的 jumpToEmpty），兩支互不相干。
   termInput.addEventListener('blur', () => {
     const asked = editor;
-    const { now, later } = editor.prefill();
+    // 中途按了「儲存並繼續」的話，這兩份單子對的是上一張。內容不會被抄過來
+    // （apply 讀的是新的那台），但重畫讀音區會讓正在打的下一張失焦、打斷組字。
+    // 重試回報與最後那份回覆走同一道守門，兩邊漂移的下場一樣。
+    const stillMine = () => asked === editor;
+    const { now, later } = editor.prefill((change) => {
+      if (!stillMine()) return;
+      apply(change);
+    });
     apply(now);
     void later.then((change) => {
-      // 中途按了「儲存並繼續」的話，這份回覆對的是上一張。內容不會被抄過來
-      // （apply 讀的是新的那台），但重畫讀音區會讓正在打的下一張失焦、打斷組字。
-      if (asked !== editor) return;
+      if (!stillMine()) return;
       apply(change);
     });
   });
@@ -400,7 +405,10 @@ function createAsk(app: App): Ask | null {
 
   const key = app.gemini.read();
   // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
-  return key === null ? null : (term) => askReading(key, term, fetch.bind(window));
+  // 上面 iOS 那條不接 onAttempt：那條路還沒有重試，回報不出東西來（票 09）。
+  return key === null
+    ? null
+    : (term, onAttempt) => askReading(key, term, fetch.bind(window), onAttempt);
 }
 
 /** 狀態代號翻成使用者看到的那一行字與樣式。措辭與樣式屬於畫面，不進讀音編輯器。 */
@@ -408,6 +416,8 @@ function noteWording(note: Note): { className: string; text: string } {
   switch (note.kind) {
     case 'asking':
       return { className: 'hint', text: t('editor.noteAsking') };
+    case 'retrying':
+      return { className: 'hint', text: t('editor.noteRetrying', { attempt: note.attempt }) };
     case 'filled':
       return { className: 'hint', text: t('editor.noteFilled') };
     case 'failed':

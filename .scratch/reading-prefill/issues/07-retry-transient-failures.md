@@ -1,6 +1,6 @@
 # 07 — 503 這種「再試一次就會好」的失敗，現在一次都不重試
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 怎麼發現的
