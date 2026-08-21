@@ -17,11 +17,24 @@ import { AppError } from './app-error';
 /**
  * 端點與模型固定。日文能力是選這一家唯一的理由（見 issue 02 決定 7）。
  *
- * 原本寫的是 `gemini-2.5-flash`，實測對新申請的金鑰回 404
- * 「no longer available to new users」——模型還在型錄上（ListModels 列得出來、
- * 也宣稱支援 generateContent），但新金鑰已經叫不動它。改成 Google 指定的接班
- * `gemini-3.6-flash`。這裡刻意不用 `gemini-flash-latest` 那種別名：模型在腳下
- * 換人的話，同一個詞的讀音會無預警改答案，寫死才知道自己在跟誰講話。
+ * **為什麼是 `gemini-3.5-flash-lite`。** 前一版 `gemini-3.6-flash` 每十次有三次等不到
+ * 回覆，而分段計時證明那三次百分之百卡在「問模型」那一段，與金鑰、App Check、Firebase
+ * 代理都無關（`reading-prefill` 票 06）。病根是新一代模型回答前會自己想一遍，想多久由它
+ * 動態決定、每次不一樣。`flash-lite` 天生想得少：`TIMEOUT_MS` 一格沒動，實測逾時從
+ * 3/10 掉到 **0/10**。
+ *
+ * **代價也量過，別讓下一個人重踩。** `ADR-0005` 警告小模型會很有自信講錯熟字訓與連濁，
+ * 拿 repo 自己的兩個界線樣本考它：`剃刀` 穩定答對（整串一格）；`吹雪` 五次錯一次，錯的
+ * 那次把 `吹`＝ふく、`雪`＝ふき 兩個漢字各自單獨的讀音接起來交差，沒有連濁成 ふぶき。`INSTRUCTIONS`
+ * 規則 3 逐字寫著正確答案，它照樣抄錯——那 1/5 是模型自己晃，不是判準含糊。舊模型在同一題
+ * 上晃不晃，尚未量到對照組（免費額度每顆模型每天各 20 次，當天已用完）。
+ *
+ * 更早之前寫的是 `gemini-2.5-flash`，實測對新申請的金鑰回 404「no longer available to
+ * new users」——模型還在型錄上（ListModels 列得出來、也宣稱支援 generateContent），但新
+ * 金鑰已經叫不動它。**換型號一定要真的打一次，型錄查不出這件事。**
+ *
+ * 這裡刻意不用 `gemini-flash-latest` 那種別名：模型在腳下換人的話，同一個詞的讀音會
+ * 無預警改答案，寫死才知道自己在跟誰講話。
  *
  * iOS 那條路改成先問 Firebase Remote Config 的 `gemini_model`，問不到才用這個字串
  * （issue 03）。這不牴觸上一段：那裡拒絕的是 Google 想換就換、我們不知道；Remote Config
@@ -29,7 +42,7 @@ import { AppError } from './app-error';
  *
  * 網頁版沒有 Firebase SDK，永遠用這個字串。
  */
-export const MODEL = 'gemini-3.6-flash';
+export const MODEL = 'gemini-3.5-flash-lite';
 
 /** 網頁版那條路的端點。iOS 那條走 Firebase AI Logic 的 SDK，不經過這個網址。 */
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -189,7 +202,8 @@ export async function askReading(key: string, term: string, doFetch: typeof fetc
         ? new AppError('gemini.timeout', { seconds: TIMEOUT_MS / 1000 })
         : new AppError('gemini.offline');
     }
-    // 金鑰不對是 400／403，額度用完是 429，模型名或版本路徑不對是 404。
+    // 金鑰不對是 400／403，額度用完是 429，模型名或版本路徑不對是 404，
+    // 503 是那顆模型同時太多人用、Google 那端先擋掉一部分——四種裡唯一與我們無關的一種。
     // 光看狀態碼分不出是哪一種，錯誤回應裡那句 message 才講得出原因，一起帶出去。
     if (!response.ok) {
       const why = await reason(response);
