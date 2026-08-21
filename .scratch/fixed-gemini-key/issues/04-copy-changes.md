@@ -1,6 +1,6 @@
 # 04 — 額度用完時的訊息換成一句不解釋的話
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: enhancement
 Blocked by: 02
 
@@ -69,3 +69,17 @@ if (typeof status === 'number') {
 - iOS build 上人為觸發 429，確認畫面顯示的是新訊息，且**看不到「429」這三個字**。
 - 網頁版用一把過期金鑰觸發錯誤，確認顯示的仍是原本那條。
 - 三種語言下那一行都不會撐破版面（`ADR-0013` 的介面在地化前提）。
+
+## 驗收進度
+
+程式碼已完成（commit `adf201a`）。桌機驗得到的兩條過了，剩下的要真機。
+
+- [x] 三種語言都有 `gemini.quotaExhausted`，`npm test` 全綠（567 tests / 31 files）。`npm run typecheck` 也過。
+- [x] `ai-logic-error.test.ts` 的 429 案例改成斷言 `gemini.quotaExhausted`，並額外釘住 `params` 是空的。
+- [ ] iOS build 上人為觸發 429。
+- [ ] 網頁版用過期金鑰觸發錯誤，確認仍是 `gemini.httpError`。
+- [ ] 三種語言下版面沒撐破。
+
+**環境備忘**：這台機器目前的 node 是 16.20.2，`npm test` 與 `.git/hooks/commit-msg`
+在它底下都跑不起來（前者缺 `crypto.getRandomValues`，後者是 ESM 載不動無副檔名的檔）。
+本票的測試與 commit 都是把 `nvm` 裡的 26.3.1 暫時放到 PATH 最前面跑的，沒有動全域設定。
