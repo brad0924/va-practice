@@ -216,6 +216,7 @@ const en: typeof zhHant = {
   'reading.unknownReason': 'Unknown reason',
   'gemini.timeout': 'No reply after waiting more than {seconds} seconds',
   'gemini.offline': 'Cannot reach Gemini',
+  'gemini.quotaExhausted': 'Temporarily unavailable, please try again later',
   'gemini.httpError': 'Gemini returned {status}: {reason}',
   'gemini.httpErrorNoReason': 'Gemini returned {status}: no reason given',
   'gemini.unreadable': 'Gemini replied with something we cannot read',

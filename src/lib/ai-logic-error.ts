@@ -58,6 +58,14 @@ export function toReadingError(error: unknown): Error {
   // 讀音格單純留空，畫面上一個字都不出（spec 決定十一）。
   if (status === 401) return new SilentError();
 
+  // 額度用完就是 429。**這條 key 的字面上不提額度、不提狀態碼**——iOS 使用者用的是共用的
+  // 那一桶，他沒有自己的額度可看、也沒有金鑰設定可改，講清楚成因只是讓他知道自己無能為力
+  // （spec 決定十三）。key 仍照成因命名，程式裡誠實記錄、畫面上刻意不講，是兩件事。
+  //
+  // 不比照 401 走完全靜默：App Check 失敗的人從頭到尾不知道有讀音預填，靜默不會讓他困惑；
+  // 額度用完的人已經看過讀音自己填好，這次沒填要給一句交代。
+  if (status === 429) return new AppError('gemini.quotaExhausted');
+
   if (typeof status === 'number') {
     const why = typeof seen.message === 'string' ? reasonIn(seen.message) : null;
     return why === null

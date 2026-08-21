@@ -199,6 +199,7 @@ const ja: typeof zhHant = {
   'reading.unknownReason': '原因不明',
   'gemini.timeout': '{seconds}秒待っても応答がありません',
   'gemini.offline': 'Gemini に接続できません',
+  'gemini.quotaExhausted': '現在利用できません。しばらくしてからお試しください',
   'gemini.httpError': 'Gemini が{status}を返しました：{reason}',
   'gemini.httpErrorNoReason': 'Gemini が{status}を返しました：理由の記載はありません',
   'gemini.unreadable': 'Gemini の応答を解釈できません',

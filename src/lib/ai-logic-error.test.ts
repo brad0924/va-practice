@@ -42,21 +42,20 @@ describe('Firebase AI Logic 的失敗翻回同一組 key', () => {
     expect(toReadingError(rejected)).toBeInstanceOf(SilentError);
   });
 
-  it('額度用完：狀態碼與 Google 那句原因一起帶出去', () => {
+  it('額度用完：自己一條 key，狀態碼與 Google 那句原因都不帶出去', () => {
     const exhausted = sdkError(
       `Error fetching from ${ENDPOINT}: [429 ] Resource has been exhausted (e.g. check quota).`,
       'fetch-error',
       429,
     );
 
-    expect(toReadingError(exhausted)).toEqual(
-      expect.objectContaining({
-        key: 'gemini.httpError',
-        // 兩件事一起守：狀態字是空的（方括號裡只有數字加一個空格），而且原因裡那組
-        // 括號不可以被當成尾巴那個 (AI/fetch-error) 一起剪掉。
-        params: { status: 429, reason: 'Resource has been exhausted (e.g. check quota).' },
-      }),
-    );
+    const error = toReadingError(exhausted);
+
+    expect(error).toEqual(expect.objectContaining({ key: 'gemini.quotaExhausted' }));
+    // `params` 必須是空的。這一條不只是「湊巧沒用到」——429 走的是不解釋那條路，
+    // 狀態碼或 Google 那句原因只要漏進 params，日後有人把它代進句子裡就破功了
+    // （spec 決定十三）。
+    expect((error as AppError).params).toBeUndefined();
   });
 
   it('挖不到原因：換一條 key，不要自己補一句話上去', () => {
