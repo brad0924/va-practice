@@ -94,6 +94,20 @@ describe('掃一段文字', () => {
   it('不含訊號的改動完全不出聲', () => {
     expect(hitsIn('src/ui/list-view.ts', "button.textContent = '刪除這張卡';")).toEqual([]);
   });
+
+  /**
+   * Firebase 在兩側長得不一樣：JS 那側是帶斜線的模組路徑，原生那側沒有斜線。
+   * 只認斜線會漏掉整個 `ios/`——而 App Attest 就是在 `AppDelegate.swift` 裡指定的。
+   */
+  it('firebase 兩種寫法都認得', () => {
+    expect(hitsIn('src/lib/x.ts', "import { getAI } from 'firebase/ai';")).toHaveLength(1);
+    expect(hitsIn('ios/App/App/AppDelegate.swift', 'import FirebaseCore')).toHaveLength(1);
+  });
+
+  /** 散文裡提到產品名不算——`Firebase` 後面要緊接一個大寫字母才是符號。 */
+  it('文章裡的「Firebase AI Logic」不算命中', () => {
+    expect(hitsIn('src/lib/x.ts', '// 請求先送到 Firebase AI Logic')).toEqual([]);
+  });
 });
 
 describe('掃一份 diff', () => {
@@ -213,5 +227,35 @@ describe('考題：重放 2b96a9a', () => {
   it('命中的檔不在初版那份四支檔清單裡', () => {
     const files = [...new Set(hitsInDiff(diff).map((hit) => hit.file))];
     expect(files.some((file) => !OLD_LIST.some((old) => file.endsWith(old)))).toBe(true);
+  });
+});
+
+/**
+ * 第二道考題。`d3d4077`（`fixed-gemini-key 03`，模型名字與判準搬上 Remote Config）
+ * 讓 iOS build 多跟 Google 要了一組 Firebase 安裝識別碼——一個存在裝置上、註冊到 Google
+ * 的識別碼，兩份 privacy 裡一個字都沒提。當時同樣沒有任何東西攔下它。
+ *
+ * 這一題跟上面那題漏的是**不同的病**。上一題漏在「按檔名清單」，改成看內容就解決了；
+ * 這一題的檔早就在守備範圍內（`src/lib/gemini-reading-native.ts`），漏的是**訊號本身聞不到**：
+ * 舊那條路把網址寫死在程式碼裡再 `fetch`，味道很重；Firebase 這條路走 SDK，
+ * 從頭到尾一個網址字串都沒有，五個訊號一個都不沾。
+ *
+ * 實測過整個 `fixed-gemini-key` 系列：`d3d4077`、`5765a69`、`adf201a` 全是零命中，
+ * 唯一會叫的 `9f22c26` 是因為 `gemini-reading.ts` 的註解裡剛好有 `generativelanguage` 這個字。
+ *
+ * 產生方式與上一題相同：`git show d3d4077 > scripts/hooks/fixtures/d3d4077.diff`。
+ */
+describe('考題：重放 d3d4077', () => {
+  const diff = readFileSync(new URL('./fixtures/d3d4077.diff', import.meta.url), 'utf8');
+
+  it('要擋下來', () => {
+    const hits = blockingHits(diff, 'feat: 模型名字與判準搬上 Remote Config，程式碼留後備值（fixed-gemini-key 03）');
+    expect(hits.length, 'Firebase 那條路走 SDK、不留網址，靠網址訊號抓不到').toBeGreaterThan(0);
+  });
+
+  it('命中的是程式碼，不是票的內文', () => {
+    const files = [...new Set(hitsInDiff(diff).map((hit) => hit.file))];
+    expect(files).toContain('src/lib/gemini-reading-native.ts');
+    expect(files.every((file) => !file.endsWith('.md'))).toBe(true);
   });
 });

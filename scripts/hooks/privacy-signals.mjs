@@ -20,6 +20,16 @@
  * 方向是刻意偏寬的：誤報的代價是「多看一眼」，漏報的代價是政策說謊。這個 repo 的語言設定、
  * 每日提醒、Gemini 金鑰都用 localStorage，改那些也會跳，那是划算的交換。
  *
+ * **最後那一條聞的是名字，不是網址。** 前面幾條都假設「送出去」在程式碼裡看得見——寫死一個
+ * 網址、按下 `fetch(`。iOS 的讀音預填改走 Firebase AI Logic 之後那個假設就破了：請求由 SDK
+ * 送出，程式碼裡從頭到尾一個網址字串都沒有。實測 `fixed-gemini-key` 那一系列，三個 commit 零
+ * 命中，其中 `d3d4077` 還替裝置多帶進一組註冊到 Google 的識別碼（見測試裡的第二道考題）。
+ * 因此 import 路徑本身就當訊號——寫得下 `firebase/ai`、`firebase/remote-config`、
+ * `@capacitor-firebase/app-check` 這種一行，就代表有東西要跟 Google 往來。
+ *
+ * 兩種寫法都要認：JS 那側是帶斜線的模組路徑，原生那側沒有斜線（`AppDelegate.swift` 裡是
+ * `import FirebaseCore`），而 App Attest 正是在那支檔裡指定的。只認斜線會漏掉整個 `ios/`。
+ *
  * `pattern` 一律不加 `g` 旗標——帶 `g` 的 RegExp 的 `test()` 會記住上次比到哪裡，
  * 同一個物件重複用在多行上會時準時不準。
  */
@@ -29,6 +39,7 @@ export const PRIVACY_SIGNALS = [
   { name: 'Keychain／Filesystem／Preferences', pattern: /\b(?:Keychain|Filesystem|Preferences)\b/, means: '原生那一側落地' },
   { name: 'crypto.subtle', pattern: /\bcrypto\.subtle/, means: '加解密，政策整節在講這個' },
   { name: 'firebasedatabase／generativelanguage', pattern: /firebasedatabase|generativelanguage/, means: '兩個實際的外送目標' },
+  { name: 'firebase/*、Firebase*', pattern: /\bfirebase\/[a-z-]+|\bFirebase[A-Z]/, means: '第三個外送目標' },
 ];
 
 /** 改了其中任何一份就代表「已經去看過了」，兩道 hook 一律放行。 */

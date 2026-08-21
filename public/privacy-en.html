@@ -14,8 +14,10 @@
   跟中文版一樣刻意放在 public/ 而不是多開一個 Vite 進入點：它跟 app 沒有任何往來，
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。樣式與中文版逐字相同。
 
-  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts——
-  這頁寫的每一句都是那幾支程式實際的行為，不是宣示。領域詞彙照 docs/glossary.md 的英文欄，
+  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts、
+  gemini-reading-native.ts——這頁寫的每一句都是那幾支程式實際的行為，不是宣示。
+  最後那一支只有 iOS build 載入，「Gemini reading prefill」那一節因此按平台分岔（.scratch/fixed-gemini-key/spec.md 決定十八）。
+  領域詞彙照 docs/glossary.md 的英文欄，
   畫面上的按鈕名稱照 src/i18n/en.ts（例如「停止同步」在英文介面叫 Stop backing up）。
 
   拼字一律美式（labeled、recognize），配合頁首那個美式日期格式。
@@ -77,6 +79,13 @@
         border-top: 1px solid var(--line);
       }
 
+      /* 同一節底下按平台分岔時用。刻意不給分隔線：有線就會看起來像另起一節，
+         而網頁版與 iOS 版講的是同一個功能的兩種情況。 */
+      h3 {
+        font-size: 1rem;
+        margin: 24px 0 8px;
+      }
+
       .updated {
         color: var(--muted);
         font-size: 0.9rem;
@@ -124,7 +133,7 @@
   <body>
     <main>
       <h1>Privacy Policy</h1>
-      <p class="updated"><span data-app-name>Japanese Vocabulary Cards</span> · Last updated: August 17, 2026</p>
+      <p class="updated"><span data-app-name>Japanese Vocabulary Cards</span> · Last updated: August 21, 2026</p>
 
       <p>
         <span data-app-name>Japanese Vocabulary Cards</span> (hereafter "the app") does not collect, store, or sell any
@@ -190,11 +199,17 @@
         password is forgotten, that cloud backup can never be decrypted again, and it cannot be reset.
       </div>
 
-      <h2>Gemini reading prefill (optional, off by default)</h2>
+      <h2>Gemini reading prefill</h2>
       <p>
-        While you edit a card, the app can fill in the kana reading of the kanji for you. This feature is
-        <strong>off by default</strong>, and is enabled only once you supply a Google Gemini API (Application
-        Programming Interface) key of your own.
+        While you edit a card, the app can fill in the kana reading of the kanji for you.
+        <strong>This feature works in an entirely different way on the web version and in the iOS app</strong>, so the
+        two are described separately below.
+      </p>
+
+      <h3>Web version (optional, off by default)</h3>
+      <p>
+        This feature is <strong>off by default</strong>, and is enabled only once you supply a Google Gemini API
+        (Application Programming Interface) key of your own.
       </p>
       <ul>
         <li>
@@ -218,12 +233,55 @@
         </li>
       </ul>
 
+      <h3>iOS app (on by default)</h3>
+      <p>
+        In the iOS app this feature is <strong>on by default</strong>. There is nothing for you to set up and no key
+        field on screen — you finish typing the entry and the reading fills itself in. The key is provided by the app's
+        maintainer and is not inside the app.
+      </p>
+      <ul>
+        <li>
+          <strong>Only that one entry is sent.</strong> What goes out is the Japanese entry you are editing, together
+          with a set of instructions for the task chosen by the maintainer. What is sent stops there: it does not
+          include your meanings, your review progress, or any other card.
+        </li>
+        <li>
+          <strong>The request does not go straight to Gemini.</strong> It first goes to the Firebase project the
+          maintainer keeps with Google (Firebase AI Logic), the key is added there, and it is then handed to Google's
+          Gemini. The maintainer runs no server of their own; this leg happens entirely on Google's machines. It uses
+          <strong>the key the maintainer supplies</strong> and the maintainer's quota, and that request is governed by
+          Google's privacy policy.
+        </li>
+        <li>
+          <strong>Google may use this content to improve its models.</strong> The maintainer is on Gemini's free usage
+          tier, and under Google's terms content sent on the free tier may be used by Google to improve its models.
+          <strong>That is a decision the maintainer made on your behalf.</strong> On the web version you apply for the
+          key yourself and accept Google's terms yourself; in the iOS app that step does not exist — you add a card,
+          you finish typing an entry, and the key already in use is the maintainer's. It is written here so that you
+          know about it.
+        </li>
+        <li>
+          <strong>A device attestation is attached to the request.</strong> To confirm that the request really comes
+          from this app and not from someone misusing the maintainer's key, the request carries an attestation issued
+          for this device by Apple's App Attest, and one attestation lasts for a while before a new one is needed.
+          That attestation contains nothing that identifies you, and it is not used to track you.
+        </li>
+        <li>
+          <strong>An installation identifier is registered with Google.</strong> The app uses Firebase Remote Config to
+          decide which model the reading prefill should use and which instructions to send, so that the day Google
+          retires a model the fix does not have to go through App Store review. When it fetches that configuration,
+          Firebase creates an installation identifier, keeps it on this device, and registers it with Google. It
+          identifies this installation, not you: it contains nothing that identifies you, reinstalling or switching
+          devices produces a different one, and we do not compare it against any other data.
+        </li>
+      </ul>
+
       <h2>No analytics collected, no third-party tracking</h2>
       <p>
         The app contains no analytics tools, no advertising SDK (Software Development Kit), and no tracking code. We do
         not record how many times you opened it, how many cards you reviewed, or which button you pressed; we do not
         use cookies to track you; and we neither share nor sell any data to third parties. Apart from the two features
-        above that you turn on yourself, the app sends none of your data anywhere. (The web version is hosted on GitHub
+        described above, the app sends none of your data anywhere. (The web version is hosted on GitHub
         Pages, so loading the page — exactly as with any website you visit — lets that host see your IP (Internet
         Protocol) address; we neither touch nor keep records of that kind.)
       </p>

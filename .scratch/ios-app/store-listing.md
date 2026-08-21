@@ -78,8 +78,8 @@
 【每天提醒】
 時間你自己指定。只在複習範圍內真的有卡到期的日子才出現，並寫明張數；當天複習完就不再出現。
 
-【讀音預填（選用）】
-你若自備 Gemini 的 API 金鑰，可以讓它先把讀音格填成草稿，你確認過再存。這個功能預設關閉，金鑰只留在這台裝置上，不開也不影響其他任何功能。
+【讀音預填】
+打完詞條，讀音格就先填成草稿，你確認過再存。不必設定，也不必自己去申請什麼。草稿是 AI 猜的，偶爾會填錯；填不出來的時候讀音格就留空給你自己填，其他功能一概不受影響。
 
 【備份與雲端備份】
 整份資料可以匯出成一個備份檔帶走。也可以開啟雲端備份，讓進度在你自己的多台裝置之間搬運。雲端備份採端對端加密，只有你的密碼解得開，伺服器存到的是密文。不必註冊，不留電子郵件。
@@ -128,8 +128,8 @@
 ■ 毎日のリマインド
 時刻は自分で指定します。復習範囲の中に本当に期日のカードがある日だけ、枚数つきで届きます。その日の復習を終えると、もう出てきません。
 
-■ 読みの下書き入力（任意）
-自分のGemini APIキーがあれば、読みセルの下書きを入れてもらえます。保存する前に必ず自分で確かめます。初期状態ではオフで、キーはこの端末にだけ残り、使わなくても他の機能には一切影響しません。
+■ 読みの下書き入力
+見出し語を入力すると、読みセルに下書きが入ります。保存する前に必ず自分で確かめます。設定は不要で、自分でキーを用意する必要もありません。下書きはAIの推測なので、まちがうこともあります。入らなかったときは読みセルは空のままになり、自分で入力できます。他の機能には一切影響しません。
 
 ■ バックアップとクラウドバックアップ
 すべてを1つのバックアップファイルに書き出して持ち運べます。クラウドバックアップをオンにすれば、自分の複数の端末の間で進捗が行き来します。クラウドバックアップはエンドツーエンド暗号化で、開けるのは自分のパスワードだけ、サーバーに残るのは暗号文です。登録もメールアドレスも要りません。
@@ -184,8 +184,8 @@ One tap reads the entry aloud with the Japanese voice built into iOS.
 A DAILY REMINDER
 You pick the time. It arrives only on days that really do have cards due inside your review scope, and it tells you how many. Once you have finished for the day, it stays quiet.
 
-READING PREFILL (OPTIONAL)
-If you bring your own Gemini API key, the app can draft the reading cells for you to check before saving. It is off until you turn it on, the key stays on this device, and nothing else depends on it.
+READING PREFILL
+Finish typing an entry and the reading cells arrive already drafted, ready for you to check before saving. Nothing to set up, and no key of your own to bring. The draft is an AI's guess, so it is sometimes wrong; when no draft comes back the reading cells are simply left blank for you to fill in, and nothing else depends on it.
 
 BACKUP AND CLOUD BACKUP
 Write everything out to a single backup file and carry it away. Or turn on cloud backup and let your progress travel between your own devices. Cloud backup is end-to-end encrypted: only your password opens it, and the server only ever holds ciphertext. No registration, no email address.
@@ -328,7 +328,13 @@ iPhone 匯入，那條路不壓縮。
   中文那份不含「同步」「篩選」「分類」「標籤」「資料夾」「發音」「推播」「帳號」「自動產生」。
 - 日文標點照 `src/i18n/ja.ts` 的規則：讀點「、」句點「。」括號「（）」「」，
   沒有全形逗號；量詞カードは「枚」、単語帳は「冊」。
-- 描述裡對 Gemini 讀音預填的說法與票 11「預設關閉、自備金鑰、不影響核心功能」一致。
+- 描述裡對 Gemini 讀音預填的說法與 `.scratch/fixed-gemini-key/spec.md` 決定二、十、十三一致：
+  **iOS 上預設啟用、沒有金鑰可填、額度用完時留空不解釋**，且不影響核心功能。
+  **這一段在 2026-08-21 改寫過。** 原文是票 11 那版「預設關閉、自備金鑰」，那對網頁版仍然成立，
+  對 iOS app 已經整段變假——而這份文件是 iOS app 的商店頁。三種 storefront 一起改。
+  **另外兩件事重看過後判定不必改**：【不追蹤】那句仍然成立（App Attest 是 Apple 自家的防偽驗證、
+  不給 IDFA，Apple 明確把防詐與安全用途排除在追蹤定義之外；Firebase AI Logic 也不是分析工具），
+  關鍵字那幾行與本功能無關。詳見 `.scratch/fixed-gemini-key/issues/05`。
 
 ## 沒有做的事
 

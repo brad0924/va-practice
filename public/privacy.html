@@ -14,8 +14,10 @@
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。
   樣式直接內嵌，色票抄自 src/styles.css，好讓它跟 app 看起來是同一家的。
 
-  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts——
-  這頁寫的每一句都是那幾支程式實際的行為，不是宣示。刻意不寫 localStorage 的鍵名之類的實作細節：
+  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts、
+  gemini-reading-native.ts——這頁寫的每一句都是那幾支程式實際的行為，不是宣示。
+  最後那一支只有 iOS build 載入，「Gemini 讀音預填」那一節因此按平台分岔
+  （.scratch/fixed-gemini-key/spec.md 決定十八）。刻意不寫 localStorage 的鍵名之類的實作細節：
   對讀者沒幫助，改名了也沒有任何測試會抓到這頁過期。
 -->
 <html lang="zh-Hant">
@@ -66,6 +68,13 @@
         border-top: 1px solid var(--line);
       }
 
+      /* 同一節底下按平台分岔時用。刻意不給分隔線：有線就會看起來像另起一節，
+         而網頁版與 iOS 版講的是同一個功能的兩種情況。 */
+      h3 {
+        font-size: 1rem;
+        margin: 24px 0 8px;
+      }
+
       .updated {
         color: var(--muted);
         font-size: 0.9rem;
@@ -113,7 +122,7 @@
   <body>
     <main>
       <h1>隱私權政策</h1>
-      <p class="updated"><span data-app-name>Japanese Vocabulary Cards</span> · 最後更新：2026 年 8 月 17 日</p>
+      <p class="updated"><span data-app-name>Japanese Vocabulary Cards</span> · 最後更新：2026 年 8 月 21 日</p>
 
       <p>
         <span data-app-name>Japanese Vocabulary Cards</span>（以下稱「本 app」）不蒐集、不儲存、也不販售任何可以識別你身分的個人資料。
@@ -169,9 +178,15 @@
         任何人（包含本 app 的開發者）都沒有備用鑰匙。密碼一旦忘記，那份雲端備份就永久無法解開，也無法重設。
       </div>
 
-      <h2>Gemini 讀音預填（選用，預設關閉）</h2>
+      <h2>Gemini 讀音預填</h2>
       <p>
-        編輯卡片時，本 app 可以代為填入漢字的假名讀音。這個功能<strong>預設關閉</strong>，
+        編輯卡片時，本 app 可以代為填入漢字的假名讀音。
+        <strong>這個功能在網頁版與 iOS app 上的運作方式完全不同</strong>，以下分開說明。
+      </p>
+
+      <h3>網頁版（選用，預設關閉）</h3>
+      <p>
+        這個功能<strong>預設關閉</strong>，
         必須由你自行填入一把 Google Gemini 的 API（Application Programming Interface，應用程式介面）金鑰才會啟用。
       </p>
       <ul>
@@ -194,11 +209,46 @@
         </li>
       </ul>
 
+      <h3>iOS app（預設啟用）</h3>
+      <p>
+        iOS app 上這個功能<strong>預設啟用</strong>。你不必做任何設定，畫面上也沒有金鑰可以填——
+        打完詞條，讀音就會自己填進來。金鑰由本 app 的維護者提供，不在 app 裡面。
+      </p>
+      <ul>
+        <li>
+          <strong>只送出那個詞條。</strong>送出去的是你正在編輯的那個日文詞條，連同一段由維護者設定的作答指示。
+          送出的內容僅止於此，不包含你的釋義、複習進度或其他卡片。
+        </li>
+        <li>
+          <strong>請求不是直接送到 Gemini 的。</strong>它先送到維護者在 Google 開的 Firebase 專案
+          （Firebase AI Logic 服務），金鑰在那裡才加進去，再交給 Google 的 Gemini 處理。
+          維護者自己沒有伺服器，這一段全程在 Google 的機器上。
+          用的是<strong>維護者提供的</strong>金鑰、走維護者的額度，這段請求受 Google 的隱私權政策規範。
+        </li>
+        <li>
+          <strong>Google 可能拿這些內容去改進它的模型。</strong>維護者用的是 Gemini 的免費用量層級，
+          依 Google 的條款，免費層級送出的內容可能被 Google 用於改進其模型。
+          <strong>這件事是維護者替你決定的。</strong>網頁版是你自己去申請金鑰、自己接受 Google 的條款；
+          iOS 版沒有這一步，你新增卡片、打完一個詞條，用的就已經是維護者的金鑰。寫在這裡，是為了讓你知道有這回事。
+        </li>
+        <li>
+          <strong>請求會附上一份裝置證明。</strong>為了確認請求真的來自這支 app、而不是有人冒用維護者的金鑰，
+          請求會附上一份憑證，那份憑證由 Apple 的 App Attest 為這台裝置簽發，換一次可以用上一段時間。
+          這份憑證不含你的身分，也不用於追蹤你。
+        </li>
+        <li>
+          <strong>會有一組安裝識別碼註冊到 Google。</strong>本 app 用 Firebase 的遠端設定（Remote Config）來決定讀音預填要用哪個
+          模型、下哪一段作答指示，好讓 Google 換掉模型的那天不必重新送審。去抓那份設定時，
+          Firebase 會產生一組安裝識別碼、存在這台裝置上並註冊到 Google。它認的是「這一次安裝」，不是你：
+          它不含你的身分，重裝或換裝置就是另一組，我們也不會拿它跟其他資料比對。
+        </li>
+      </ul>
+
       <h2>不收集分析數據、不含第三方追蹤</h2>
       <p>
         本 app 不含任何分析工具、廣告 SDK（Software Development Kit，軟體開發套件）或追蹤程式碼。
         我們不記錄你打開了幾次、複習了幾張、按了哪個按鈕，也不使用 cookie 追蹤你，
-        更不會把任何資料分享或販售給第三方。除了上述兩項由你主動啟用的功能之外，本 app 不會把你的任何資料送往別處。
+        更不會把任何資料分享或販售給第三方。除了上述那兩項功能之外，本 app 不會把你的任何資料送往別處。
         （網頁版由 GitHub Pages 托管，載入頁面這件事本身會如同你瀏覽任何網站一樣，讓該主機看到你的
         IP（Internet Protocol，網際網路協定）位址；我們不接觸、也不保留這類紀錄。）
       </p>
