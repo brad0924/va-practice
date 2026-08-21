@@ -170,3 +170,43 @@ Spec 軸抓到四句「寫得比程式滿」，全部屬實，連同 Standards �
 但那是票 06 第二節明文認領的範圍，本票不碰。
 
 驗證：`npm run typecheck` 乾淨，`npx vitest run` 31 檔 571 條全綠。
+
+### 2026-08-21 — App Privacy 那份表的查證結果
+
+**先更正本票的一個前提：那份表不是「重跑」，是第一次填。** App Store Connect 上顯示的是
+`Get Started`，代表從來沒填過。本票原文假設「原本沒有伺服器可以誠實勾不收集資料」，
+實際上那格是空的，要從頭走完整份表——涵蓋範圍比本票設想的大，雲端備份那一段也在裡面。
+
+**整份表押在 Apple 對「收集」的定義上**（`developer.apple.com/app-store/app-privacy-details`）：
+
+> "Collect" refers to transmitting data off the device in a way that allows you and/or your
+> third-party partners to access it for a period longer than what is necessary to service the
+> transmitted request in real time.
+
+關鍵是「**and/or your third-party partners**」。Google 是這裡的合作方，所以要看的是 Google 那端留不留，
+不是維護者這端留不留。
+
+**逐項的結論與出處**
+
+| Apple 表單上的欄位 | 判定 | 依據 |
+| --- | --- | --- |
+| `User Content › Other User Content`（讀音預填的詞條） | 申報 | Gemini 條款的 Unpaid Services 段：內容用於「provide, improve, and develop Google products and services」，且「Human reviewers may read, annotate, and process your API input and output」。遠超過「即時完成這次請求」。 |
+| `Identifiers › Device ID`（Firebase 安裝識別碼） | 申報 | Firebase 官方揭露對照表把 Remote Config 列為**一律**收集 Device ID，不是「看用法」那一類。 |
+| `Other Data › Other Data Types`（App Attest 證明） | 申報 | 同一份對照表：App Attest 歸 Other Data。**走 DeviceCheck 才會是 Device ID**——本 app 是 App Attest（票 01 的 `06a759c` 確認不再退回 DeviceCheck）。 |
+| `User Content › Other User Content`（雲端備份的密文） | **待判斷，建議申報** | 沒查到官方裁示。定義寫的是「allows you… to **access** it」，端對端加密之下維護者解不開，字面上不算；但 Apple 從沒發過「E2EE 可以不報」的條款。多報的代價是商店頁多一行，少報的代價是申報不實。與上面第一列是同一個型別，勾一次涵蓋兩者。 |
+
+**每個型別後面的三題，四項答案一致**：Purposes → `App Functionality`（不勾 Analytics、不勾任何廣告用途）；
+Linked to the user's identity → `No`；Used for tracking → `No`。
+
+**三件不要做的事**
+
+1. 不要加 ATT 提示（本票原文已寫；補一條觸發條件：ATT 的觸發點是上面第三題答 Yes，這裡全是 No）。
+2. 不要勾 Analytics 當用途——送詞條是為了把讀音填回格子，那是功能。
+3. **不要在 Firebase 主控台打開 AI monitoring。** 它預設關閉；打開後會把實際的提示詞與模型回覆
+   存進 Cloud Logging 供主控台翻看，那會在 Google 之外**多一層維護者自己這端的保存**，本申報要整個重看。
+   （`firebase.google.com/docs/ai-logic/monitoring`）
+
+**順帶發現：隱私政策網址只填了繁中那格。** 右上語言下拉切換後，日本語與 English 兩格都要填
+`privacy-en.html`（對應見 `.scratch/ios-app/store-listing.md`；日文共用英文版是 `.scratch/i18n/spec.md` 決定八）。
+
+小抄（同樣內容的可讀版）：https://claude.ai/code/artifact/926802fd-3080-468a-8922-b60fe1c956e3
