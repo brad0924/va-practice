@@ -30,8 +30,9 @@ function fakeAsk() {
         pending.push({ resolve, reject });
       });
     },
-    reply(value: unknown) {
-      pending.shift()!.resolve(value);
+    /** 回覆還沒回的第 at 份請求，預設最早那一份。 */
+    reply(value: unknown, at = 0) {
+      pending.splice(at, 1)[0]!.resolve(value);
     },
     fail(message: string) {
       pending.shift()!.reject(new Error(message));
@@ -55,6 +56,72 @@ describe('讀音預填', () => {
 
     expect(await later).toEqual(NOTHING);
     expect(editor.runs).toEqual([{ start: 0, cells: [{ kanji: '焦', reading: '' }] }]);
+  });
+
+  it('等待期間使用者自己把讀音打好了：遲到的回覆不覆蓋，詢問中那句收掉', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('考え込む');
+
+    const { later } = editor.prefill();
+    // 等不下去，自己填。這時請求還在路上。
+    editor.setReading(0, 0, 'かんが');
+    editor.setReading(1, 0, 'こ');
+    ai.reply([replyRun('考', 'まちが'), replyRun('込', 'い')]);
+
+    // 提示字要「換成沒有」：沒有一個字是 AI 填的，「請確認」掛不上去，
+    // 但「詢問中」留著就變成一場問不完的等待。
+    expect(await later).toEqual({ term: false, runs: false, note: true });
+    expect(editor.note).toBeNull();
+    expect(editor.runs).toEqual([
+      { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
+    ]);
+  });
+
+  it('等待期間只填了一格：整份回覆還是丟掉，另一格留空自己填', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+    editor.setTerm('考え込む');
+
+    const { later } = editor.prefill();
+    editor.setReading(0, 0, 'かんが');
+    ai.reply([replyRun('考', 'まちが'), replyRun('込', 'い')]);
+
+    expect(await later).toEqual({ term: false, runs: false, note: true });
+    expect(editor.note).toBeNull();
+    expect(editor.runs).toEqual([
+      { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 2, cells: [{ kanji: '込', reading: '' }] },
+    ]);
+  });
+
+  it('前一份遲到的回覆：AI 剛填好的假名還在，「請確認」不能被它抹掉', async () => {
+    const ai = fakeAsk();
+    const editor = createReadingEditor({ ask: ai.ask });
+
+    // 同一串漢字問兩次：改走一趟再改回來，`askedTerm` 已經被中間那次換掉。
+    editor.setTerm('考え込む');
+    const first = editor.prefill();
+    editor.setTerm('考え込');
+    editor.prefill();
+    editor.setTerm('考え込む');
+    const third = editor.prefill();
+
+    // 後發的先到：格子填好，掛上「請確認」。
+    ai.reply([replyRun('考', 'かんが'), replyRun('込', 'こ')], 2);
+    expect(await third.later).toEqual({ term: false, runs: true, note: true });
+    expect(editor.note).toEqual({ kind: 'filled' });
+
+    // 第一份這時才回。不套用是對的，但「請確認」是擋讀音幻覺的唯一一道，
+    // 假名還活著就絕不能跟著收掉。
+    ai.reply([replyRun('考', 'まちが'), replyRun('込', 'い')], 0);
+    expect(await first.later).toEqual(NOTHING);
+    expect(editor.note).toEqual({ kind: 'filled' });
+    expect(editor.runs).toEqual([
+      { start: 0, cells: [{ kanji: '考', reading: 'かんが' }] },
+      { start: 2, cells: [{ kanji: '込', reading: 'こ' }] },
+    ]);
   });
 
   it('沒設金鑰：全程靜默，提示字始終沒出現過', async () => {

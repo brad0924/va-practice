@@ -214,6 +214,17 @@ export function createReadingEditor(options: {
       // 等待期間使用者又改了詞條，這份回覆對的是舊的那串漢字，不能套上去。
       // 提示字的生死已經由那一下的 setTerm 處理過，這裡不再插手。
       if (term !== asked) return NOTHING;
+      // 讀音格已經有字了就不套用。`willAsk()` 的 `anyFilled()` 只守到發問之前，回覆進來的
+      // 這一刻要再問一次——不然使用者等不下去自己打的字會整組被換掉，畫面上還沒有任何線索
+      // 可以追查（`.scratch/reading-prefill/issues/05`）。
+      //
+      // 只收得掉「詢問中」那一句：不收就變成一場問不完的等待。其餘一律不動——這幾個字也
+      // 可能是另一份回覆剛填的（同一串問過兩次、後發的先到），那時「請確認」還得掛在上面。
+      if (anyFilled()) {
+        if (note?.kind !== 'asking') return NOTHING;
+        note = null;
+        return { term: false, runs: false, note: true };
+      }
       if (filled === null) throw new AppError('reading.prefillMismatch');
       runs = filled;
       note = { kind: 'filled' };
