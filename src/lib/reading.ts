@@ -252,15 +252,23 @@ export function splitCellAt(run: KanjiRun, index: number, at: number): KanjiRun 
  * 每一串另外帶一個 `splittable`，是 AI 對「這串假名拆不拆得開」的自述。
  * 它說拆不開卻還是拆了，就在這裡合併回去——合併是無損的（讀音接起來即原讀音），
  * 使用者要再拆卻得重打，所以由程式往便宜的方向修。
+ *
+ * **回覆最外層還有一格 `termKana`，這裡讀都不讀。** 它是寫給模型自己看的思考鷹架：
+ * 逼它在填任何一格之前先寫下整個詞條唸起來的音，`吹雪` 才不會被拼成 `吹`＝ふく 接
+ * `雪`＝ふき（票 08）。鷹架的效果發生在生成的當下——那一串音一旦寫在上文裡，後面
+ * 每一格都看得到它——收回來之後就沒有用途了。所以它是空字串、缺漏、或跟各格假名接
+ * 不起來，一律不影響結果。要不要拿它對帳是另一個決定，等這一輪的數字出來再談。
  */
 export function acceptPrefill(term: string, reply: unknown): KanjiRun[] | null {
-  if (!Array.isArray(reply)) return null;
+  if (typeof reply !== 'object' || reply === null) return null;
+  const { runs: replyRuns } = reply as { runs?: unknown };
+  if (!Array.isArray(replyRuns)) return null;
   const scanned = scanRuns(term);
-  if (reply.length !== scanned.length) return null;
+  if (replyRuns.length !== scanned.length) return null;
 
   const runs: KanjiRun[] = [];
   for (let i = 0; i < scanned.length; i += 1) {
-    const replyRun: unknown = reply[i];
+    const replyRun: unknown = replyRuns[i];
     if (typeof replyRun !== 'object' || replyRun === null) return null;
     const { splittable, cells: replyCells } = replyRun as { splittable?: unknown; cells?: unknown };
     if (typeof splittable !== 'boolean') return null;

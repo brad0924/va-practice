@@ -1,6 +1,6 @@
 # 08 — 讓模型先寫下整個詞條的假名，再拆格
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 
 ## 怎麼發現的
@@ -61,6 +61,24 @@ Type: enhancement
 
 ## Comments
 
+### 2026-08-24 — 驗收：三組數字全過，票收掉
+
+停止線（拍板五、六、九）逐條對：
+
+| 量什麼 | 要求 | 量到 |
+| --- | --- | --- |
+| 網頁版 `吹雪` | 10/10 | **10/10** |
+| 網頁版 `剃刀` | 5/5 | **5/5** |
+| 網頁版逾時 | 0/10 | **0/10** |
+| iOS 真機 `吹雪` 逾時 | 0/10 | **0/10**（答案也全對） |
+
+整輪沒有撞到 5xx，所以不必分開記。`flash-lite` 留著，`TIMEOUT_MS` 一格沒動。
+
+**量測順序跟拍板八寫的不一樣，是對的。** 拍板八寫「先貼主控台，再推程式碼，最後出 build」，那條順序擋的是 iOS——app 拿到新 schema 時，Remote Config 上的判準不能還是舊的。但**網頁版根本不讀 Remote Config**（`gemini-reading.ts` 直接用模組裡的 `INSTRUCTIONS` 常數，`firebase/remote-config` 只被 `gemini-reading-native.ts` import，網頁版打包時是死碼），所以網頁版那十五次不必等主控台，先量完再貼即可。實際走的是：網頁版量 → 貼主控台 → 出 build → iOS 量。
+
+**iOS 那一步用刪 app 再從 TestFlight 重裝。** 順帶把「舊版拿到新判準」那個窗口關掉了——不必等舊 build 自己被換掉。
+
+`ADR-0005` 已補（接在 2026-08-21 那段後記後面）。`termKana` 對帳的第二道防線這輪沒做，數字既然全過，暫時也沒有做的理由。
 
 ### 2026-08-24 — Triage：十二題拍板，狀態改 `ready-for-human`
 
@@ -132,14 +150,14 @@ Remote Config 的判準是全域的，所有已安裝的版本立刻拿到。改
 
 **Acceptance criteria:**
 
-- [ ] `RESPONSE_SCHEMA` 最外層是物件，欄位順序 `termKana` 排在 `runs` 前面
-- [ ] `acceptPrefill` 收物件；收到舊的陣列形狀回 `null`
-- [ ] `acceptPrefill` 不讀 `termKana`：`termKana` 是空字串、缺漏、或跟各格假名接起來對不上，回傳值都跟正常情況一樣
-- [ ] `acceptPrefill` 原有行為一字不變：漢字接起來要與該串一字不差、`splittable` 為 `false` 就併回一格、任一條不過就整批 `null`
-- [ ] `INSTRUCTIONS` 新增一條，要求先寫 `termKana` 並說明它與各格的關係
-- [ ] `RESPONSE_SCHEMA` 與 `acceptPrefill` 的註解寫清楚「`termKana` 收下但不驗證」以及為什麼——未來讀程式的人一定會問「為什麼有一格收了卻不用」
-- [ ] `npm test` 全綠
-- [ ] `npm run typecheck` 乾淨
+- [x] `RESPONSE_SCHEMA` 最外層是物件，欄位順序 `termKana` 排在 `runs` 前面
+- [x] `acceptPrefill` 收物件；收到舊的陣列形狀回 `null`
+- [x] `acceptPrefill` 不讀 `termKana`：`termKana` 是空字串、缺漏、或跟各格假名接起來對不上，回傳值都跟正常情況一樣
+- [x] `acceptPrefill` 原有行為一字不變：漢字接起來要與該串一字不差、`splittable` 為 `false` 就併回一格、任一條不過就整批 `null`
+- [x] `INSTRUCTIONS` 新增一條，要求先寫 `termKana` 並說明它與各格的關係
+- [x] `RESPONSE_SCHEMA` 與 `acceptPrefill` 的註解寫清楚「`termKana` 收下但不驗證」以及為什麼——未來讀程式的人一定會問「為什麼有一格收了卻不用」
+- [x] `npm test` 全綠
+- [x] `npm run typecheck` 乾淨
 
 **Out of scope:**
 
