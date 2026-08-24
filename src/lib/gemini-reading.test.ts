@@ -59,10 +59,13 @@ describe('問 Gemini 讀音', () => {
     const value = await askReading(
       KEY,
       TERM,
-      responds(() => reply('[{"splittable":true,"cells":[{"kanji":"焦","reading":"こ"}]}]')),
+      responds(() => reply('{"termKana":"こがす","runs":[{"splittable":true,"cells":[{"kanji":"焦","reading":"こ"}]}]}')),
     );
 
-    expect(value).toEqual([{ splittable: true, cells: [{ kanji: '焦', reading: 'こ' }] }]);
+    expect(value).toEqual({
+      termKana: 'こがす',
+      runs: [{ splittable: true, cells: [{ kanji: '焦', reading: 'こ' }] }],
+    });
   });
 
   it('等太久沒回覆：訊息講的是秒數，不是換算前的毫秒', async () => {
@@ -142,8 +145,11 @@ describe('問 Gemini 讀音', () => {
 });
 
 describe('伺服器那端出事時自動再問一次', () => {
-  const OK = () => reply('[{"splittable":true,"cells":[{"kanji":"焦","reading":"こ"}]}]');
-  const PARSED = [{ splittable: true, cells: [{ kanji: '焦', reading: 'こ' }] }];
+  const OK = () => reply('{"termKana":"こがす","runs":[{"splittable":true,"cells":[{"kanji":"焦","reading":"こ"}]}]}');
+  const PARSED = {
+    termKana: 'こがす',
+    runs: [{ splittable: true, cells: [{ kanji: '焦', reading: 'こ' }] }],
+  };
 
   // 500／502／503／504 都是「再送一次會成功」的那一種，Google 自己叫你等一下再試。
   for (const status of [500, 502, 503, 504]) {

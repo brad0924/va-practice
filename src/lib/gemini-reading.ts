@@ -26,7 +26,7 @@ import { AppError } from './app-error';
  * **代價也量過，別讓下一個人重踩。** `ADR-0005` 警告小模型會很有自信講錯熟字訓與連濁，
  * 拿 repo 自己的兩個界線樣本考它：`剃刀` 穩定答對（整串一格）；`吹雪` 五次錯一次，錯的
  * 那次把 `吹`＝ふく、`雪`＝ふき 兩個漢字各自單獨的讀音接起來交差，沒有連濁成 ふぶき。`INSTRUCTIONS`
- * 規則 3 逐字寫著正確答案，它照樣抄錯——那 1/5 是模型自己晃，不是判準含糊。對照組隔天量到了：
+ * 規則 4 逐字寫著正確答案，它照樣抄錯——那 1/5 是模型自己晃，不是判準含糊。對照組隔天量到了：
  * `gemini-3.6-flash` 打五次 `吹雪` **全對**，所以那 1/5 是換模型換來的退步，不是這條路一直以來
  * 的樣子。維護者知情後仍選擇保留——`0/10` 的逾時值這個價。想把這一格贏回來的嘗試記在票 08。
  *
@@ -52,11 +52,18 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
 export const TIMEOUT_MS = 10_000;
 
 /**
- * 結構化輸出的形狀：一串漢字一個物件，裡面是拆不拆得開的自述與各格。
+ * 結構化輸出的形狀：最外層一個物件，裡面是整個詞條的假名與各串漢字。
+ * `runs` 一串漢字一個物件，裡面是拆不拆得開的自述與各格。
  * 保證的只是形狀，內容仍要驗證。
  *
- * `splittable` 排在 `cells` 前面不是隨便放的：模型是一個欄位一個欄位往下生的，
- * 先寫下判斷再填格子，格子才會照著那個判斷走。
+ * **欄位順序全部是刻意排的**，因為模型是一個欄位一個欄位往下生的，前面寫過的字
+ * 會成為後面每一格的上文。`splittable` 排在 `cells` 前面，格子才會照著那個判斷走；
+ * `termKana` 排在 `runs` 前面，是同一招用在讀音上——先把整個詞條唸起來的音寫下來，
+ * 填 `吹` 的時候 `ふぶき` 已經在它自己剛寫的上文裡，就不會拿 `吹`＝ふく 接 `雪`＝ふき
+ * 交差（票 08）。
+ *
+ * **`termKana` 收下但不驗證。** `acceptPrefill` 讀都不讀它：鷹架的用途在生成的當下
+ * 就結束了，收回來之後拿它對帳是另一個決定，等這一輪的數字出來再談。
  *
  * **兩條路徑共用這一份**（spec 決定十六）。型別名寫小寫是為了共用：Firebase AI Logic 的
  * SDK 只認小寫，寫大寫連編譯都過不了；而這一份原本的大寫走的是 REST 端點。Google 兩份
@@ -66,27 +73,35 @@ export const TIMEOUT_MS = 10_000;
  * REST。這是 `import type`，打包時整行消失，網頁版產物裡不會有 firebase。
  */
 export const RESPONSE_SCHEMA: SchemaRequest = {
-  type: 'array',
-  items: {
-    type: 'object',
-    properties: {
-      splittable: { type: 'boolean' },
-      cells: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            kanji: { type: 'string' },
-            reading: { type: 'string' },
+  type: 'object',
+  properties: {
+    termKana: { type: 'string' },
+    runs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          splittable: { type: 'boolean' },
+          cells: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                kanji: { type: 'string' },
+                reading: { type: 'string' },
+              },
+              required: ['kanji', 'reading'],
+              propertyOrdering: ['kanji', 'reading'],
+            },
           },
-          required: ['kanji', 'reading'],
-          propertyOrdering: ['kanji', 'reading'],
         },
+        required: ['splittable', 'cells'],
+        propertyOrdering: ['splittable', 'cells'],
       },
     },
-    required: ['splittable', 'cells'],
-    propertyOrdering: ['splittable', 'cells'],
   },
+  required: ['termKana', 'runs'],
+  propertyOrdering: ['termKana', 'runs'],
 };
 
 /**
@@ -103,13 +118,14 @@ export const RESPONSE_SCHEMA: SchemaRequest = {
 export const INSTRUCTIONS = [
   '你是日語讀音標注助手。使用者給一個日文詞條，請標出其中每一串連續漢字的讀音。',
   '規則：',
-  '1. 讀音一律用平假名。',
-  '2. 每一串先判斷 splittable：逐字檢查，若每一格的假名都是「該漢字本身實際有的音讀或訓讀」就填 true，只要有任何一格的假名不是該漢字的讀音就填 false。連濁與音便造成的音變（雪 ゆき→ぶき）仍算該漢字的讀音。',
-  '3. 不要用「是不是熟字訓」判斷。吹雪 是熟字訓但 splittable 為 true：吹=ふ、雪=ぶき 都是各自的讀音。剃刀 的 splittable 為 false：剃 不讀 かみ、刀 不讀 そり。',
-  '4. splittable 為 true 就逐字分配，一個漢字一格；為 false 就整串放進一格。',
-  '5. 只依詞條本身判斷，不要自行想像上下文。',
-  '6. 依詞條中漢字串出現的順序回答，每一串一個物件；cells 各格的 kanji 接起來必須等於原本那串漢字，不可增刪或改寫。',
-  '假名、送假名、標點都不要出現在回答裡。',
+  '1. 先填 termKana：整個詞條從頭到尾唸起來的假名，一串到底，詞條裡本來就有的假名與送假名也要照唸（取り消し 的 termKana 是 とりけし）。填完這一格再往下填 runs，runs 各格的假名接起來要跟 termKana 對得上。',
+  '2. 讀音一律用平假名。',
+  '3. 每一串先判斷 splittable：逐字檢查，若每一格的假名都是「該漢字本身實際有的音讀或訓讀」就填 true，只要有任何一格的假名不是該漢字的讀音就填 false。連濁與音便造成的音變（雪 ゆき→ぶき）仍算該漢字的讀音。',
+  '4. 不要用「是不是熟字訓」判斷。吹雪 是熟字訓但 splittable 為 true：吹=ふ、雪=ぶき 都是各自的讀音。剃刀 的 splittable 為 false：剃 不讀 かみ、刀 不讀 そり。',
+  '5. splittable 為 true 就逐字分配，一個漢字一格；為 false 就整串放進一格。',
+  '6. 只依詞條本身判斷，不要自行想像上下文。',
+  '7. runs 依詞條中漢字串出現的順序回答，每一串一個物件；cells 各格的 kanji 接起來必須等於原本那串漢字，不可增刪或改寫。',
+  'cells 各格的 kanji 只放漢字，假名、送假名、標點都不要出現；termKana 不受這一條限制。',
 ].join('\n');
 
 /**

@@ -15,6 +15,11 @@ function replyRun(kanji: string, reading: string, splittable = true) {
   return { splittable, cells: [{ kanji, reading }] };
 }
 
+/** 整份 AI 回覆：`termKana` 加上各串漢字。那一格為何是佔位值見 `reading.ts`。 */
+function aiReply(...runs: ReturnType<typeof replyRun>[]) {
+  return { termKana: 'かな', runs };
+}
+
 /** 一支假的 AI：記下被問了什麼，何時回、回什麼一律由測試決定，不發任何請求。 */
 function fakeAsk() {
   const asked: string[] = [];
@@ -57,7 +62,7 @@ describe('讀音預填', () => {
 
     const { later } = editor.prefill();
     editor.setTerm('焦がした');
-    ai.reply([replyRun('焦', 'こ')]);
+    ai.reply(aiReply(replyRun('焦', 'こ')));
 
     expect(await later).toEqual(NOTHING);
     expect(editor.runs).toEqual([{ start: 0, cells: [{ kanji: '焦', reading: '' }] }]);
@@ -72,7 +77,7 @@ describe('讀音預填', () => {
     // 等不下去，自己填。這時請求還在路上。
     editor.setReading(0, 0, 'かんが');
     editor.setReading(1, 0, 'こ');
-    ai.reply([replyRun('考', 'まちが'), replyRun('込', 'い')]);
+    ai.reply(aiReply(replyRun('考', 'まちが'), replyRun('込', 'い')));
 
     // 提示字要「換成沒有」：沒有一個字是 AI 填的，「請確認」掛不上去，
     // 但「詢問中」留著就變成一場問不完的等待。
@@ -91,7 +96,7 @@ describe('讀音預填', () => {
 
     const { later } = editor.prefill();
     editor.setReading(0, 0, 'かんが');
-    ai.reply([replyRun('考', 'まちが'), replyRun('込', 'い')]);
+    ai.reply(aiReply(replyRun('考', 'まちが'), replyRun('込', 'い')));
 
     expect(await later).toEqual({ term: false, runs: false, note: true });
     expect(editor.note).toBeNull();
@@ -114,13 +119,13 @@ describe('讀音預填', () => {
     const third = editor.prefill();
 
     // 後發的先到：格子填好，掛上「請確認」。
-    ai.reply([replyRun('考', 'かんが'), replyRun('込', 'こ')], 2);
+    ai.reply(aiReply(replyRun('考', 'かんが'), replyRun('込', 'こ')), 2);
     expect(await third.later).toEqual({ term: false, runs: true, note: true });
     expect(editor.note).toEqual({ kind: 'filled' });
 
     // 第一份這時才回。不套用是對的，但「請確認」是擋讀音幻覺的唯一一道，
     // 假名還活著就絕不能跟著收掉。
-    ai.reply([replyRun('考', 'まちが'), replyRun('込', 'い')], 0);
+    ai.reply(aiReply(replyRun('考', 'まちが'), replyRun('込', 'い')), 0);
     expect(await first.later).toEqual(NOTHING);
     expect(editor.note).toEqual({ kind: 'filled' });
     expect(editor.runs).toEqual([
@@ -188,7 +193,7 @@ describe('讀音預填', () => {
     expect(now).toEqual({ term: false, runs: false, note: true });
     expect(editor.note).toEqual({ kind: 'asking' });
 
-    ai.reply([replyRun('煎', 'い')]);
+    ai.reply(aiReply(replyRun('煎', 'い')));
 
     expect(await later).toEqual({ term: false, runs: false, note: true });
     expect(editor.note).toEqual({ kind: 'failed', reason: zhHant['reading.prefillMismatch'] });
@@ -228,7 +233,7 @@ describe('讀音預填', () => {
     editor.setTerm('考え込む');
 
     const { later } = editor.prefill();
-    ai.reply([replyRun('考', 'かんが'), replyRun('込', 'こ')]);
+    ai.reply(aiReply(replyRun('考', 'かんが'), replyRun('込', 'こ')));
 
     expect(await later).toEqual({ term: false, runs: true, note: true });
     expect(editor.note).toEqual({ kind: 'filled' });
@@ -261,7 +266,7 @@ describe('重試期間的提示字', () => {
       { term: false, runs: false, note: true },
     ]);
 
-    ai.reply([replyRun('焦', 'こ')]);
+    ai.reply(aiReply(replyRun('焦', 'こ')));
     expect(await later).toEqual({ term: false, runs: true, note: true });
     expect(editor.note).toEqual({ kind: 'filled' });
   });
@@ -286,7 +291,7 @@ describe('重試期間的提示字', () => {
     const { later } = editor.prefill();
     ai.retrying(2);
     editor.setReading(0, 0, 'こげ');
-    ai.reply([replyRun('焦', 'こ')]);
+    ai.reply(aiReply(replyRun('焦', 'こ')));
 
     expect(await later).toEqual({ term: false, runs: false, note: true });
     expect(editor.note).toBeNull();
@@ -334,7 +339,7 @@ describe('AI 會不會動到讀音格（換欄鍵的避讓條件）', () => {
     editor.setTerm('焦がす');
 
     const { later } = editor.prefill();
-    ai.reply([replyRun('焦', 'こ')]);
+    ai.reply(aiReply(replyRun('焦', 'こ')));
     await later;
 
     expect(editor.prefilling).toBe(false);
@@ -429,7 +434,7 @@ describe('提示字的生死', () => {
     editor.setTerm('考え込む');
 
     const { later } = editor.prefill();
-    ai.reply([replyRun('考', 'かんが'), replyRun('込', 'こ')]);
+    ai.reply(aiReply(replyRun('考', 'かんが'), replyRun('込', 'こ')));
     await later;
 
     expect(editor.setTerm('考え込んだ').note).toBe(false);
@@ -442,7 +447,7 @@ describe('提示字的生死', () => {
     editor.setTerm('考え込む');
 
     const { later } = editor.prefill();
-    ai.reply([replyRun('考', 'かんが'), replyRun('込', 'こ')]);
+    ai.reply(aiReply(replyRun('考', 'かんが'), replyRun('込', 'こ')));
     await later;
 
     editor.setReading(0, 0, '');
