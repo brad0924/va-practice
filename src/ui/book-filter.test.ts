@@ -2,8 +2,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { bookFilter, scopeLabel } from './book-filter';
-import type { Book } from '../lib/types';
-import zhHant from '../i18n/zh-Hant';
+import type { Book } from '@core/lib/types';
+import zhHant from '@core/i18n/zh-Hant';
 
 const BOOKS: Book[] = [
   { id: 'a', name: 'JLPT N2' },

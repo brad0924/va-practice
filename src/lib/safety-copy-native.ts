@@ -11,8 +11,8 @@
  * 測到的只是自己寫的假貨。行為改由真機的手動驗收清單守住。
  */
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { createSafetyCopy, restoreSafetyCopy, type SafetyCopy } from './safety-copy';
-import type { StorageLike } from './storage';
+import { createSafetyCopy, restoreSafetyCopy, type SafetyCopy } from '@core/lib/safety-copy';
+import type { StorageLike } from '@core/lib/storage';
 
 /** 原生那一端的兩支方法。App Group 由原生那邊指定，這裡不必知道它叫什麼。 */
 interface SafetyCopyPlugin {

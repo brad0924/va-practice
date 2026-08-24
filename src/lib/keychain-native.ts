@@ -10,9 +10,9 @@
  * 測到的只是自己寫的假貨。行為改由真機的手動驗收清單守住。
  */
 import { registerPlugin } from '@capacitor/core';
-import { CREDENTIALS_KEY } from './cloud-backup';
-import { loadKeychainStorage } from './keychain';
-import type { StorageLike } from './storage';
+import { CREDENTIALS_KEY } from '@core/lib/cloud-backup';
+import { loadKeychainStorage } from '@core/lib/keychain';
+import type { StorageLike } from '@core/lib/storage';
 
 /** 原生那一端的三支方法。沒有那一筆時 `read` 不帶 `value` 回來。 */
 interface KeychainPlugin {

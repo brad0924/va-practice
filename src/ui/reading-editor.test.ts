@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createReadingEditor, type Change } from './reading-editor';
-import zhHant from '../i18n/zh-Hant';
-import { SilentError } from '../lib/app-error';
+import zhHant from '@core/i18n/zh-Hant';
+import { SilentError } from '@core/lib/app-error';
 
 /** 什麼都不必動的變更單。多數斷言都是拿它比對。 */
 const NOTHING: Change = { term: false, runs: false, note: false };

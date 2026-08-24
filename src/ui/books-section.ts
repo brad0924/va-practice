@@ -1,6 +1,6 @@
 import type { App } from '../app';
-import { t } from '../i18n';
-import { toMessage } from '../lib/app-error';
+import { t } from '@core/i18n';
+import { toMessage } from '@core/lib/app-error';
 import {
   addBook,
   cardsInBooks,
@@ -8,8 +8,8 @@ import {
   renameBook,
   setScope,
   type ImportSkip,
-} from '../lib/storage';
-import type { AppData, Book } from '../lib/types';
+} from '@core/lib/storage';
+import type { AppData, Book } from '@core/lib/types';
 import { el, button } from './dom';
 
 /**

@@ -1,4 +1,4 @@
-import { toReadingText } from '../lib/reading';
+import { toReadingText } from '@core/lib/reading';
 import { createNativeSpeak, type Speak } from '../lib/speech-native';
 
 /**

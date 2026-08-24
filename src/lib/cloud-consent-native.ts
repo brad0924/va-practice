@@ -10,9 +10,9 @@
  * 換掉，測到的只是自己寫的假貨——與其餘幾支 `*-native.ts` 同一個立場。
  */
 import { Capacitor } from '@capacitor/core';
-import { t } from '../i18n';
-import { createCloudConsent, type CloudConsent } from './cloud-consent';
-import type { StorageLike } from './storage';
+import { t } from '@core/i18n';
+import { createCloudConsent, type CloudConsent } from '@core/lib/cloud-consent';
+import type { StorageLike } from '@core/lib/storage';
 
 /**
  * 這台裝置的雲端同意。**網頁版回 null**——那裡沒有 Keychain，密碼不會憑空出現在

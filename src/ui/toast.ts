@@ -1,4 +1,4 @@
-import { t } from '../i18n';
+import { t } from '@core/i18n';
 import { el, button } from './dom';
 
 /** 自己消失前留在畫面上的時間。 */

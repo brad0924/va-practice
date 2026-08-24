@@ -1,7 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import type { Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { APP_NAME } from './src/lib/app-name';
+// 這一支自己就是設定檔，`@core/` 要等它跑完才生效，因此只有這裡走相對路徑。
+import { APP_NAME } from './core/lib/app-name';
 
 /**
  * index.html 不是 TypeScript，吃不到常數，只能走佔位符替換（見 ADR-0012）。
@@ -32,6 +34,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: isIOS ? '/' : webBase,
+    // 共用邏輯的別名，跟 tsconfig.json 的 paths 是同一件事的另一半：
+    // 那邊管型別檢查看不看得懂，這邊管打包與測試找不找得到檔。
+    // core/ 換位置時要一起改的四個地方列在 tsconfig.json 的 paths 上方。
+    resolve: {
+      alias: { '@core': fileURLToPath(new URL('./core', import.meta.url)) },
+    },
     // app-name plugin 掛在三元判斷式外面：iOS build 的 index.html 一樣要替換佔位符，
     // 塞進 VitePWA 旁邊的話 `--mode ios` 產出的分頁標題與主畫面名字會留著佔位符。
     plugins: [
@@ -65,9 +73,9 @@ export default defineConfig(({ mode }) => {
       environment: 'node',
       // `scripts/` 那支是隱私權政策的兩道提醒 hook（見 .scratch/i18n/issues/11）。它跑在打包流程外、
       // 不進 tsconfig 的 include，寫成 .mjs；測試跟著它放同一個目錄，所以這裡要多收一種副檔名。
-      include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
-      // 介面語言在每支測試開跑前接上繁體中文，理由見 src/test-setup.ts。
-      setupFiles: ['./src/test-setup.ts'],
+      include: ['core/**/*.test.ts', 'src/**/*.test.ts', 'scripts/**/*.test.mjs'],
+      // 介面語言在每支測試開跑前接上繁體中文，理由見 core/test-setup.ts。
+      setupFiles: ['./core/test-setup.ts'],
     },
   };
 });

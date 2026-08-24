@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeSnapshot, easeBinOf, groupByEaseBin } from './stats-view';
-import { DEFAULT_EASE } from '../lib/review';
-import type { Card } from '../lib/types';
+import { DEFAULT_EASE } from '@core/lib/review';
+import type { Card } from '@core/lib/types';
 
 const NOW = new Date(2026, 6, 27); // 2026-07-27
 

@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import type { App } from '../app';
 import { dataView } from './data-view';
-import { setLang, t, type LangChoice } from '../i18n';
+import { setLang, t, type LangChoice } from '@core/i18n';
 
 /**
  * 每日提醒那一區只有原生殼裡才長得出來。關著的狀態最單純：畫的當下不會去問權限，

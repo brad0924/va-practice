@@ -1,8 +1,8 @@
 import type { App } from '../app';
-import { t, type Key } from '../i18n';
+import { t, type Key } from '@core/i18n';
 import { groupByBucket } from './list-view';
-import { cardsInBooks, setScope } from '../lib/storage';
-import type { Card } from '../lib/types';
+import { cardsInBooks, setScope } from '@core/lib/storage';
+import type { Card } from '@core/lib/types';
 import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';

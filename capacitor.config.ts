@@ -1,5 +1,6 @@
 import type { CapacitorConfig } from '@capacitor/cli';
-import { APP_NAME } from './src/lib/app-name';
+// 這一支自己就是設定檔，`@core/` 要等它跑完才生效，因此走相對路徑（vite.config.ts 同理）。
+import { APP_NAME } from './core/lib/app-name';
 
 // appId 一旦在 App Store Connect 建立 app 記錄就無法變更。
 // appName 只在 `cap add` 那一次生效——它會被寫進 ios/App/App/Info.plist 的

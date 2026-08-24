@@ -1,5 +1,5 @@
-import { t } from '../i18n';
-import type { Book } from '../lib/types';
+import { t } from '@core/i18n';
+import type { Book } from '@core/lib/types';
 import { el, button } from './dom';
 
 /**

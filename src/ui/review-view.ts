@@ -1,8 +1,8 @@
 import type { App } from '../app';
-import { t, type Key } from '../i18n';
-import { setScope } from '../lib/storage';
-import { currentCard, isComplete } from '../lib/review';
-import type { Rating } from '../lib/types';
+import { t, type Key } from '@core/i18n';
+import { setScope } from '@core/lib/storage';
+import { currentCard, isComplete } from '@core/lib/review';
+import type { Rating } from '@core/lib/types';
 import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';

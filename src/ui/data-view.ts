@@ -1,8 +1,8 @@
 import type { App } from '../app';
-import { lang, t, type LangChoice } from '../i18n';
-import { APP_NAME } from '../lib/app-name';
-import { toMessage } from '../lib/app-error';
-import { toDateKey } from '../lib/review';
+import { lang, t, type LangChoice } from '@core/i18n';
+import { APP_NAME } from '@core/lib/app-name';
+import { toMessage } from '@core/lib/app-error';
+import { toDateKey } from '@core/lib/review';
 import { el, button, download } from './dom';
 import { booksSection } from './books-section';
 

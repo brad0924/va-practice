@@ -1,9 +1,9 @@
 # 顯示名稱：打包流程內的用 import，流程外的用測試守門
 
-app 的顯示名稱只有一份來源：`src/lib/app-name.ts`，含短名與全名兩欄。但它抵達七個位置的方式**刻意分成兩套**：
+app 的顯示名稱只有一份來源：`core/lib/app-name.ts`，含短名與全名兩欄。但它抵達七個位置的方式**刻意分成兩套**：
 
 - **打包流程內**（`vite.config.ts`、`src/ui/data-view.ts`、`capacitor.config.ts`）→ **直接 `import`**。這幾處從此物理上不可能與來源不一致。`index.html` 走 Vite plugin 替換佔位符，效果同級。
-- **打包流程外**（`ios/App/App/Info.plist`、`public/privacy.html`、`public/privacy-en.html`）→ **仍寫字面值，另有 `src/lib/app-name.test.ts` 讀檔比對**。改名時這幾個檔要人工改，但漏了一定紅燈。
+- **打包流程外**（`ios/App/App/Info.plist`、`public/privacy.html`、`public/privacy-en.html`）→ **仍寫字面值，另有 `core/lib/app-name.test.ts` 讀檔比對**。改名時這幾個檔要人工改，但漏了一定紅燈。
 
 判準是**這個檔有沒有辦法吃到一個 TypeScript 常數**。`Info.plist` 是 XML，而且 Capacitor 只在 `cap add` 那一次寫過它；隱私權政策各語言版依票 04 的決定是「不參與打包、原封複製進 `dist`」的靜態檔，不 import 任何東西。這幾個檔沒有任何天然管道拿得到常數。
 

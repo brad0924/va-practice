@@ -27,8 +27,8 @@ import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { CustomProvider, initializeAppCheck } from 'firebase/app-check';
 import { activate, fetchAndActivate, getRemoteConfig, getString, type RemoteConfig } from 'firebase/remote-config';
 
-import { AppError, SilentError } from './app-error';
-import { toReadingError } from './ai-logic-error';
+import { AppError, SilentError } from '@core/lib/app-error';
+import { toReadingError } from '@core/lib/ai-logic-error';
 import {
   INSTRUCTIONS,
   MODEL,
@@ -37,8 +37,8 @@ import {
   parseReply,
   promptFor,
   remoteOrDefault,
-} from './gemini-reading';
-import { withRetry } from './reading-retry';
+} from '@core/lib/gemini-reading';
+import { withRetry } from '@core/lib/reading-retry';
 
 /**
  * Remote Config 上那兩個參數的名字，與各自在程式碼裡的後備值。主控台上叫什麼，這裡就是什麼。

@@ -14,10 +14,10 @@
 
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { start } from './app';
-import type { StorageLike } from './lib/storage';
-import zhHant from './i18n/zh-Hant';
-import en from './i18n/en';
-import ja from './i18n/ja';
+import type { StorageLike } from '@core/lib/storage';
+import zhHant from '@core/i18n/zh-Hant';
+import en from '@core/i18n/en';
+import ja from '@core/i18n/ja';
 
 /**
  * 這台「裝置」的本機儲存。`start()` 直接碰全域的 `localStorage`，而這個環境裡沒有

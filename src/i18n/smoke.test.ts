@@ -17,13 +17,13 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { start } from '../app';
-import { STORAGE_KEY } from '../lib/storage';
-import type { StorageLike } from '../lib/storage';
-import type { AppData } from '../lib/types';
-import type { Lang } from './index';
-import zhHant from './zh-Hant';
-import en from './en';
-import ja from './ja';
+import { STORAGE_KEY } from '@core/lib/storage';
+import type { StorageLike } from '@core/lib/storage';
+import type { AppData } from '@core/lib/types';
+import type { Lang } from '@core/i18n';
+import zhHant from '@core/i18n/zh-Hant';
+import en from '@core/i18n/en';
+import ja from '@core/i18n/ja';
 
 /**
  * 自己造的一份資料，刻意讓每一個字都不像 key——單字本名、詞條、釋義全是日文與中文，

@@ -1,4 +1,4 @@
-import { parseReading, toPlainText } from '../lib/reading';
+import { parseReading, toPlainText } from '@core/lib/reading';
 
 /**
  * 把詞條渲染成 DOM。showReading 為 false 時只顯示原文，

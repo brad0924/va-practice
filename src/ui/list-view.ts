@@ -1,9 +1,9 @@
 import type { App } from '../app';
-import { t, type Key } from '../i18n';
-import { toPlainText, toReadingText } from '../lib/reading';
-import { overdueDays, sortByDue, type SortDirection } from '../lib/review';
-import { cardsInBooks, setScope } from '../lib/storage';
-import type { Card } from '../lib/types';
+import { t, type Key } from '@core/i18n';
+import { toPlainText, toReadingText } from '@core/lib/reading';
+import { overdueDays, sortByDue, type SortDirection } from '@core/lib/review';
+import { cardsInBooks, setScope } from '@core/lib/storage';
+import type { Card } from '@core/lib/types';
 import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';

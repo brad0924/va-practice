@@ -15,8 +15,8 @@ import {
   type DailyReminder,
   type ReminderPermission,
   type ScheduledReminder,
-} from './daily-reminder';
-import type { StorageLike } from './storage';
+} from '@core/lib/daily-reminder';
+import type { StorageLike } from '@core/lib/storage';
 
 /**
  * 原生那一端的三支方法。Capacitor 的橋只收得下物件，因此權限的答案包在 `state` 裡、

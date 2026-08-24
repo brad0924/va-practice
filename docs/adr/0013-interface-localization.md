@@ -2,7 +2,7 @@
 
 介面支援繁體中文、英文、日文三種語言，加一個跟隨裝置的「系統預設」。四項架構決定：
 
-- **翻譯檔一語一檔**（`src/i18n/{zh-Hant,en,ja}.ts`），漏譯由 TypeScript 型別在建置時擋下
+- **翻譯檔一語一檔**（`core/i18n/{zh-Hant,en,ja}.ts`），漏譯由 TypeScript 型別在建置時擋下
 - **key 用語意命名**（`books.addButton`），不用中文原文當 key
 - **錯誤物件帶 key，不帶文字**（`throw new AppError('book.scopeEmpty')`），畫面層拿到 key 才查表
 - **語言選擇存在 `va-practice:lang`，不進備份**，`DATA_VERSION` 維持 3
@@ -59,7 +59,7 @@
 
 ## Consequences
 
-**25 處 `throw new Error` 加上每一個接住錯誤的畫面層都要改。** 這是本 ADR 唯一動到架構的部分。`storage.ts:61` 的註解「壞掉時的訊息可以直接顯示給使用者」在改完之後不再成立——畫面層必須先查表。`toMessage()` 的角色也要跟著重新定義（實作時它與 `AppError` 一起搬到 `src/lib/app-error.ts`，理由見 `.scratch/i18n/issues/05-error-key-objects.md` 的 Comments）。
+**25 處 `throw new Error` 加上每一個接住錯誤的畫面層都要改。** 這是本 ADR 唯一動到架構的部分。`storage.ts:61` 的註解「壞掉時的訊息可以直接顯示給使用者」在改完之後不再成立——畫面層必須先查表。`toMessage()` 的角色也要跟著重新定義（實作時它與 `AppError` 一起搬到 `core/lib/app-error.ts`，理由見 `.scratch/i18n/issues/05-error-key-objects.md` 的 Comments）。
 
 **`CONTEXT.md` 被動到一處：釋義的 `_Avoid_` 拿掉「意思」。** 理由是英文的 `Meaning` 正好等於那個被避開的詞，而「意思」屬於「只是比較鬆散的同義詞」這一類——沒有第二個東西可以混淆、也不會誤導，不值得為它把英文扭成 `Gloss`。逐條理由見 `.scratch/i18n/spec.md` 決定一。**除此之外 29 則的定義段落一個字都沒改。**
 
@@ -71,7 +71,7 @@
 
 被否決的是「付費請母語者校對一次」（約 3900 字是有界的一次性支出，最乾淨，只是這輪不走）、「照出不校對、靠回報修」（看到敬語錯亂的人不會回報，只會刪掉）、「標示為機器翻譯」。
 
-**這不是永久決定，恢復成本很小**：加回 `src/i18n/ko.ts`、`glossary.md` 補一欄、主碼比對表加一列、選單加一個選項。韓文譯名初稿留在 `.scratch/i18n/issues/01-glossary.md` 的紀錄裡。**韓國市場沒有跟著砍**——韓國 storefront 照樣上架，韓文裝置的介面落到英文，砍的是介面語言不是市場。
+**這不是永久決定，恢復成本很小**：加回 `core/i18n/ko.ts`、`glossary.md` 補一欄、主碼比對表加一列、選單加一個選項。韓文譯名初稿留在 `.scratch/i18n/issues/01-glossary.md` 的紀錄裡。**韓國市場沒有跟著砍**——韓國 storefront 照樣上架，韓文裝置的介面落到英文，砍的是介面語言不是市場。
 
 **語言在四台裝置之間不同步，這是刻意的。** 使用者換新裝置若刻意選過非系統語言，要重選一次。日後若有人回報「為什麼我的語言沒跟著同步」，答案是本 ADR，不是 bug。
 

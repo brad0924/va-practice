@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { bucketOf, groupByBucket } from './list-view';
-import { DEFAULT_EASE } from '../lib/review';
-import type { Card } from '../lib/types';
-import zhHant from '../i18n/zh-Hant';
+import { DEFAULT_EASE } from '@core/lib/review';
+import type { Card } from '@core/lib/types';
+import zhHant from '@core/i18n/zh-Hant';
 
 const NOW = new Date(2026, 6, 27); // 2026-07-27
 

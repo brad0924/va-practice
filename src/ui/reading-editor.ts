@@ -9,8 +9,8 @@
  * 唯讀的 `term`、`runs`、`note` 取。中文文案與樣式一律留在畫面那一側，這裡只吐狀態代號。
  */
 
-import { t } from '../i18n';
-import { AppError, SilentError, toMessage } from '../lib/app-error';
+import { t } from '@core/i18n';
+import { AppError, SilentError, toMessage } from '@core/lib/app-error';
 import {
   parseReading,
   toDraft,
@@ -22,7 +22,7 @@ import {
   acceptPrefill,
   type KanjiRun,
   type ReadingDraft,
-} from '../lib/reading';
+} from '@core/lib/reading';
 
 /** 一支指令做完之後，畫面各處要不要動。 */
 export interface Change {
