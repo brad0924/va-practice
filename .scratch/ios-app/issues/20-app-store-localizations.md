@@ -1,8 +1,13 @@
 # 20 — App Store 多語系上架素材
 
-Status: ready-for-human
+Status: needs-triage
 Type: enhancement
 Blocked by: `.scratch/i18n/issues/06`（英日翻譯）
+
+> **上架被擋住了（2026-08-24）。** 維護者決定 Capacitor 版不先送審，等 React Native 改寫版
+> 好了才一起送，而且**不設回頭看的時間點**。這張票的規格沒有問題，是時機被凍結——`Status`
+> 因此從 `ready-for-human` 改成 `needs-triage`，避免有人直接拿去執行。決定與代價見
+> `.scratch/rn-rewrite/spec.md` 的〈上架〉。
 
 這張票不在 `spec.md` 的決定清單裡——它是 `.scratch/i18n/` 那輪 `/grilling` 中發現的缺口：票 11 的驗收只寫「送審用的截圖與說明備妥」，沒有涵蓋多語系上架。
 

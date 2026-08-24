@@ -1,8 +1,13 @@
 # 11 — 送審上架
 
-Status: ready-for-agent
+Status: needs-triage
 Type: enhancement
 Blocked by: 03, 04, 05, 06, 07, 08, 09, 10, 20, 21
+
+> **上架被擋住了（2026-08-24）。** 維護者決定 Capacitor 版不先送審，等 React Native 改寫版
+> 好了才一起送，而且**不設回頭看的時間點**。這張票的規格沒有問題，是時機被凍結——`Status`
+> 因此從 `ready-for-agent` 改成 `needs-triage`，避免有人直接拿去執行。決定與代價見
+> `.scratch/rn-rewrite/spec.md` 的〈上架〉。
 
 決策背景見 `../spec.md`。
 
