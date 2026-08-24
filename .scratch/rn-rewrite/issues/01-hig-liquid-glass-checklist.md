@@ -1,6 +1,6 @@
 # 01 — 生出一份 iOS 26 的 HIG 逐項清單
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 無，可立即開始
 
@@ -42,6 +42,6 @@ Blocked by: 無，可立即開始
 
 ## 驗收
 
-- [ ] `../hig-checklist.md` 存在，涵蓋上表五個章節
-- [ ] 每一條都能回答過／沒過，沒有「要舒服」這種條目
-- [ ] 每一條標出處，日後查得回原文
+- [x] `../hig-checklist.md` 存在，涵蓋上表五個章節
+- [x] 每一條都能回答過／沒過，沒有「要舒服」這種條目
+- [x] 每一條標出處，日後查得回原文
