@@ -10,12 +10,17 @@ import sharp from 'sharp';
  * 一、母檔裡若留著 `<text>`，換一台沒裝 Noto 的電腦跑出來就是別的字型，本機看不出來。
  * 二、iOS 的 app 圖示不接受帶 alpha 通道的 PNG。sharp 預設輸出帶 alpha，
  *     這個錯誤要等上傳 App Store Connect 被退件才知道。
- * 三、四張 PNG 是同一份母檔的四個尺寸。有人只重跑一半、或手動換掉其中一張，這裡會變紅。
+ * 三、五張 PNG 是同一份母檔畫出來的（網頁版三個尺寸，兩個 iOS 版各一張 1024）。
+ *     有人只重跑一半、或手動換掉其中一張，這裡會變紅。
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SVG = join(ROOT, 'scripts/icon.svg');
-const IOS_ICON = join(ROOT, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png');
+/** 裝進手機的那張，兩個 iOS 版各一份。兩份都由 `npm run icons` 從同一份母檔寫出去。 */
+const NATIVE_ICONS = {
+  'Capacitor 版': join(ROOT, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'),
+  'React Native 版': join(ROOT, 'mobile/assets/icon.png'),
+};
 const WEB_ICONS = {
   1024: join(ROOT, 'public/icon-1024.png'),
   512: join(ROOT, 'public/icon-512.png'),
@@ -59,9 +64,9 @@ describe('母檔 scripts/icon.svg', () => {
   });
 });
 
-describe('已 commit 的 iOS app 圖示', () => {
+describe.each(Object.entries(NATIVE_ICONS))('已 commit 的 %s app 圖示', (_label, file) => {
   it('是 1024×1024 的 RGB，不帶 alpha 通道', () => {
-    const png = readHeader(IOS_ICON);
+    const png = readHeader(file);
 
     expect([png.width, png.height]).toEqual([1024, 1024]);
     expect(png.colorType).toBe(2);
@@ -69,11 +74,11 @@ describe('已 commit 的 iOS app 圖示', () => {
   });
 
   it('圖案與網頁版的 icon-1024.png 逐像素相同', async () => {
-    const [ios, web] = await Promise.all([readPixels(IOS_ICON), readPixels(WEB_ICONS[1024])]);
+    const [native, web] = await Promise.all([readPixels(file), readPixels(WEB_ICONS[1024])]);
 
     let differing = 0;
-    for (let i = 0; i < ios.length; i += 1) {
-      if (ios[i] !== web[i]) differing += 1;
+    for (let i = 0; i < native.length; i += 1) {
+      if (native[i] !== web[i]) differing += 1;
     }
     expect(differing, '兩張圖對不起來的通道數').toBe(0);
   });

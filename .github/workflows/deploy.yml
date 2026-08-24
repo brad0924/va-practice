@@ -9,8 +9,9 @@ on:
       - '.scratch/**'
       - 'docs/**'
       - '.claude/**'
-      # 原生殼的改動不影響網頁版產物
+      # 兩個 iOS 版的改動都不影響網頁版產物
       - 'ios/**'
+      - 'mobile/**'
   workflow_dispatch:
 
 permissions:

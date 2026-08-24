@@ -60,7 +60,7 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 **驗收標準是主觀的，而且沒有停損線。** 兩把尺：Apple 的介面指南逐項當施工指引，最後拿它跟 Apple 自家 app 並排目測，維護者說了算。因為路線已定案，目測沒過的唯一結果是繼續改，不是回 Capacitor。前兩張探路票刻意在動工前寫死停損條件，這次刻意不寫。
 
-**最低支援仍是 iOS 15。** `GlassView` 在 iOS 26 以下自動退回一般區塊，舊機用得到 app、只是沒有玻璃質感。因此「並排不覺得舊」這條驗收只在 iOS 26 上成立。
+**最低支援是 iOS 16.4，不是原本寫的 iOS 15。** 這個數字不是選的，是 Expo 給的：`expo-modules-core` 的 podspec 把 iOS 16.4 寫死，SDK 57 底下沒有更低的走法（退回 SDK 54 也只到 15.1）。本 ADR 初版寫「最低支援仍是 iOS 15」，`.scratch/rn-rewrite/issues/03` 動工時發現達不到，2026-08-24 訂正。**代價是 iPhone 7 與更舊的機器裝不了**——Capacitor 版原本裝得了。`GlassView` 在 iOS 26 以下自動退回一般區塊，16.4 到 25 的機器用得到 app、只是沒有玻璃質感。因此「並排不覺得舊」這條驗收只在 iOS 26 上成立。
 
 **不做 Android。** 每個決定只需要對 iOS 負責——真要寫原生模組時只寫 Swift，不必再寫一份 Kotlin。Liquid Glass 本來也只有 iOS 有。
 

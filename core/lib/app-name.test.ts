@@ -2,11 +2,13 @@
 import { describe, it, expect } from 'vitest';
 import { APP_NAME } from './app-name';
 import plist from '../../ios/App/App/Info.plist?raw';
+import expoConfig from '../../mobile/app.json?raw';
 import privacyZhHant from '../../public/privacy.html?raw';
 import privacyEn from '../../public/privacy-en.html?raw';
 
 /**
- * `Info.plist` 與各語言版的隱私權政策都在打包流程外，拿不到常數，只能寫字面值（見 ADR-0012）。
+ * `Info.plist`、Expo 的 `app.json` 與各語言版的隱私權政策都在打包流程外，拿不到常數，
+ * 只能寫字面值（見 ADR-0012）。
  * 這支測試是那條路唯一的安全網：改名時漏改哪一個檔，這裡就紅燈。
  *
  * 因此失敗訊息必須指得出「哪個檔的哪一處」——紅燈了還要自己去翻檔案找，這道守門就白做了。
@@ -32,20 +34,41 @@ function countOf(source: string, name: string): number {
   return source.split(name).length - 1;
 }
 
-describe('Info.plist 的顯示名稱與常數一致', () => {
-  it('CFBundleDisplayName（iPhone 主畫面圖示底下那行字）', () => {
-    const file = 'ios/App/App/Info.plist';
-    const where = 'CFBundleDisplayName';
-    const actual = pick(plist, file, where, /<key>CFBundleDisplayName<\/key>\s*<string>(.*?)<\/string>/);
+/**
+ * 兩個 iOS 版各有一處寫著短名，守法完全一樣：那一處要等於常數，而且整個檔裡短名只能出現那一次。
+ * 差別只在怎麼把那一處讀出來——`Info.plist` 是 XML 只能靠 regex 撈，`app.json` 是 JSON，
+ * 解開直接取鍵就好，不必猜哪一個 `"name"` 才是它。
+ *
+ * React Native 版的名字寫在 `mobile/app.json` 的 `expo.name`，Expo 出包時把它寫進自己產的
+ * 那份 `Info.plist` 的 `CFBundleDisplayName`，最後落在 iPhone 上的仍是同一個位置。
+ */
+const shortNameSpots = [
+  {
+    file: 'ios/App/App/Info.plist',
+    where: 'CFBundleDisplayName',
+    source: plist,
+    read: (source: string, file: string, where: string) =>
+      pick(source, file, where, /<key>CFBundleDisplayName<\/key>\s*<string>(.*?)<\/string>/),
+  },
+  {
+    file: 'mobile/app.json',
+    where: 'expo.name',
+    source: expoConfig,
+    read: (source: string) => JSON.parse(source).expo.name,
+  },
+];
+
+describe.each(shortNameSpots)('$file 的顯示名稱與常數一致', ({ file, where, source, read }) => {
+  it(`${where}（iPhone 主畫面圖示底下那行字）`, () => {
+    const actual = read(source, file, where);
     expect(actual, `${file} 的 ${where} 與 APP_NAME.short 不一致`).toBe(APP_NAME.short);
   });
 
-  it('短名只出現在 CFBundleDisplayName 這一處', () => {
-    const file = 'ios/App/App/Info.plist';
-    const count = countOf(plist, APP_NAME.short);
+  it(`短名只出現在 ${where} 這一處`, () => {
+    const count = countOf(source, APP_NAME.short);
     expect(
       count,
-      `${file} 裡的短名出現 ${count} 次，這支測試只釘了 CFBundleDisplayName 一處。` +
+      `${file} 裡的短名出現 ${count} 次，這支測試只釘了 ${where} 一處。` +
         `多出來的那處改名時會被漏掉，請把它也加進比對規則並更新這個數字`,
     ).toBe(1);
   });
