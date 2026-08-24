@@ -38,13 +38,19 @@ app 本來就是壞的，把錯誤吞掉只會讓人花更久才查出是包沒�
 需要：Expo 帳號（EAS（Expo Application Services，Expo 的雲端建置服務）Build 有免費額度）、
 已設定的 Apple 開發者帳號、一支 iPhone。
 
-> ### 裝之前先備份
+> ### 裝之前先做一次雲端備份
 >
 > 這支 app 的識別碼與 Capacitor 版是**同一組**（`io.github.brad0924.vapractice`），
-> 所以 iPhone 會把它當成同一支 app **覆蓋掉**——現在天天在用的那支連同裡面的卡片會一起消失。
+> 所以 iPhone 會把它當成同一支 app **覆蓋掉**。現在天天在用的那支連同裡面的卡片會一起消失，
+> 而這個骨架版沒有單字本、沒有複習畫面——手機上到票 `06` 之前都不會有能複習的東西。
 >
-> **裝之前先在 Capacitor 版做一次雲端備份**，或用資料頁匯出一份檔案。
-> 這是拍板時知情接受的代價，不是意外。
+> **裝之前先在 Capacitor 版做一次雲端備份。** 這一步不只是保險，它是**把資料交接給網頁版**：
+> 兩邊共用同一份雲端備份，推上去之後在網頁版輸入同一組暱稱與密碼就接得回同一批卡片。
+> 過渡期就在網頁版複習，這是維護者拍板時選的路。
+>
+> 想把 Capacitor 版裝回手機的話，要手動觸發 `.github/workflows/ios-testflight.yml`，
+> 等 Apple 處理完再從 TestFlight 裝——而且它會反過來蓋掉這一版。識別碼只有一組，
+> 手機上永遠只能有一支。
 
 ```
 npm install -g eas-cli
@@ -79,6 +85,17 @@ iPhone 7 與更舊的機器。
 會變成淺色玻璃，配深色背景就髒了。
 
 **`platforms: ["ios"]`** — 不做 Android，連帶把 Android 與網頁版的範本素材都刪掉了。
+
+**`ITSAppUsesNonExemptEncryption: false`** — 出包時 EAS 問的那一題，答案只對**現在這個包**
+成立：`mobile/` 底下沒有任何加密相依，這支 app 自己不做加密。
+
+> **票 `05` 會讓這句話變成假的。** 那張票把 `react-native-quick-crypto` 接進來，
+> 用 PBKDF2 加 AES-GCM 把雲端備份鎖起來，鑰匙是使用者的密碼——那不是只走 HTTPS、
+> 也不是只拿來做身分驗證，兩個最常見的豁免理由都不適用。接上去的時候要重看這個值。
+>
+> 正式的判定屬於票 `ios-app 11`（送審）。那張票另外要查一件事：這個 repo 是公開的
+> （`ios-testflight.yml` 靠 public repo 的免費 macOS runner 在跑），而原始碼公不公開
+> 會影響美國出口管制的分類。
 
 **啟動畫面** — app 圖示置中，底色 `#141821`。Capacitor 版那張是 `cap add ios` 留下的
 Capacitor 商標配白底，從來沒換過，沒有東西可以沿用。
