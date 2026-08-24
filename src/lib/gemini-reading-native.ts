@@ -38,6 +38,7 @@ import {
   promptFor,
   remoteOrDefault,
 } from './gemini-reading';
+import { withRetry } from './reading-retry';
 
 /**
  * Remote Config 上那兩個參數的名字，與各自在程式碼裡的後備值。主控台上叫什麼，這裡就是什麼。
@@ -221,52 +222,68 @@ export function prepare(): void {
  *
  * 失敗一律拋出帶 key 的錯，與網頁版同一組語彙；唯一的例外是 App Check 那一種，
  * 拋出的是 `SilentError`，讀音編輯器接到它就整個不出聲（spec 決定十一）。
+ *
+ * 撞到 5xx 會自動再問，規矩與網頁版同一套，迴圈住在 `reading-retry.ts`（票 09）。
+ * `onAttempt` 選填：開始第 N 次之前叫一聲，N 從 2 起算，畫面靠它把次數顯示出來。
  */
-export async function askReadingNative(term: string): Promise<unknown> {
+export async function askReadingNative(
+  term: string,
+  onAttempt?: (attempt: number) => void,
+): Promise<unknown> {
   // 接線失敗（外掛沒進去、plist 沒被打包）使用者一點辦法都沒有，一個字都不必說。
   const wiring = await ensure().catch(() => {
     throw new SilentError();
   });
 
   // 憑證自己一份預算，與問模型那一份分開。要不到、或要太久，一律靜默。
+  // 這一段在重試的碼表**之外**：總預算從憑證拿到之後才開始算（票 09 決定二）。
   await budgeted(appCheckToken()).catch(() => {
     throw new SilentError();
   });
 
-  // 每問一次就重建一台。這不是浪費：`getGenerativeModel()` 只是組個物件、不上網，
-  // 而擺在這裡才讀得到 `refresh()` 後來才落地的新設定——擺在 `wire()` 裡的話，
-  // 這次開 app 期間就永遠是接線那一刻的舊值。
-  //
-  // 逾時掛在這裡，管的是送出去到收回來那一段；跟 Apple 要憑證那一段不在它的預算裡，
-  // 所以 `prepare()` 要提早把憑證暖好。
-  const model = getGenerativeModel(
-    wiring.ai,
-    {
-      model: setting(wiring.config, MODEL_KEY),
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: RESPONSE_SCHEMA,
+  return withRetry(async (budgetMs) => {
+    // 每問一次就重建一台。這不是浪費：`getGenerativeModel()` 只是組個物件、不上網，
+    // 而擺在這裡才讀得到 `refresh()` 後來才落地的新設定——擺在 `wire()` 裡的話，
+    // 這次開 app 期間就永遠是接線那一刻的舊值。
+    //
+    // 逾時掛在這裡，管的是送出去到收回來那一段；跟 Apple 要憑證那一段不在它的預算裡，
+    // 所以 `prepare()` 要提早把憑證暖好。
+    //
+    // 給的是「這一輪還剩幾毫秒」而不是 `TIMEOUT_MS`：碼表不是我們按的，SDK 每次
+    // `generateContent()` 自己開一顆，給滿的話重試就等於多送一份 10 秒（票 09 決定二）。
+    // 本來就每次重建，這裡是一個減法，不必另外包 `Promise.race`。
+    const model = getGenerativeModel(
+      wiring.ai,
+      {
+        model: setting(wiring.config, MODEL_KEY),
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: RESPONSE_SCHEMA,
+        },
       },
-    },
-    { timeout: TIMEOUT_MS },
-  );
-
-  let text: string;
-  try {
-    const result = await model.generateContent(
-      promptFor(term, setting(wiring.config, INSTRUCTIONS_KEY)),
+      { timeout: budgetMs },
     );
-    text = result.response.text();
-  } catch (error) {
-    // 憑證明明剛拿到卻還是被退，那是 Google 那端不認這張票，換回來的是 401。
-    // 那條路因此也在這裡收斂——`toReadingError()` 認得 401 就是 App Check 沒過。
-    // 2026-08-20 在真機上驗過：畫面上一個字都沒有，小框裡是 status 401。
-    throw toReadingError(error);
-  }
-  // 沒有候選回覆時 `text()` 回空字串而不是丟錯，與網頁版挖不到那一格是同一件事。
-  if (text === '') throw new AppError('gemini.emptyReply');
 
-  return parseReply(text);
+    let text: string;
+    try {
+      const result = await model.generateContent(
+        promptFor(term, setting(wiring.config, INSTRUCTIONS_KEY)),
+      );
+      text = result.response.text();
+    } catch (error) {
+      // 憑證明明剛拿到卻還是被退，那是 Google 那端不認這張票，換回來的是 401。
+      // 那條路因此也在這裡收斂——`toReadingError()` 認得 401 就是 App Check 沒過。
+      // 2026-08-20 在真機上驗過：畫面上一個字都沒有，小框裡是 status 401。
+      //
+      // 翻完才交給重試迴圈判斷：狀態碼收在 `params.status` 裡，挖回來就好，
+      // 不必在這裡把「怎麼從 SDK 錯誤挖出 status」再抄一份（票 09 決定三）。
+      throw toReadingError(error);
+    }
+    // 沒有候選回覆時 `text()` 回空字串而不是丟錯，與網頁版挖不到那一格是同一件事。
+    if (text === '') throw new AppError('gemini.emptyReply');
+
+    return parseReply(text);
+  }, onAttempt);
 }
 
 /**

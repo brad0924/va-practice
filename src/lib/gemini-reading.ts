@@ -194,8 +194,11 @@ async function reason(response: Response): Promise<string | null> {
  * 503 那句話字面就是「請稍後再試」，這是最該自動重試的一種。其餘全部一次就放棄：
  * 400／403 金鑰不會自己變對、404 模型不會自己回來、429 額度重試只會燒更快，
  * 連不上多半是使用者自己的網路，逾時本身就是把預算燒光的那種失敗（票 07 決定二）。
+ *
+ * export 出去給 iOS 那條路的 `reading-retry.ts` 讀同一份。兩邊各抄一份會漂移，
+ * 漂移的下場是一邊認得 503、另一邊不認（票 09）。
  */
-const TRANSIENT = new Set([500, 502, 503, 504]);
+export const TRANSIENT = new Set([500, 502, 503, 504]);
 
 /**
  * 問一個詞條。成功時回傳 AI 那份 JSON 解析後的值（型別是 `unknown`，還沒被信任）。

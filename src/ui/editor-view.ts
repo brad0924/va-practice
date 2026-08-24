@@ -400,12 +400,11 @@ function createAsk(app: App): Ask | null {
     const native = import('../lib/gemini-reading-native');
     // 先去排憑證的隊，不等它。使用者接下來要打詞條，那幾秒剛好夠 App Attest 跑完。
     void native.then((module) => module.prepare());
-    return (term) => native.then((module) => module.askReadingNative(term));
+    return (term, onAttempt) => native.then((module) => module.askReadingNative(term, onAttempt));
   }
 
   const key = app.gemini.read();
   // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
-  // 上面 iOS 那條不接 onAttempt：那條路還沒有重試，回報不出東西來（票 09）。
   return key === null
     ? null
     : (term, onAttempt) => askReading(key, term, fetch.bind(window), onAttempt);
