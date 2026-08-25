@@ -10,7 +10,9 @@
  * 舊格式的相容也在這裡，且只在這裡：本機 localStorage、匯入備份檔、
  * 雲端拉下來的那一份走的都是 parseAppData()，改一處三條路都涵蓋到。
  *
- * 目前實作為瀏覽器本機儲存（見 ADR-0002）。
+ * 底下那一格由呼叫端遞進來，兩邊各遞各的（見 ADR-0002）：網頁版與 Capacitor 版遞
+ * 瀏覽器的 `localStorage`，React Native 版遞 MMKV（`mobile/lib/storage-mmkv.ts`）。
+ * 本模組完全不知道差別——兩者都是同步的，這個介面因此一字未改。
  */
 import type { AppData, Book, BookScopes, Card } from './types';
 import { DEFAULT_EASE, isDateKey } from './review';
@@ -30,7 +32,7 @@ export const DATA_VERSION = 3;
  */
 export const HOME_BOOK_NAME = '我的單字';
 
-/** localStorage 的最小介面，測試時可換成假的實作。 */
+/** 一格本機儲存的最小介面。三支方法全同步，測試時可換成假的實作。 */
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;

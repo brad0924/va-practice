@@ -1,3 +1,7 @@
+// 這一行要留在最前面：`core/lib/storage.ts` 用得到 `crypto.randomUUID()`，
+// 而 React Native 沒有那個全域函式。補丁要早於任何 `core/` 的程式碼被載入（見該檔）。
+import './lib/install-random-uuid';
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

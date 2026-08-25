@@ -3,16 +3,16 @@
 iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rewrite/spec.md` 與
 `docs/adr/0017-react-native-rewrite-for-liquid-glass.md`，這一份只寫「怎麼跑、怎麼出包」。
 
-**現在裡面只有骨架票（`.scratch/rn-rewrite/issues/03`）的探針畫面**：一塊 `GlassView`
-墊在斜條紋背景上，底下一行字報告可用性檢查的結果。複習畫面是票 `06`，那時整支
-`App.tsx` 會被換掉。
+**現在裡面只有探針畫面，不是任何一頁正式介面**：一塊 `GlassView` 墊在斜條紋背景上（票
+`03`），底下兩塊狀態方塊——一塊報告玻璃的可用性檢查，一塊報告 MMKV 裡有幾本幾張卡，附一顆
+「加 5 張卡」的按鈕（票 `04`）。複習畫面是票 `06`，那時整支 `App.tsx` 會被換掉。
 
 ## 這個目錄與 repo 其他部分的關係
 
 - **自己一份 `package.json` 與 `node_modules`**，不走 npm workspaces。網頁版在 repo 根，
   兩邊的相依套件完全不重疊，混在一起只會互相拖累。
-- **共用邏輯在 repo 根的 `core/`**（票 `02`）。這張骨架票**還沒接**——`@core/` 的別名要等
-  票 `04`（MMKV 頂替 `localStorage`）才會架起來。
+- **共用邏輯在 repo 根的 `core/`**（票 `02`），用 `@core/` 這個別名取，寫法與網頁版一模一樣。
+  接線在三個地方（型別、Metro、測試），見底下〈`@core/` 接在哪三處〉。
 - **app 圖示不要手動放進 `assets/`。** 它由 repo 根的 `npm run icons` 從 `scripts/icon.svg`
   寫出來，跟 Capacitor 版與網頁版是同一份母檔。`scripts/generate-icons.test.mjs` 會逐像素比對。
 
@@ -32,6 +32,68 @@ npm start
 **不要用 Expo Go 開這支 app。** Expo Go 裡沒有 `expo-glass-effect` 的原生模組，
 `App.tsx` 一載入就會丟例外。這一點刻意不用 try/catch 包起來——原生模組不在的時候整支
 app 本來就是壞的，把錯誤吞掉只會讓人花更久才查出是包沒編對。
+
+## 跑測試
+
+```
+cd mobile
+npm test
+```
+
+跑的是 **jest-expo**，Expo 官方的測試預設設定。它做三件事：把 React Native 的寫法翻譯成
+Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假答案讓 import 過得去、
+讓套件認出「現在是在測試」自己切到假實作——`react-native-mmkv` 就內建一份，資料存在記憶體裡，
+介面與真的一模一樣。
+
+**為什麼不是網頁版那台 vitest**：`react-native-mmkv` 這類套件一被 import 進來就會去問
+「我跑在哪台手機上」，vitest 那台答不出來，當場就爆。兩台機器各跑各的，沒有取代關係——
+網頁版仍然跑 repo 根的 `npm test`。
+
+現在收進來的是三支：`mobile/lib/storage-mmkv.test.ts`，加上 `core/lib/` 的
+`storage.test.ts` 與 `safety-copy.test.ts`。**`core/` 那兩支一行未改**，仍寫著
+`from 'vitest'`——改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
+
+其餘 `core/` 測試何時接進來還沒決定。其中兩支（`app-name`、`cloud-backup`）綁著網頁版的
+工具鏈，要各自先想辦法。
+
+> **`mobile/` 的測試目前不在 CI（Continuous Integration，持續整合）裡跑。** `deploy.yml` 跑的是根 repo 的 `npm test`，
+> 而且它的 `paths-ignore` 刻意排除 `mobile/**`。要在本機自己跑。
+
+## `@core/` 接在哪三處
+
+`core/` 在 `mobile/` 外面，所以三套工具各要被告知一次：
+
+| 檔 | 管什麼 |
+| --- | --- |
+| `tsconfig.json` 的 `paths` | `npm run typecheck` 看不看得懂 |
+| `metro.config.js` 的 `resolveRequest` 與 `watchFolders` | 手機上找不找得到檔、改了會不會刷新 |
+| `jest.config.js` 的 `moduleNameMapper` 與 `roots` | `npm test` 找不找得到檔 |
+
+加上網頁版那四處，這個別名一共記在七個地方。清單在 repo 根 `tsconfig.json` 的 `paths` 上方，
+`core/` 換位置時七處要一起改。
+
+Metro 那邊刻意**不用** `resolver.extraNodeModules`：那張表是照套件名查的，而 `@` 開頭在 npm
+的規矩裡是 scope，`@core/lib` 整段會被當成套件名，`@core` 這一格永遠對不上。
+
+## 資料存在哪裡
+
+`react-native-mmkv`，一格叫 `va-practice`（票 `04`）。整份資料、介面語言、Gemini 金鑰、
+提醒開關各占一個鍵，與網頁版的 `localStorage` 一模一樣。
+
+**選它而不是 `AsyncStorage` 的理由只有一個：它是完全同步的**（走 JSI（JavaScript Interface，
+JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaScript 直接叫得動底下那層 C++，
+不必等回覆）。`core/lib/storage.ts` 的 `StorageLike` 因此原封搬得過來，
+27 處呼叫端一行不改。`AsyncStorage` 是非同步的，改下去會傳染到每一個呼叫端。
+
+**沒開 MMKV 的加密。** 資料躺在 app 私有的文件夾裡，iOS 的 Data Protection 本來就鎖著它；
+而且 `app.json` 的 `ITSAppUsesNonExemptEncryption: false` 現在還是真的，開下去就不是了。
+
+**沒有保險副本。** Capacitor 版有一份，防的是 iOS 把 WebView 那層的網站資料清掉；React Native
+版沒有 WebView，MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。去留由票 `07` 決定。
+
+**`crypto.randomUUID()` 是補上去的。** `core/lib/storage.ts` 有三處在用，而 React Native 沒有
+這個全域函式。補丁在 `lib/install-random-uuid.ts`，接在 `index.ts` 第一行。自動測試看不到這件事
+（Node 自己有那個函式），所以探針畫面那顆按鈕刻意走 `addBook()`——補丁沒生效的話一按就當場丟例外。
 
 ## 出包裝進真機（這一段要人做）
 
@@ -87,9 +149,14 @@ iPhone 7 與更舊的機器。
 **`platforms: ["ios"]`** — 不做 Android，連帶把 Android 與網頁版的範本素材都刪掉了。
 
 **`ITSAppUsesNonExemptEncryption: false`** — 出包時 EAS 問的那一題，答案只對**現在這個包**
-成立：`mobile/` 底下沒有任何加密相依，這支 app 自己不做加密。
+成立：這支 app 自己不加密任何東西。
 
-> **票 `05` 會讓這句話變成假的。** 那張票把 `react-native-quick-crypto` 接進來，
+> **票 `04` 讓這句話的理由縮了一圈。** 原本寫的是「`mobile/` 底下沒有任何加密相依」，
+> 那句話現在不成立了——`expo-crypto` 進來了，MMKV 自己也帶著加密能力。**但兩者都沒被用來加密**：
+> `expo-crypto` 只叫了 `randomUUID()`（產識別碼，不是加密），MMKV 的 `encryptionKey` 沒設。
+> 所以那個值仍然是 `false`，只是理由從「沒有那種套件」變成「有但沒開」，**下次改動要自己核對**。
+
+> **票 `05` 會讓這句話整個變成假的。** 那張票把 `react-native-quick-crypto` 接進來，
 > 用 PBKDF2 加 AES-GCM 把雲端備份鎖起來，鑰匙是使用者的密碼——那不是只走 HTTPS、
 > 也不是只拿來做身分驗證，兩個最常見的豁免理由都不適用。接上去的時候要重看這個值。
 >

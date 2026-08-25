@@ -10,6 +10,12 @@
 >
 > **讀**那一半不變，本 ADR 的立場也不變：程式任何時候讀的都是 localStorage。保險副本永遠不被當成資料來源，只有一個用途——啟動時發現 localStorage 空白而副本有東西，才寫回去並照常啟動。它是唯讀的救援管道，不是第二個真相來源。網頁版完全沒有這條支線。
 
+> **補充（2026-08-25，`ADR-0017`，`.scratch/rn-rewrite/issues/04`）**：React Native 版起，「localStorage」這個名字在 iOS 上不再字面成立——那一層換成了 `react-native-mmkv`。理由很直接：`localStorage` 是瀏覽器的東西，React Native 上沒有。
+>
+> **換的只是實作，本 ADR 的立場不變：那一格仍是唯一真相來源。** 選 MMKV 而不是 React Native 官方的 `AsyncStorage`，理由正是為了讓這句話原樣成立——MMKV 是完全同步的，`StorageLike` 這個同步介面因此原封搬得過去，27 處呼叫端一行不改。`AsyncStorage` 是非同步的，改下去會傳染到每一個呼叫端。
+>
+> 上面那則 2026-08-18 的補充只對 Capacitor 版成立。**React Native 版沒有保險副本**：它防的是 iOS 清掉 WebView 那一層的網站資料，而 MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。去留由 `.scratch/rn-rewrite/issues/07` 決定。
+
 ## Considered Options
 
 - **內建卡唯讀**：程式最單純，但原始資料是使用者自行輸入、確知含有錯字（例如 `属する` 的釋義誤植為「規屬」），無法修正是實質缺陷。

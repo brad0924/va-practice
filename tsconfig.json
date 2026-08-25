@@ -16,12 +16,17 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "skipLibCheck": true,
-    // 共用邏輯住在 repo 根的 core/，網頁版與（票 03 之後的）React Native 都從 @core/ 取，
+    // 共用邏輯住在 repo 根的 core/，網頁版與 React Native 都從 @core/ 取，
     // 兩邊寫法一模一樣。見 .scratch/rn-rewrite/issues/02。
     //
-    // 這個別名在四個地方各記了一次，core/ 換位置時要全部一起改：這裡的 paths、
-    // 底下 include 的 "core"、vite.config.ts 的 resolve.alias，以及 vite.config.ts
-    // 與 capacitor.config.ts 自己那兩行相對 import（設定檔吃不到別名）。
+    // 這個別名在七個地方各記了一次，core/ 換位置時要全部一起改：
+    //
+    //   網頁版  這裡的 paths、底下 include 的 "core"、vite.config.ts 的 resolve.alias，
+    //           以及 vite.config.ts 與 capacitor.config.ts 自己那兩行相對 import
+    //           （設定檔吃不到別名）
+    //   iOS 版  mobile/tsconfig.json 的 paths（型別）、mobile/metro.config.js 的
+    //           resolveRequest 與 watchFolders（手機上找不找得到檔）、
+    //           mobile/jest.config.js 的 moduleNameMapper 與 roots（測試）
     "paths": {
       "@core/*": ["./core/*"]
     }

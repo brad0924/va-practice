@@ -1,6 +1,12 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    // 共用邏輯的別名，寫法與網頁版一模一樣（票 02）。
+    // 這邊管 `tsc --noEmit` 看不看得懂，metro.config.js 那邊管 Metro 找不找得到檔。
+    // core/ 換位置時要一起改的地方列在 repo 根 tsconfig.json 的 paths 上方。
+    "paths": {
+      "@core/*": ["../core/*"]
+    }
   }
 }
