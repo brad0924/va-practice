@@ -1,0 +1,60 @@
+name: Test
+
+# 只跑測試，不建網站、不發佈、不上傳任何東西。
+#
+# 為什麼另外開一支，而不是塞進 deploy.yml：那一支的觸發條件是「推到 main，而且改的不是
+# 文件、不是 mobile/」——它是**發佈**用的開關，那個條件對發佈是對的。測試要的條件不一樣：
+# 不管推到哪一支分支、不管改了什麼，都該跑一遍。兩件事綁在同一個開關上，只能二選一。
+#
+# 加解密的標答比對（票 `05`）就在這裡面跑。**它守的是網頁版那一半**——標準答案不准漂。
+# 手機那一半在 mobile-crypto.yml，那支要開 iOS 模擬器，貴得多。
+
+on:
+  push:
+    # 純文件的改動不跑。這裡是排除法而不是白名單：漏寫的一律照跑，
+    # 而白名單漏寫的就是靜靜地不跑——deploy.yml 當初把 mobile/ 排掉就是那樣。
+    paths-ignore:
+      - '**.md'
+      - '.scratch/**'
+      - 'docs/**'
+      - '.claude/**'
+  workflow_dispatch:
+
+# 同一支分支連推兩次時，把前一趟還沒跑完的收掉。測試不像發佈，中斷了沒有副作用。
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: 網頁版
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  mobile:
+    name: 手機版（Node 上跑得動的那部分）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+        working-directory: mobile
+      - run: npm run typecheck
+        working-directory: mobile
+      # 跑的是 jest-expo，用的是 **Node 內建的加解密**——`react-native-quick-crypto`
+      # 底下是 C++，在 Node 裡一被 import 就當場爆，所以這裡碰不到它。
+      # 真正驗手機那一半的是 mobile-crypto.yml。
+      - run: npm test
+        working-directory: mobile

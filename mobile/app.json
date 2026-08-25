@@ -26,7 +26,8 @@
           "imageWidth": 180,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "react-native-quick-crypto"
     ],
     "extra": {
       "eas": {

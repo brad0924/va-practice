@@ -1,22 +1,23 @@
 import { randomUUID } from 'expo-crypto';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { initI18n } from '@core/i18n';
 import { toMessage } from '@core/lib/app-error';
 import { DEFAULT_EASE } from '@core/lib/review';
 import { addBook, createStore } from '@core/lib/storage';
 import type { AppData, Card } from '@core/lib/types';
+import { reportCryptoSelfCheck, type SelfCheckReport } from './lib/crypto-self-check';
 import { createMmkvStorage } from './lib/storage-mmkv';
 
 /**
- * 骨架票（`.scratch/rn-rewrite/issues/03`）與儲存票（`04`）的探針畫面，
+ * 骨架票（`.scratch/rn-rewrite/issues/03`）、儲存票（`04`）與加解密票（`05`）的探針畫面，
  * 不是任何一頁正式介面。複習畫面是票 `06`，那時整支 App.tsx 會被換掉。
  *
- * 它回答三件事：EAS Build 出來的包裝得進真機嗎、`GlassView` 在這台機器上真的長出玻璃嗎、
- * `createStore()` 吃得下 MMKV 嗎——最後一項要靠人按按鈕、關掉 app、重開來驗，
- * 自動測試碰不到「關掉再開」那一段。
+ * 它回答四件事：EAS Build 出來的包裝得進真機嗎、`GlassView` 在這台機器上真的長出玻璃嗎、
+ * `createStore()` 吃得下 MMKV 嗎、**手機上加出來的備份電腦解不解得開**——
+ * 第三項要靠人按按鈕、關掉 app、重開來驗，自動測試碰不到「關掉再開」那一段。
  */
 
 /**
@@ -108,6 +109,23 @@ export default function App() {
   const [opened] = useState(open);
   const [data, setData] = useState<AppData | null>(opened.data);
   const [failure, setFailure] = useState<string | null>(opened.failure);
+  const [vectors, setVectors] = useState<SelfCheckReport | null>(null);
+
+  /**
+   * 標答比對排在畫面畫完之後才跑。它會佔住 JavaScript 那條執行緒好幾秒——
+   * 最後那一筆明文有 4 MB，PBKDF2 又刻意跑得慢——放進第一次畫面就是開 app 先黑幾秒。
+   *
+   * 只跑一次。空的相依陣列是刻意的：這張表不會因為畫面重畫而改變答案。
+   */
+  useEffect(() => {
+    let alive = true;
+    void reportCryptoSelfCheck().then((report) => {
+      if (alive) setVectors(report);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function press(): void {
     if (data === null) return;
@@ -170,6 +188,16 @@ export default function App() {
             </Pressable>
           )}
           {failure !== null && <Text style={styles.failureText}>{failure}</Text>}
+        </View>
+
+        <View style={styles.statusPill}>
+          {vectors === null ? (
+            <Text style={styles.statusText}>標答比對：執行中⋯</Text>
+          ) : (
+            <Text style={vectors.passed ? styles.statusText : styles.failureText}>
+              {`標答比對：${vectors.summary}`}
+            </Text>
+          )}
         </View>
       </View>
 

@@ -1,0 +1,123 @@
+name: Crypto vectors on iOS
+
+# 在 **iOS 模擬器裡**跑一遍雲端備份的標答表（票 `05`）。
+#
+# 這是整條路上唯一驗得到真正風險的一支。其他所有測試跑的都是 Node 內建的加解密；
+# 只有這裡跑的是 `react-native-quick-crypto`，也就是使用者手機上真正在加密備份的那一份。
+# 對不上的話，電腦存的備份手機解不開，反過來也一樣，而且**不會當場報錯**——
+# 存的時候一切正常，某天想還原才發現打不開，那時資料已經沒了。
+#
+# 模擬器上跑的 quick-crypto 與真機是同一份 C++ 原始碼，只是編給不同的處理器架構。
+# 真機另外還要人工做一次「電腦存、手機拉」，那一條自動測試碰不到。
+#
+# **慢，所以有條件。** 每一趟要在雲端編一次原生包（quick-crypto 帶著一大包 OpenSSL）。
+# 只有改到 `core/`、`mobile/` 或這支流程自己時才動。公開 repo 的 macOS runner 不計費，
+# 花的是時間不是錢。
+
+on:
+  push:
+    paths:
+      - 'core/**'
+      - 'mobile/**'
+      - '.github/workflows/mobile-crypto.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-crypto-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    name: iOS 模擬器
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      # 與 mobile/app.json 的 ios.bundleIdentifier 同一組。
+      BUNDLE_ID: io.github.brad0924.vapractice
+      # 與 mobile/lib/crypto-self-check.ts 的 RESULT_FILE 同一個檔名。
+      RESULT_FILE: crypto-vectors.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: 裝套件
+        working-directory: mobile
+        run: npm ci
+
+      # Expo 專案平常沒有 ios/ 目錄，出包時才長出來（EAS Build 在雲端做同一件事）。
+      # --clean 是為了讓每一趟都從同樣的起點開始，不吃到上一趟留下的東西。
+      - name: 產出 iOS 原生專案
+        working-directory: mobile
+        run: npx expo prebuild --platform ios --clean
+
+      # 挑一台模擬器並開機。不寫死機型名稱——runner 上裝了哪幾台隨 Xcode 版本變，
+      # 寫死的那天它換版本就找不到機器了。
+      - name: 開一台 iPhone 模擬器
+        run: |
+          UDID=$(xcrun simctl list devices available -j \
+            | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$UDID" && test "$UDID" != "null" \
+            || { echo "runner 上找不到任何 iPhone 模擬器"; exit 1; }
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID"
+
+      # Release 設定：JavaScript 在建置階段就打包進 app 裡，跑起來不需要連 Metro。
+      # 用 Debug 的話 app 一開就去找那台開發伺服器，CI 上沒有人開著它。
+      #
+      # 簽章關掉：裝進模擬器不需要憑證，而 runner 的鑰匙圈裡本來就沒有。
+      - name: 建包
+        working-directory: mobile
+        run: |
+          # 這一步的預設 shell 是 `bash -e`，**沒有 pipefail**：`ls` 失敗時退出碼會被
+          # `head` 吃掉，變數變成空字串，一路帶到 xcodebuild 才用一句看不懂的錯掛掉。
+          # 當場檢查便宜得多。
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          test -n "$WORKSPACE" || { echo "prebuild 沒產出 .xcworkspace"; exit 1; }
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE scheme=$SCHEME"
+          xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination "id=$SIMULATOR_UDID" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: 裝進模擬器並開起來
+        working-directory: mobile
+        run: |
+          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
+          test -n "$APP" || { echo "建出來的產物裡找不到 .app"; exit 1; }
+          xcrun simctl install "$SIMULATOR_UDID" "$APP"
+          xcrun simctl launch "$SIMULATOR_UDID" "$BUNDLE_ID"
+
+      # app 開起來之後才開始跑標答，最後那一筆明文有 4 MB，要花一段時間。
+      # 等它把結論寫成檔案，而不是去日誌裡撈字串——理由見 crypto-self-check.ts。
+      - name: 等結論並判定
+        working-directory: mobile
+        run: |
+          CONTAINER=$(xcrun simctl get_app_container "$SIMULATOR_UDID" "$BUNDLE_ID" data)
+          RESULT="$CONTAINER/Documents/$RESULT_FILE"
+          # 等的是**那一行寫進去了**，不是「檔案存在」。app 那邊是先開檔再寫內容兩步，
+          # 檔案在開檔的當下就存在了；用存在與否判定的話，撞上那個空窗就會讀到空檔，
+          # 然後報一個看起來像「比對沒過」的假紅燈。
+          for _ in $(seq 1 90); do
+            grep -q '\[crypto-vectors\]' "$RESULT" 2>/dev/null && break
+            sleep 2
+          done
+          if ! grep -q '\[crypto-vectors\]' "$RESULT" 2>/dev/null; then
+            echo "三分鐘內沒等到結論。app 可能開起來就閃退了，底下是它的日誌："
+            xcrun simctl spawn "$SIMULATOR_UDID" log show --last 5m --style compact \
+              --predicate "processImagePath CONTAINS[c] 'vapractice'" | tail -100
+            exit 1
+          fi
+          cat "$RESULT"
+          # 「差在哪一種明文、哪個位元組」就印在這一行裡。票 05 要求對不上時把它記進
+          # issue 的 Comments——那不是一個 bug，是重新評估整條路線的依據。
+          grep -q ' PASS ' "$RESULT" || exit 1

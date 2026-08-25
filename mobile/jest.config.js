@@ -15,12 +15,19 @@ const coreRoot = path.resolve(__dirname, '..', 'core').split(path.sep).join('/')
  */
 module.exports = {
   preset: 'jest-expo/ios',
-  // 這張票只收儲存那兩支進來。其餘 core 測試何時接進來另外決定——
+  // 目前收了四支。其餘 core 測試何時接進來另外決定——
   // 其中兩支（app-name、cloud-backup）綁著網頁版的工具鏈，接進來要先各自想辦法。
+  //
+  // 標答那一支（`cloud-crypto-vectors`）在這裡跑的是 **Node 內建的加解密**，不是手機上那份
+  // quick-crypto——那個套件底下是 C++，在 Node 裡一被 import 就當場爆。所以它在這裡綠燈
+  // **不代表手機那一半是對的**，守的是「標答表與 `cloud-crypto.ts` 沒走鐘、在 React Native
+  // 這套工具鏈底下也載得進來」。真正驗手機那一半的是 `lib/crypto-self-check.ts`，
+  // 它要在裝置或模擬器上跑（票 `05`）。
   testMatch: [
     '<rootDir>/**/*.test.ts',
     `${coreRoot}/lib/storage.test.ts`,
     `${coreRoot}/lib/safety-copy.test.ts`,
+    `${coreRoot}/lib/cloud-crypto-vectors.test.ts`,
   ],
   // 跑 core 的測試就要看得到 core 的檔，Jest 預設只看 rootDir 底下。
   roots: ['<rootDir>', coreRoot],

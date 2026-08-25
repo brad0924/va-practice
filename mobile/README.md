@@ -4,8 +4,9 @@ iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rew
 `docs/adr/0017-react-native-rewrite-for-liquid-glass.md`，這一份只寫「怎麼跑、怎麼出包」。
 
 **現在裡面只有探針畫面，不是任何一頁正式介面**：一塊 `GlassView` 墊在斜條紋背景上（票
-`03`），底下兩塊狀態方塊——一塊報告玻璃的可用性檢查，一塊報告 MMKV 裡有幾本幾張卡，附一顆
-「加 5 張卡」的按鈕（票 `04`）。複習畫面是票 `06`，那時整支 `App.tsx` 會被換掉。
+`03`），底下三塊狀態方塊——一塊報告玻璃的可用性檢查，一塊報告 MMKV 裡有幾本幾張卡，附一顆
+「加 5 張卡」的按鈕（票 `04`），一塊報告雲端備份的標答比對過了沒（票 `05`）。複習畫面是票
+`06`，那時整支 `App.tsx` 會被換掉。
 
 ## 這個目錄與 repo 其他部分的關係
 
@@ -49,15 +50,22 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 「我跑在哪台手機上」，vitest 那台答不出來，當場就爆。兩台機器各跑各的，沒有取代關係——
 網頁版仍然跑 repo 根的 `npm test`。
 
-現在收進來的是三支：`mobile/lib/storage-mmkv.test.ts`，加上 `core/lib/` 的
-`storage.test.ts` 與 `safety-copy.test.ts`。**`core/` 那兩支一行未改**，仍寫著
-`from 'vitest'`——改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
+現在收進來的是四支：`mobile/lib/storage-mmkv.test.ts`，加上 `core/lib/` 的
+`storage.test.ts`、`safety-copy.test.ts` 與 `cloud-crypto-vectors.test.ts`。
+**`core/` 那三支一行未改**，仍寫著 `from 'vitest'`——改的是「vitest 這個名字指到哪裡」，
+接線見 `test/vitest-shim.ts`。
 
 其餘 `core/` 測試何時接進來還沒決定。其中兩支（`app-name`、`cloud-backup`）綁著網頁版的
 工具鏈，要各自先想辦法。
 
-> **`mobile/` 的測試目前不在 CI（Continuous Integration，持續整合）裡跑。** `deploy.yml` 跑的是根 repo 的 `npm test`，
-> 而且它的 `paths-ignore` 刻意排除 `mobile/**`。要在本機自己跑。
+> **標答那一支在這裡跑的是 Node 內建的加解密，不是手機上那份。** `react-native-quick-crypto`
+> 底下是 C++，在 Node 裡一被 import 就當場爆。所以它在這裡綠燈**不代表手機那一半是對的**，
+> 守的是「標答表與 `cloud-crypto.ts` 沒走鐘」。真正驗手機那一半的是
+> `lib/crypto-self-check.ts`，它要在裝置或模擬器上跑，見底下〈雲端備份怎麼加密〉。
+
+`mobile/` 的測試現在跑得進 CI（Continuous Integration，持續整合）了，票 `05` 加的
+`.github/workflows/test.yml` 收了它。原本的 `deploy.yml` 沒變——那一支是**發佈**用的開關，
+它的 `paths-ignore` 排除 `mobile/**` 對發佈是對的。
 
 ## `@core/` 接在哪三處
 
@@ -91,9 +99,44 @@ JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaS
 **沒有保險副本。** Capacitor 版有一份，防的是 iOS 把 WebView 那層的網站資料清掉；React Native
 版沒有 WebView，MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。去留由票 `07` 決定。
 
-**`crypto.randomUUID()` 是補上去的。** `core/lib/storage.ts` 有三處在用，而 React Native 沒有
-這個全域函式。補丁在 `lib/install-random-uuid.ts`，接在 `index.ts` 第一行。自動測試看不到這件事
-（Node 自己有那個函式），所以探針畫面那顆按鈕刻意走 `addBook()`——補丁沒生效的話一按就當場丟例外。
+**`crypto.randomUUID()`、`crypto.subtle`、`btoa()`／`atob()` 都是補上去的。** 瀏覽器裡這些
+是免費附贈的，React Native 一個都沒有。補丁在 `lib/install-crypto.ts`，接在 `index.ts` 第一行，
+三件事的順序不能換（見該檔）。自動測試看不到這件事（Node 自己全都有），所以探針畫面那顆按鈕
+刻意走 `addBook()`——補丁沒生效的話一按就當場丟例外。
+
+## 雲端備份怎麼加密
+
+`core/lib/cloud-crypto.ts`，**與網頁版同一份程式碼、一個字沒改**。它叫的是全域的
+`crypto.subtle`，而在手機上那個全域是 `react-native-quick-crypto` 頂上去的（票 `05`）。
+
+要緊的是**兩邊加出來的東西要位元級相同**：同一個人用電腦存上去的備份，手機必須解得開，
+反過來也一樣。這件事錯了不會當場報錯——存的時候一切正常，某天想還原才發現打不開。
+
+守它的是一張寫死的標答表，`core/lib/cloud-crypto-vectors.json`。表裡六列，涵蓋純 ASCII、
+日文、帶讀音標記的詞條、表情符號、日文暱稱與密碼，以及一份貼著雲端上限的長備份
+（19,417 張卡）。
+
+**那條上限量的是加密後那串 base64 的字數，不是明文的位元組數**——`core/lib/cloud-backup.ts`
+擋的是 `payload.length`。所以那一列的密文是 4,194,112 字，離 `CLOUD_PAYLOAD_LIMIT`
+只差 192 字。量錯尺的話做出來的是一份這支 app 根本不會送出去的備份，看起來有在守，
+其實驗的是一個不存在的情況。
+
+長的那一列不把內容存進版控，只存「拿這段重複幾次」與一串 64 字的指紋——明文是跑的當下
+現場產生的。表由 `scripts/generate-crypto-vectors.mjs` 產生，不要手改。
+
+三個地方各跑一次這張表：
+
+| 誰跑 | 用哪一套加解密 | 什麼時候 |
+| --- | --- | --- |
+| `core/lib/cloud-crypto-vectors.test.ts`（vitest） | Node 內建的 | 每次推程式（`test.yml`） |
+| 同一支測試（jest，`mobile/npm test`） | Node 內建的 | 同上 |
+| `lib/crypto-self-check.ts` | quick-crypto | 開 app 時；CI 在模擬器裡（`mobile-crypto.yml`） |
+
+**只有第三列驗得到真正的風險。** 前兩列守的是另一件事：標準答案不准漂。
+
+對不上的時候不要繞路——把差在哪裡（哪一種明文、差在哪個位元組）記進
+`.scratch/rn-rewrite/issues/05-crypto-golden-vectors.md` 的 `## Comments`。那是重新評估
+整條路線的依據，不是一個 bug。
 
 ## 出包裝進真機（這一段要人做）
 
@@ -148,21 +191,20 @@ iPhone 7 與更舊的機器。
 
 **`platforms: ["ios"]`** — 不做 Android，連帶把 Android 與網頁版的範本素材都刪掉了。
 
-**`ITSAppUsesNonExemptEncryption: false`** — 出包時 EAS 問的那一題，答案只對**現在這個包**
-成立：這支 app 自己不加密任何東西。
+**`ITSAppUsesNonExemptEncryption: false`** — 出包時 EAS 問的那一題。
 
-> **票 `04` 讓這句話的理由縮了一圈。** 原本寫的是「`mobile/` 底下沒有任何加密相依」，
-> 那句話現在不成立了——`expo-crypto` 進來了，MMKV 自己也帶著加密能力。**但兩者都沒被用來加密**：
-> `expo-crypto` 只叫了 `randomUUID()`（產識別碼，不是加密），MMKV 的 `encryptionKey` 沒設。
-> 所以那個值仍然是 `false`，只是理由從「沒有那種套件」變成「有但沒開」，**下次改動要自己核對**。
-
-> **票 `05` 會讓這句話整個變成假的。** 那張票把 `react-native-quick-crypto` 接進來，
-> 用 PBKDF2 加 AES-GCM 把雲端備份鎖起來，鑰匙是使用者的密碼——那不是只走 HTTPS、
-> 也不是只拿來做身分驗證，兩個最常見的豁免理由都不適用。接上去的時候要重看這個值。
+> ### 這個值現在是錯的，送審前一定要改
 >
-> 正式的判定屬於票 `ios-app 11`（送審）。那張票另外要查一件事：這個 repo 是公開的
-> （`ios-testflight.yml` 靠 public repo 的免費 macOS runner 在跑），而原始碼公不公開
-> 會影響美國出口管制的分類。
+> 票 `05` 已經把 `react-native-quick-crypto` 接進來，用 PBKDF2 加 AES-GCM 把雲端備份鎖起來，
+> 鑰匙是使用者的密碼。**那不是只走 HTTPS、也不是只拿來做身分驗證**，兩個最常見的豁免理由
+> 都不適用；而且加密的那包 OpenSSL 是跟著 app 一起帶進去的，不是叫 Apple 系統內建的那份，
+> 所以「只用了作業系統提供的加密」這條也走不通。
+>
+> 沒有馬上改掉，是因為改法牽到出口管制的申報，那屬於票 `ios-app 11`（送審）。
+> 那張票另外要查：這個 repo 是公開的（`ios-testflight.yml` 靠 public repo 的免費 macOS
+> runner 在跑），而原始碼公不公開會影響美國出口管制的分類。
+>
+> **在那張票拍板之前，這一版不要送審。** 反正 spec 也把上架擋著（見〈上架〉那一節）。
 
 **啟動畫面** — app 圖示置中，底色 `#141821`。Capacitor 版那張是 `cap add ios` 留下的
 Capacitor 商標配白底，從來沒換過，沒有東西可以沿用。

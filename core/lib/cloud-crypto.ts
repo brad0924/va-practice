@@ -1,8 +1,13 @@
 /**
  * 雲端備份的密碼學部分：由密碼派生指紋與金鑰、整份資料的加解密、新舊比較。
- * 全部用瀏覽器內建的 Web Crypto，不裝任何套件（見 ADR-0003）。
+ * 全部走全域的 Web Crypto，這一支自己不裝任何套件（見 ADR-0003）。
  *
  * 本模組只做計算，不碰網路，也不碰任何儲存。
+ *
+ * **兩個執行環境提供那個全域的方式不一樣。** 網頁版與 Capacitor 版用的是瀏覽器內建的；
+ * React Native 沒有內建，由 `mobile/lib/install-crypto.ts` 拿
+ * `react-native-quick-crypto` 頂上去。**這一支一個字都不能為此改動**——網頁版是標準答案，
+ * 兩邊加出來的東西要位元級相同，由 `cloud-crypto-vectors.ts` 那張標答表守著（票 `05`）。
  */
 
 const ITERATIONS = 200_000;
