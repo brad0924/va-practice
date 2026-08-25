@@ -26,7 +26,9 @@ module.exports = {
   // 這套工具鏈底下也載得進來」。真正驗手機那一半的是 `lib/crypto-self-check.ts`，
   // 它要在裝置或模擬器上跑（票 `05`）。
   testMatch: [
+    // `.tsx` 是畫面測試（票 `06` 起）。純邏輯那幾支仍是 `.ts`。
     '<rootDir>/**/*.test.ts',
+    '<rootDir>/**/*.test.tsx',
     `${coreRoot}/lib/storage.test.ts`,
     `${coreRoot}/lib/safety-copy.test.ts`,
     `${coreRoot}/lib/cloud-crypto-vectors.test.ts`,

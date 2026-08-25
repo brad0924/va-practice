@@ -22,8 +22,16 @@ import type { AppData } from '@core/lib/types';
 export interface CloudProbeHooks {
   storage: StorageLike;
   store: Store;
-  /** 整份資料換人了——拉下來一份，或推上去之後時間戳變了。 */
-  onData(data: AppData): void;
+  /** 雲端那份比較新，整份換掉了。呼叫端要重讀。 */
+  onPulled(data: AppData): void;
+  /**
+   * 推上去了，伺服器蓋了一個新的時間戳。**資料內容一個字沒變**，只有這一格要記下來。
+   *
+   * 與 `onPulled` 分成兩支，是因為兩邊該做的事相反：那邊要重讀、要重建佇列，
+   * 這邊什麼都不能動——評完一張卡等伺服器回覆的那一瞬間重洗佇列的話，
+   * 使用者會看到手上那張卡憑空換人。存檔由呼叫端做，見 `review-session.ts`。
+   */
+  onPushed(updatedAt: number): void;
   /** 一行狀態字。空字串代表沒事發生。 */
   onStatus(message: string): void;
 }
@@ -43,16 +51,16 @@ export function createCloudProbe(hooks: CloudProbeHooks): CloudBackup {
       // 走一次匯入的驗證路徑，與網頁版同一條——壞掉的雲端資料弄不壞本機這份。
       const pulled: AppData = { ...hooks.store.importJson(json), updatedAt };
       hooks.store.save(pulled);
-      hooks.onData(pulled);
+      hooks.onPulled(pulled);
       hooks.onStatus(`雲端比較新，拉下來了：${describe(pulled)}`);
     },
 
     onPushed(updatedAt) {
       // 時間戳是伺服器蓋的，本機要記下來，下次開 app 才比得出新舊。
-      const pushed: AppData = { ...hooks.store.load(), updatedAt };
-      hooks.store.save(pushed);
-      hooks.onData(pushed);
-      hooks.onStatus(`本機比較新，推上去了：${describe(pushed)}`);
+      // **這裡不自己讀寫儲存**：呼叫端手上那份才是最新的，繞過它去 load 一次，
+      // 會把它還沒存完的東西讀成舊的。存檔由呼叫端做，見上面 `onPushed` 的說明。
+      hooks.onPushed(updatedAt);
+      hooks.onStatus('本機比較新，推上去了');
     },
 
     onStatus: hooks.onStatus,

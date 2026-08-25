@@ -70,6 +70,8 @@ const en: typeof zhHant = {
   'review.ratingEasy': 'Easy',
   'review.showAnswer': 'Show answer',
   'review.edit': 'Edit',
+  'review.copy': 'Copy',
+  'review.copied': 'Copied',
   'review.speak': '🔊 Speak',
   'review.speakLabel': 'Read this entry aloud',
   'review.doneTitle': 'Done for today',

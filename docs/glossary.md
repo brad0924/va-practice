@@ -15,6 +15,7 @@
 | 複習範圍／列表範圍／統計範圍 | Review Scope / List Scope / Stats Scope | 復習範囲／一覧範囲／統計範囲 | ~~Filter~~（會讓人以為只是暫時的視圖） |
 | 卡片 | Card | カード | ~~Question~~ |
 | 詞條 | Entry | 見出し語 | ~~Word~~（詞條可能是文法句型） |
+| 複製 | Copy | コピー | ~~Share~~、~~Export~~（都會讓人以為東西離開了這台裝置）、~~Copy card~~ |
 | 釋義 | Meaning | 意味 | ~~Translation~~、~~Definition~~ |
 | 讀音 | Reading | 読み | ~~Pronunciation~~、~~Phonetics~~ |
 | 讀音標記 | Reading Notation | 読み表記 | ~~Furigana syntax~~、~~Ruby syntax~~ |

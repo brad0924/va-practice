@@ -70,6 +70,8 @@ export default {
   'review.ratingEasy': '簡單',
   'review.showAnswer': '顯示答案',
   'review.edit': '編輯',
+  'review.copy': '複製',
+  'review.copied': '已複製',
   'review.speak': '🔊 朗讀',
   'review.speakLabel': '朗讀這個詞條',
   'review.doneTitle': '今日份完成',

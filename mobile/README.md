@@ -3,11 +3,15 @@
 iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rewrite/spec.md` 與
 `docs/adr/0017-react-native-rewrite-for-liquid-glass.md`，這一份只寫「怎麼跑、怎麼出包」。
 
-**現在裡面只有探針畫面，不是任何一頁正式介面**：一塊 `GlassView` 墊在斜條紋背景上（票
-`03`），底下四塊狀態方塊——一塊報告玻璃的可用性檢查，一塊報告 MMKV 裡有幾本幾張卡，附一顆
-「加 5 張卡」的按鈕（票 `04`），一塊報告雲端備份的標答比對過了沒，一塊可以輸入暱稱密碼真的
-推拉一次備份（票 `05`）。複習畫面是票 `06`，那時整支 `App.tsx` 會被換掉，
-`lib/cloud-probe.ts` 也跟著刪掉。
+**首頁是複習畫面**（票 `06`，`app/review-screen.tsx`）——改寫的第一頁正式程式碼，接的是真的
+MMKV 資料與真的排程。其餘四頁（卡片列表、編輯、資料、統計）還沒做，因此網頁版這一頁上通往
+它們的按鈕（「卡片」「編輯」「去建立單字本」）這一版都沒有放。
+
+**標題列上那顆「探針」是暫時的後門**，通往票 `03`–`05` 的探針畫面（`app/probe-screen.tsx`）：
+一塊 `GlassView` 墊在斜條紋背景上，底下四塊狀態方塊——玻璃的可用性檢查、MMKV 裡有幾本幾張卡
+附一顆「加 5 張卡」、雲端備份的標答比對過了沒、輸入暱稱密碼真的推拉一次備份。
+**手機上目前只有這裡建得出單字本、登得進雲端**，所以留著。
+資料頁那張票一做完，這支檔案連同 `lib/cloud-probe.ts` 與那顆按鈕一起刪掉。
 
 > **雲端那塊按不動，要等標答比對跑完。** 兩件事都會抽 12 個位元組當初始向量，而比對期間
 > 亂數來源被換成表裡那個固定值。重疊的話，推上去那份會用到一個**公開在版控裡**的初始向量——
@@ -55,10 +59,16 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 「我跑在哪台手機上」，vitest 那台答不出來，當場就爆。兩台機器各跑各的，沒有取代關係——
 網頁版仍然跑 repo 根的 `npm test`。
 
-現在收進來的是四支：`mobile/lib/storage-mmkv.test.ts`，加上 `core/lib/` 的
-`storage.test.ts`、`safety-copy.test.ts` 與 `cloud-crypto-vectors.test.ts`。
-**`core/` 那三支一行未改**，仍寫著 `from 'vitest'`——改的是「vitest 這個名字指到哪裡」，
-接線見 `test/vitest-shim.ts`。
+現在收進來的是八支。`mobile/` 自己五支：`lib/storage-mmkv.test.ts`、`lib/review-session.test.ts`、
+`lib/term-layout.test.ts`、`lib/japanese-voice.test.ts`，加上第一支畫面測試
+`app/review-screen.test.tsx`。`core/lib/` 三支：`storage.test.ts`、`safety-copy.test.ts` 與
+`cloud-crypto-vectors.test.ts`。**`core/` 那三支一行未改**，仍寫著 `from 'vitest'`——
+改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
+
+畫面測試用 `@testing-library/react-native`（票 `06` 加的，`ADR-0014` 那批 jsdom 畫面測試
+在 React Native 上作廢）。**它的 `render`、`rerender` 與 `fireEvent` 都是非同步的**，
+每一個都要 `await`；忘了的話畫面停在上一個狀態，錯誤訊息會變成「找不到這個字」而不是
+「你漏了 await」。檔名用 `.test.tsx`，`jest.config.js` 的 `testMatch` 兩種副檔名都收。
 
 其餘 `core/` 測試何時接進來還沒決定。其中兩支（`app-name`、`cloud-backup`）綁著網頁版的
 工具鏈，要各自先想辦法。
@@ -87,6 +97,35 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 
 Metro 那邊刻意**不用** `resolver.extraNodeModules`：那張表是照套件名查的，而 `@` 開頭在 npm
 的規矩裡是 scope，`@core/lib` 整段會被當成套件名，`@core` 這一格永遠對不上。
+
+## 複習畫面是怎麼組起來的
+
+| 檔 | 管什麼 |
+| --- | --- |
+| `lib/review-session.ts` | 資料、當日佇列、答案掀開了沒，以及每次變動之後存檔。**沒有 React**，因此測得動 |
+| `app/review-screen.tsx` | 畫面。三種狀態同一支函式畫：複習中、今日份完成、零本 |
+| `lib/term-layout.ts` | 振假名的算式（切欄、位移量） |
+| `app/term.tsx` | 振假名怎麼畫，兩層 `<Text>` 疊字 |
+| `app/glass-pill.tsx` | 所有控制項的形狀。玻璃只出現在這裡 |
+| `app/book-scope-sheet.tsx` | 複習範圍的開關，點開是系統的 page sheet |
+| `app/copy-button.tsx` | 「複製」，把去掉讀音標記後的詞條原文放進剪貼簿 |
+| `lib/japanese-voice.ts` | 挑日文語音、朗讀 |
+
+狀態機拆出來是為了測得動：`ADR-0014` 那 1,319 行 jsdom 畫面測試在 React Native 上作廢，
+複習流程若也只活在 JSX 裡，就沒有任何自動測試守得住它。
+
+**玻璃只用在控制與導覽這一層**（HIG `M-01`）：標題列那幾顆膠囊、底部的「顯示答案」與四顆
+評分鈕。卡片本體是內容層，走的是 iOS 的標準材質色，不套玻璃。顏色一律走 `PlatformColor`
+拿系統語意色，「提高對比」一打開就自己跟著變。
+
+**振假名的位移量在真機上還沒有人重量過。** 做法沿用 `.scratch/rn-spike/issues/01`，
+但那張票留了一個假設：`lineHeight` 多出來的空間上下平分。瀏覽器上成立，UIKit 可能全放在字的
+上方。假名離漢字太遠或壓到漢字時，調的是 `lib/term-layout.ts` 的 `READING_PULL_ADJUST`。
+
+**朗讀走 `expo-speech`**，語速填 `0.9`。那個數字與 `ios/App/App/SpeechPlugin.swift` 對得起來，
+因為兩邊算的都是 `rate × AVSpeechUtteranceDefaultSpeechRate`。
+有一處對不齊：那支 Swift 會先看使用者在系統設定裡選了哪顆日文語音，`expo-speech` 問不到
+這件事，所以這裡只挑品質最好的那顆，見 `lib/japanese-voice.ts` 的註解。
 
 ## 資料存在哪裡
 
@@ -151,8 +190,8 @@ JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaS
 > ### 裝之前先做一次雲端備份
 >
 > 這支 app 的識別碼與 Capacitor 版是**同一組**（`io.github.brad0924.vapractice`），
-> 所以 iPhone 會把它當成同一支 app **覆蓋掉**。現在天天在用的那支連同裡面的卡片會一起消失，
-> 而這個骨架版沒有單字本、沒有複習畫面——手機上到票 `06` 之前都不會有能複習的東西。
+> 所以 iPhone 會把它當成同一支 app **覆蓋掉**。現在天天在用的那支連同裡面的卡片會一起消失。
+> 這一版有複習畫面了（票 `06`），但它是空的——卡片要靠標題列那顆「探針」登入雲端拉回來。
 >
 > **裝之前先在 Capacitor 版做一次雲端備份。** 這一步不只是保險，它是**把資料交接給網頁版**：
 > 兩邊共用同一份雲端備份，推上去之後在網頁版輸入同一組暱稱與密碼就接得回同一批卡片。

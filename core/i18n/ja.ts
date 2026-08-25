@@ -56,6 +56,8 @@ const ja: typeof zhHant = {
   'review.ratingEasy': '簡単',
   'review.showAnswer': '答えを見る',
   'review.edit': '編集',
+  'review.copy': 'コピー',
+  'review.copied': 'コピーしました',
   'review.speak': '🔊 読み上げ',
   'review.speakLabel': 'この見出し語を読み上げる',
   'review.doneTitle': '今日の分は完了',
