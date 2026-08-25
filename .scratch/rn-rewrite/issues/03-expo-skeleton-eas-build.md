@@ -36,14 +36,34 @@ app 名稱、圖示、啟動畫面沿用 Capacitor 版那一份，不要另外�
 
 ## 驗收
 
-- [~] Windows 上跑得起 Expo 開發流程 — Metro 在 Windows 上打包得出 iOS bundle（587 個模組），
-      但「改完檔手機上立刻看得到」要等 development 版裝進手機才驗得到
-- [ ] EAS Build 出得了包，裝進真機 — 要人
-- [ ] 真機上看得到 `GlassView` 的玻璃效果，底下背景會透出來 — 要人
-- [ ] 可用性檢查那行字顯示正確，而且在不支援時不會閃退 — 要人
-- [ ] 把在 iOS 26 以下裝置（或模擬器）的退回行為記在本檔 `## Comments` — 要人
+- [x] Windows 上跑得起 Expo 開發流程 — development 版裝進 iPhone，接上電腦上的 Metro
+- [x] EAS Build 出得了包，裝進真機
+- [x] 真機上看得到 `GlassView` 的玻璃效果，底下背景會透出來 — 條紋穿過卡片時會**彎**，不是只有糊掉
+- [x] 可用性檢查那行字顯示正確，而且在不支援時不會閃退 — iOS 26.6 上兩個檢查都回 true，與機器相符
+- [ ] 把在 iOS 26 以下裝置（或模擬器）的退回行為記在本檔 `## Comments` — **還沒做，要一支舊 iPhone**
 
 ## Comments
+
+### 2026-08-25 — 真機上通了，五條過四條
+
+development 版用 EAS Build 出包、裝進 iPhone、接上 Windows 上的 Metro，畫面出來了。
+
+**折射看得到，不是只有糊掉。** 條紋穿進玻璃卡片之後會彎，底部還拱出一道弧；毛玻璃只會
+把線糊掉、角度不變。這一項正是 WebView 到不了的地方（`backdrop-filter` 吃不到
+`<feDisplacementMap>`），也是整條路線的目的。
+
+**那行字顯示 `GlassView API 可用 · Liquid Glass 開著 · iOS 26.6`**，與機器版本相符。
+
+`expo-dev-client` 會在右上角疊一顆「Tools」齒輪，那是 development 版才有的開發選單，
+`preview` 版與將來的正式版都不會出現。
+
+#### 第 5 條還沒做，卡在沒有舊機器
+
+要看 iOS 26 以下的退回長什麼樣（`fallbackCard`，一塊有邊框的半透明區塊），需要一支
+iOS 16.4 到 25 的 iPhone，用 `preview` 版裝。模擬器那條路走不通——iOS 模擬器只跑在
+macOS 上，見下面那節。
+
+**維護者要求：往後 `rn-rewrite` 每收掉一張票，都要提醒這一條還開著。**
 
 ### 2026-08-24 — 骨架寫好了，剩下三步要人
 
