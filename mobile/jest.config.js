@@ -1,7 +1,9 @@
 const path = require('node:path');
 
 /** Jest 的設定值吃的是 POSIX 斜線，Windows 上 `path.resolve` 給的是反斜線。 */
-const coreRoot = path.resolve(__dirname, '..', 'core').split(path.sep).join('/');
+const toPosix = (absolute) => absolute.split(path.sep).join('/');
+const coreRoot = toPosix(path.resolve(__dirname, '..', 'core'));
+const mobileModules = toPosix(path.resolve(__dirname, 'node_modules'));
 
 /**
  * React Native 這一側的測試環境（票 `04`）。
@@ -31,6 +33,18 @@ module.exports = {
   ],
   // 跑 core 的測試就要看得到 core 的檔，Jest 預設只看 rootDir 底下。
   roots: ['<rootDir>', coreRoot],
+  /**
+   * 找套件時多看一個地方：`mobile/node_modules`。
+   *
+   * 找套件的規矩是**從用它的那個檔往上層走**。`core/` 住在 `mobile/` 外面，所以從
+   * `core/i18n/index.ts` 往上走會走到 repo 根，永遠走不進 `mobile/node_modules`。
+   * 本機看不出問題——repo 根自己也有一份 `node_modules`，剛好接住了。
+   * CI 上那個工作只在 `mobile/` 裡裝套件，根目錄是空的，`core/` 底下的檔就整批載不進來。
+   *
+   * 缺的那個是 `@babel/runtime`（babel 轉譯後的程式碼會去叫它的小工具），
+   * 它同時被列進 `package.json`，不靠「剛好有別的套件把它帶進來」。
+   */
+  moduleDirectories: ['node_modules', mobileModules],
   moduleNameMapper: {
     // 與 metro.config.js、tsconfig.json 是同一件事的第三半：那兩邊管手機與型別，這邊管測試。
     '^@core/(.*)$': `${coreRoot}/$1`,

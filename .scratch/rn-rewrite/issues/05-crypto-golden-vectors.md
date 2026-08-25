@@ -223,3 +223,25 @@ app，不需要 Metro）→ `simctl install` + `launch` → 等 app 把結論寫
 `test.yml` 順手加了 `npm run typecheck`。Spec 軸點出票上沒要求這個，屬於輕微超出範圍。
 留著：兩邊各 20 秒，而型別錯了測試往往還是綠的——這正是這張票在防的那種
 「不會當場報錯」的錯。
+
+### 2026-08-25 — CI 第一趟就掛了：`@babel/runtime` 找不到
+
+`test.yml` 的 `mobile` 工作四支測試全部載不進來，錯是
+`Cannot find module '@babel/runtime/helpers/interopRequireDefault' from '../core/i18n/index.ts'`。
+
+**本機看不出來，是因為 repo 根自己也有一份 `node_modules` 剛好接住了。** 找套件的規矩是
+從用它的那個檔往上層走：`core/` 住在 `mobile/` 外面，所以從 `core/i18n/index.ts` 往上走
+會走到 repo 根，永遠走不進 `mobile/node_modules`。CI 上那個工作只在 `mobile/` 裡裝套件，
+根目錄是空的。
+
+去叫 `@babel/runtime` 的不是 `core/` 的原始碼——那批一個外部套件都沒 import——
+是 **babel 轉譯後產生的程式碼**，每個檔都會帶。
+
+修法兩行：`jest.config.js` 加 `moduleDirectories`，多看一個 `mobile/node_modules`；
+`package.json` 把 `@babel/runtime` 明列進去，不靠「剛好有別的套件把它帶進來」。
+在本機把根目錄那份藏起來重現過同一個錯，修完在同樣條件下 124 支全過。
+
+**Metro 那條路沒有跟著改。** 它也只裝 `mobile/` 的套件，理論上同一個坑，
+但票 `04` 的真機驗收已經證明那條路是通的——探針畫面讀得到 MMKV，走的就是
+`core/lib/storage.ts` 轉譯後的程式碼。沒有觀察到問題就去改設定是瞎猜，留著。
+真機那一趟若在這裡掛掉，答案就在這一段。
