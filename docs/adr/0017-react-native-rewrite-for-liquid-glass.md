@@ -20,7 +20,7 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 那份 ADR 點名三處接不上，是否決 React Native 的技術依據。逐條重看：
 
-- **`localStorage` 同步、`AsyncStorage` 非同步** — **已有解**。`react-native-mmkv` 是完全同步的（走 JSI，v4 是 Nitro Module），`ADR-0002` 的 `StorageLike` 同步介面可以原封搬過去，27 處呼叫端一行不改。當初寫 ADR 時只把 `AsyncStorage` 算進來。
+- **`localStorage` 同步、`AsyncStorage` 非同步** — **已經驗過做得出來**（2026-08-25，`.scratch/rn-rewrite/issues/04`）。`react-native-mmkv` 是完全同步的（走 JSI，v4 是 Nitro Module），`ADR-0002` 的 `StorageLike` 同步介面原封搬過去了，27 處呼叫端一行不改；真機上存一批卡、關掉 app、重開，資料還在。當初寫 ADR 時只把 `AsyncStorage` 算進來。**這條否決理由到此正式不成立。**（`core/lib/storage.ts` 自己有三處呼叫 `crypto.randomUUID()`，React Native 沒有那個全域函式，靠 `mobile/lib/install-random-uuid.ts` 補上——那是另一件事，不影響這一條的結論。）
 - **`crypto.subtle` 沒有對應物** — **已有解，但要驗**。`react-native-quick-crypto` 的 `subtle` 支援 PBKDF2 與 AES-GCM。「有這個 API」不等於「加出來的東西網頁版解得開」，位元級相容仍是這條路上風險最高的一塊，驗法見 Consequences。
 - **振假名沒有對應物** — **已經驗過做得出來**。`.scratch/rn-spike/issues/01` 用兩層 `<Text>` 疊字做完並在真機上量過：假名字身底端與漢字字身頂端的距離兩版皆為 15 device px，換行也驗了。這一題不必重問。
 
