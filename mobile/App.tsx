@@ -2,12 +2,13 @@ import { randomUUID } from 'expo-crypto';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { initI18n } from '@core/i18n';
 import { toMessage } from '@core/lib/app-error';
 import { DEFAULT_EASE } from '@core/lib/review';
 import { addBook, createStore } from '@core/lib/storage';
 import type { AppData, Card } from '@core/lib/types';
+import { createCloudProbe } from './lib/cloud-probe';
 import { reportCryptoSelfCheck, type SelfCheckReport } from './lib/crypto-self-check';
 import { createMmkvStorage } from './lib/storage-mmkv';
 
@@ -110,6 +111,13 @@ export default function App() {
   const [data, setData] = useState<AppData | null>(opened.data);
   const [failure, setFailure] = useState<string | null>(opened.failure);
   const [vectors, setVectors] = useState<SelfCheckReport | null>(null);
+  const [nickname, setNickname] = useState('');
+  const [password, setPassword] = useState('');
+  const [cloudStatus, setCloudStatus] = useState('');
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloud] = useState(() =>
+    createCloudProbe({ storage, store, onData: setData, onStatus: setCloudStatus }),
+  );
 
   /**
    * 標答比對排在畫面畫完之後才跑。它會佔住 JavaScript 那條執行緒好幾秒——
@@ -127,6 +135,25 @@ export default function App() {
     };
   }, []);
 
+  /**
+   * 登入一次。**同一顆按鈕走得到兩個方向**——`signIn()` 先看雲端那份新不新：
+   * 雲端新就拉下來（電腦存、手機拉），本機新就推上去（手機存、電腦拉）。
+   * 兩個方向都要驗的話，就是在網頁版與手機上輪流動一動、輪流按它。
+   */
+  async function signIn(): Promise<void> {
+    if (data === null) return;
+    setCloudBusy(true);
+    setCloudStatus('派生金鑰中⋯（PBKDF2 刻意跑得慢，要等一下）');
+    try {
+      await cloud.signIn(nickname, password, data);
+    } catch (error) {
+      // 帶 key 的錯要查表才變成字（`ADR-0013`），畫面層一律走 toMessage()。
+      setCloudStatus(toMessage(error));
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
   function press(): void {
     if (data === null) return;
     try {
@@ -139,6 +166,18 @@ export default function App() {
       setFailure(toMessage(error));
     }
   }
+
+  /**
+   * 雲端那塊要等標答比對跑完才准動，而且不能同時在忙。
+   *
+   * **兩件事都會去抽 12 個位元組當初始向量。** 標答比對期間亂數來源被換成表裡那個固定值，
+   * 這時真的推一份備份上去的話，那份會用上一個**公開在版控裡**的初始向量——
+   * 同一把金鑰配同一個初始向量，AES-GCM 的保護就整個垮了。長度一樣，擋不掉，
+   * 只能不讓它們重疊。
+   *
+   * 同理，開 app 時也**不自動接回雲端**（沒有叫 `begin()`）。要按才動。
+   */
+  const cloudReady = vectors !== null && !cloudBusy && data !== null;
 
   const status = [
     canRenderGlass ? 'GlassView API 可用' : 'GlassView API 不可用（已退回一般區塊）',
@@ -198,6 +237,42 @@ export default function App() {
               {`標答比對：${vectors.summary}`}
             </Text>
           )}
+        </View>
+
+        <View style={styles.statusPill}>
+          <Text style={styles.statusText}>
+            {cloud.nickname() === null ? '雲端備份：沒登入' : `雲端備份：${cloud.nickname()}`}
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={nickname}
+            onChangeText={setNickname}
+            placeholder="暱稱"
+            placeholderTextColor="#8b93a3"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="密碼"
+            placeholderTextColor="#8b93a3"
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+          />
+          <Pressable
+            style={[styles.button, cloudReady ? null : styles.buttonOff]}
+            disabled={!cloudReady}
+            onPress={() => void signIn()}
+          >
+            <Text style={styles.buttonText}>{cloudBusy ? '同步中⋯' : '登入並同步一次'}</Text>
+          </Pressable>
+          {!cloudReady && vectors === null && (
+            <Text style={styles.statusText}>等標答比對跑完才能按（見程式碼註解）</Text>
+          )}
+          {cloudStatus !== '' && <Text style={styles.statusText}>{cloudStatus}</Text>}
         </View>
       </View>
 
@@ -272,10 +347,25 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
+  /** 按不得的時候要看得出來，不然人會以為 app 當掉了。 */
+  buttonOff: {
+    backgroundColor: '#4a5364',
+  },
   buttonText: {
     color: '#141821',
     fontSize: 15,
     fontWeight: '600',
+  },
+  input: {
+    minWidth: 220,
+    backgroundColor: 'rgba(238, 242, 248, 0.10)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(238, 242, 248, 0.35)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: '#eef2f8',
+    fontSize: 15,
   },
   /** 網頁版 src/styles.css 的 --danger。這一行出現就代表儲存那條路有東西壞了。 */
   failureText: {
