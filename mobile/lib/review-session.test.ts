@@ -1,4 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+// 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
+// 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
+import { describe, it, expect, jest } from '@jest/globals';
 import { createStore, type StorageLike } from '@core/lib/storage';
 import { DEFAULT_EASE } from '@core/lib/review';
 import type { AppData, Card } from '@core/lib/types';
@@ -118,11 +120,12 @@ describe('掀開與評分', () => {
   });
 
   it('每一次本機寫入都通知一次呼叫端', () => {
-    const onPersisted = vi.fn();
+    // 型別要標上去：`jest.fn()` 不標的話參數是 `unknown`，底下讀 `.cards` 就過不了型別檢查。
+    const onPersisted = jest.fn<(data: AppData) => void>();
     const it_ = session({ onPersisted });
     it_.rate('good');
     expect(onPersisted).toHaveBeenCalledTimes(1);
-    expect(onPersisted.mock.calls[0][0].cards).toHaveLength(4);
+    expect(onPersisted.mock.calls[0]![0].cards).toHaveLength(4);
   });
 });
 

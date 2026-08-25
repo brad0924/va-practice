@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+// 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
+// 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
+import { describe, it, expect } from '@jest/globals';
 import { pickJapaneseVoice, SPEECH_RATE, type VoiceLike } from './japanese-voice';
 
 function voice(identifier: string, language: string, quality: 'Default' | 'Enhanced'): VoiceLike {

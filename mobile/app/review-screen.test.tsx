@@ -1,4 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+// 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
+// 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
+import { describe, it, expect, jest } from '@jest/globals';
 import { render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createStore, type StorageLike } from '@core/lib/storage';
@@ -169,7 +171,7 @@ describe('通往其他畫面的按鈕', () => {
   });
 
   it('探針那顆後門按得到', async () => {
-    const onOpenProbe = vi.fn();
+    const onOpenProbe = jest.fn();
     const view = await show(build(一張卡), onOpenProbe);
     await fireEvent.press(view.getByText('探針'));
     expect(onOpenProbe).toHaveBeenCalledTimes(1);
