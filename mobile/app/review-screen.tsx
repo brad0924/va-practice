@@ -13,7 +13,7 @@
  * 標題列上那顆「探針」是暫時的後門，資料頁做好之後整顆拆掉，見 `./probe-screen.tsx`。
  */
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t, type Key } from '@core/i18n';
 import { currentCard, isComplete } from '@core/lib/review';
@@ -24,7 +24,7 @@ import { BookScopeSheet } from './book-scope-sheet';
 import { CopyButton } from './copy-button';
 import { ContentPill, GlassGroup, GlassPill } from './glass-pill';
 import { Term } from './term';
-import { color, fontSize, SCREEN_INSET, weight } from './theme';
+import { color, fontSize, SCREEN_INSET, TAP_SIZE, weight } from './theme';
 
 /**
  * 四個評分。`label` 存的是翻譯檔的 key 而不是字——寫成字的話在模組載入的那一刻就算完了，
@@ -48,10 +48,36 @@ export interface ReviewScreenProps {
   onOpenProbe(): void;
 }
 
+/**
+ * 四顆評分鈕還排得下同一列嗎。排不下就改成上下堆疊——**橫向空間不足時文字在上、
+ * 次要資訊在下**（HIG `T-09`），Apple 自己的做法也是這樣，不是把字截斷。
+ *
+ * 算的不是一個拍腦袋的字級門檻，而是真的量：最長的那個標籤（「困難」「簡單」都是兩個字）
+ * 乘上這台裝置目前的字級，加上膠囊左右內距與四顆之間的間距，看螢幕寬度夠不夠。
+ * 這樣換不換行會跟著機型與字級自己調整，不必為每一支手機各記一個數字。
+ */
+export function ratingsFitOneRow(width: number, fontScale: number): boolean {
+  const LONGEST_LABEL_CHARS = 2;
+  const label = LONGEST_LABEL_CHARS * fontSize.subheadline * fontScale;
+  const pill = label + RATING_PILL_PADDING * 2;
+  return pill * RATINGS.length + BAR_GAP * (RATINGS.length - 1) + SCREEN_INSET * 2 <= width;
+}
+
 export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
   const { data, queue, revealed } = session.snapshot();
   const insets = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
   const [voice, setVoice] = useState<VoiceLike | null>(null);
+
+  /**
+   * 上下那兩條列各自實際佔了多高。**量出來的，不是寫死的**——大字級下膠囊會長到
+   * 一百多，寫死 44 的話卡片會被壓在標題列底下（真機踩到，2026-08-26）。
+   * 兩條列都浮在內容之上，捲動內容靠這兩個數字讓開。
+   */
+  const [headerHeight, setHeaderHeight] = useState(TAP_SIZE);
+  const [footerHeight, setFooterHeight] = useState(TAP_SIZE);
+  const measure = (set: (value: number) => void) => (event: LayoutChangeEvent) =>
+    set(event.nativeEvent.layout.height);
 
   // 語音清單問一次就好，開機時問。問不到的話朗讀按鈕就不出現——按了聽到外語腔調念日文，
   // 不如不要有這顆按鈕（與網頁版 `src/ui/speech.ts` 的 `hasJapaneseVoice()` 同一個立場）。
@@ -68,16 +94,24 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
   const noBooks = data.books.length === 0;
   const complete = isComplete(queue);
   const card = currentCard(queue);
+  const stackRatings = !ratingsFitOneRow(width, fontScale);
 
   return (
-    <View style={styles.root}>
+    // `key` 帶字級：使用者在 app 開著的時候到設定裡改字級，原生那一端不會自己重新量，
+    // 膠囊會停在舊尺寸、字被擠出去（真機踩到，2026-08-26——當時要把 app 滑掉重開才正常）。
+    // 換掉 key 等於整頁重建，那一下就重新量了。字級只有在使用者去改設定時才會變，不是熱路徑。
+    <View style={styles.root} key={fontScale}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
           // 捲動區本身鋪滿整頁，內容靠內距讓開那兩條浮著的控制列。這樣捲到底時
           // 卡片會從控制列底下經過，而不是在它上方就停住（HIG `L-02`）。
-          { paddingTop: insets.top + BAR_LANE, paddingBottom: insets.bottom + BAR_LANE },
+          // 讓開多少是量出來的，見上面的 headerHeight／footerHeight。
+          {
+            paddingTop: insets.top + headerHeight + SCREEN_INSET * 2,
+            paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
+          },
         ]}
       >
         {noBooks ? (
@@ -114,7 +148,10 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
         )}
       </ScrollView>
 
-      <GlassGroup style={[styles.bar, styles.header, { top: insets.top + SCREEN_INSET }]}>
+      <GlassGroup
+        style={[styles.bar, styles.header, { top: insets.top + SCREEN_INSET }]}
+        onLayout={measure(setHeaderHeight)}
+      >
         <GlassPill>
           <Text style={styles.remaining}>{t('review.remaining', { count: queue.length })}</Text>
         </GlassPill>
@@ -136,10 +173,25 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
       {/* 完成與零本兩種狀態底下沒有可按的東西，整條控制列就不出現——
           留一條空玻璃在那裡只是把「沒事可做」畫成一塊裝飾（HIG `L-13`）。 */}
       {!noBooks && !complete && (
-        <GlassGroup style={[styles.bar, styles.footer, { bottom: insets.bottom + SCREEN_INSET }]}>
+        <GlassGroup
+          style={[
+            styles.bar,
+            styles.footer,
+            // 四顆排不下就上下堆疊。整條列改成直的，每一顆自己撐滿一整行。
+            stackRatings && revealed && styles.footerStacked,
+            { bottom: insets.bottom + SCREEN_INSET },
+          ]}
+          onLayout={measure(setFooterHeight)}
+        >
           {revealed ? (
             RATINGS.map(({ rating, label }) => (
-              <GlassPill key={rating} onPress={() => session.rate(rating)} style={styles.ratingPill}>
+              <GlassPill
+                key={rating}
+                onPress={() => session.rate(rating)}
+                // 橫排時四顆平分寬度，直排時四顆各佔滿一行——兩種排法下四顆都一樣大，
+                // 用樣式而不是尺寸區分主次（HIG `B-05`）。
+                style={stackRatings ? styles.ratingPillStacked : styles.ratingPill}
+              >
                 <Text style={styles.ratingText}>{t(label)}</Text>
               </GlassPill>
             ))
@@ -165,11 +217,11 @@ function Notice({ mark, title, note }: { mark: string; title: string; note: stri
   );
 }
 
-/**
- * 控制列連同它與內容之間的呼吸空間佔掉的高度。捲動內容靠它讓開，
- * 數字是「膠囊 44 ＋ 上下各留一段」，不是量出來的精確值——內容捲得過去就夠了。
- */
-const BAR_LANE = 44 + SCREEN_INSET * 2;
+/** 相鄰控制項之間的距離。有邊框的元件約 12pt（HIG `L-11`），也讓兩塊玻璃靠得夠近會融形。 */
+const BAR_GAP = 12;
+
+/** 評分鈕左右各留多少。橫排時四顆要擠在一列裡，因此比其他膠囊窄。 */
+const RATING_PILL_PADDING = 4;
 
 const styles = StyleSheet.create({
   root: {
@@ -245,13 +297,23 @@ const styles = StyleSheet.create({
     right: SCREEN_INSET,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: BAR_GAP,
   },
+  /**
+   * 標題列塞不下就換行。少了這一行，大字級下單字本開關與探針會被擠出螢幕右邊——
+   * 不是難看而已，是**按不到**，改不了複習範圍（真機踩到，2026-08-26）。
+   */
   header: {
     justifyContent: 'flex-start',
+    flexWrap: 'wrap',
   },
   footer: {
     justifyContent: 'center',
+  },
+  /** 四顆評分鈕排不下同一列時，整條列改成直的。 */
+  footerStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   remaining: {
     color: color.label,
@@ -265,7 +327,11 @@ const styles = StyleSheet.create({
   /** 四顆評分鈕同尺寸、平分整條列——同一組選項用同尺寸，不用大小區分主次（HIG `B-05`）。 */
   ratingPill: {
     flex: 1,
-    paddingHorizontal: 4,
+    paddingHorizontal: RATING_PILL_PADDING,
+  },
+  /** 直排時四顆各佔滿一行，彼此仍然一樣大。 */
+  ratingPillStacked: {
+    alignSelf: 'stretch',
   },
   /**
    * 評分鈕上的文字走單色，不套色（HIG `M-09`）。網頁版那四個顏色刻意沒有跟過來——

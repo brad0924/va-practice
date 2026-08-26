@@ -7,7 +7,7 @@ import { createStore, type StorageLike } from '@core/lib/storage';
 import { DEFAULT_EASE } from '@core/lib/review';
 import type { AppData } from '@core/lib/types';
 import { createReviewSession, type ReviewSession } from '../lib/review-session';
-import { ReviewScreen } from './review-screen';
+import { ReviewScreen, ratingsFitOneRow } from './review-screen';
 
 /**
  * 複習畫面的畫面測試。`ADR-0014` 那批 jsdom 畫面測試在 React Native 上作廢，
@@ -188,5 +188,33 @@ describe('複製', () => {
     const view = await show(build(一張卡));
     await fireEvent.press(view.getByText('複製'));
     expect(view.getByText('已複製')).toBeTruthy();
+  });
+});
+
+describe('評分鈕排不排得下同一列', () => {
+  /** iPhone 直向大約這麼寬。真機用的是 `useWindowDimensions()`，這裡直接餵數字。 */
+  const PHONE = 390;
+
+  it('預設字級下四顆排得下', () => {
+    expect(ratingsFitOneRow(PHONE, 1)).toBe(true);
+  });
+
+  it('字級拉到最大就排不下，那時候要改成上下堆疊', () => {
+    // iOS 最大的輔助使用字級大約是預設的三倍。
+    expect(ratingsFitOneRow(PHONE, 3)).toBe(false);
+  });
+
+  it('螢幕越窄越早排不下', () => {
+    const wide = ratingsFitOneRow(430, 2.4);
+    const narrow = ratingsFitOneRow(320, 2.4);
+    expect(wide).toBe(true);
+    expect(narrow).toBe(false);
+  });
+
+  /** 同一個字級下，寬的螢幕不該比窄的螢幕先放棄——算式寫反了才會這樣。 */
+  it('寬度變大不會讓它反而排不下', () => {
+    for (const scale of [1, 1.5, 2, 2.5, 3]) {
+      if (ratingsFitOneRow(320, scale)) expect(ratingsFitOneRow(430, scale)).toBe(true);
+    }
   });
 });

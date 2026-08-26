@@ -24,8 +24,15 @@ export const color = {
   separator: PlatformColor('separator'),
   /** 該頁唯一一個上色的控制項背景（HIG `M-10`、`B-04`）。 */
   accent: PlatformColor('systemBlue'),
-  /** 上了色的背景之上的文字。 */
-  onAccent: PlatformColor('white'),
+  /**
+   * 上了色的背景之上的文字。
+   *
+   * **這一格不能寫成 `PlatformColor('white')`。** React Native 的 iOS 語意色對照表
+   * （`react-native/React/Base/RCTConvert.mm`）只收 40 個名字，`white` 不在裡面——
+   * 查不到就給不出顏色，字會變成透明的，「顯示答案」按鈕上會是一片空白。
+   * 那不會報錯，只會安靜地不見（真機實測踩到，2026-08-26）。
+   */
+  onAccent: '#ffffff',
 } as const;
 
 /**

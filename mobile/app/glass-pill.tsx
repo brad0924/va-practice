@@ -10,7 +10,7 @@
  */
 import { GlassContainer, GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 import { ACCENT_TINT, color, TAP_SIZE } from './theme';
 
 /** 模組層算一次就好：一支 app 從開到關不會變，放進 render 只是每次重畫多問一次同樣的問題。 */
@@ -22,6 +22,8 @@ const MERGE_SPACING = 20;
 export interface GlassGroupProps {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** 這一組實際佔了多高。呼叫端靠它讓開捲動內容，見 `./review-screen.tsx`。 */
+  onLayout?: ViewProps['onLayout'];
 }
 
 /**
@@ -31,10 +33,15 @@ export interface GlassGroupProps {
  * 容器本身不畫任何東西，只負責告訴系統「這幾塊是一組的」，因此不算多疊一層背景（`M-08`）。
  * `GlassContainer` 與 `GlassView` 同樣要先問過 `isGlassEffectAPIAvailable()`，套件文件明寫。
  */
-export function GlassGroup({ children, style }: GlassGroupProps) {
-  if (!canRenderGlass) return <View style={style}>{children}</View>;
+export function GlassGroup({ children, style, onLayout }: GlassGroupProps) {
+  if (!canRenderGlass)
+    return (
+      <View style={style} onLayout={onLayout}>
+        {children}
+      </View>
+    );
   return (
-    <GlassContainer spacing={MERGE_SPACING} style={style}>
+    <GlassContainer spacing={MERGE_SPACING} style={style} onLayout={onLayout}>
       {children}
     </GlassContainer>
   );
@@ -119,9 +126,12 @@ const styles = StyleSheet.create({
     minWidth: TAP_SIZE,
     borderRadius: 999,
     paddingHorizontal: 18,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    // **不要加 `overflow: 'hidden'`。** 膠囊是圓角 999，一旦開了裁切，字只要有一點
+    // 放不下就會被那個圓形的邊緣削成一條橫帶——真機在最大字級下踩到（2026-08-26）。
+    // 那把「字有點擠」放大成「字整個不見」。背景與玻璃本來就會照圓角畫，不靠這一行。
   },
   pressed: {
     opacity: 0.55,
