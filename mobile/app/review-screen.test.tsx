@@ -206,9 +206,15 @@ describe('評分鈕排不排得下同一列', () => {
     expect(ratingsFitOneRow(PHONE, 3)).toBe(false);
   });
 
+  /**
+   * 這裡的字級原本填 2.4，2026-08-26 改成 1.5。**不是放寬標準，是算式終於誠實了**：
+   * 它以前用一個「評分鈕左右各留 4」的數字，而那個內距從來沒有真的畫出來過
+   * （它被套在裡層的玻璃上，外層才是排在列裡的那一個）。改成真正的 `PILL_PADDING_H`
+   * 之後，四顆本來就會比以前更早堆疊——這是它一直以來實際的樣子。
+   */
   it('螢幕越窄越早排不下', () => {
-    const wide = ratingsFitOneRow(430, 2.4);
-    const narrow = ratingsFitOneRow(320, 2.4);
+    const wide = ratingsFitOneRow(430, 1.5);
+    const narrow = ratingsFitOneRow(320, 1.5);
     expect(wide).toBe(true);
     expect(narrow).toBe(false);
   });

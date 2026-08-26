@@ -23,7 +23,7 @@ import { loadJapaneseVoice, speakTerm, type VoiceLike } from '../lib/japanese-vo
 import type { ReviewSession } from '../lib/review-session';
 import { BookScopeSheet } from './book-scope-sheet';
 import { CopyButton } from './copy-button';
-import { ContentPill, GlassGroup, GlassPill } from './glass-pill';
+import { ContentPill, GlassGroup, GlassPill, PILL_PADDING_H } from './glass-pill';
 import { Term } from './term';
 import { color, fontSize, SCREEN_INSET, TAP_SIZE, weight } from './theme';
 
@@ -69,7 +69,7 @@ export interface ReviewScreenProps {
 export function ratingsFitOneRow(width: number, fontScale: number): boolean {
   const LONGEST_LABEL_CHARS = 2;
   const label = LONGEST_LABEL_CHARS * fontSize.subheadline * fontScale;
-  const pill = label + RATING_PILL_PADDING * 2;
+  const pill = label + PILL_PADDING_H * 2;
   return pill * RATINGS.length + BAR_GAP * (RATINGS.length - 1) + SCREEN_INSET * 2 <= width;
 }
 
@@ -225,6 +225,7 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
             RATINGS.map(({ rating, label, tint }) => (
               <GlassPill
                 key={rating}
+                block
                 onPress={() => session.rate(rating)}
                 // 橫排時四顆平分寬度，直排時四顆各佔滿一行——兩種排法下四顆都一樣大，
                 // 用樣式而不是尺寸區分主次（HIG `B-05`）。
@@ -234,7 +235,7 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
               </GlassPill>
             ))
           ) : (
-            <GlassPill onPress={() => session.reveal()} style={styles.primaryPill}>
+            <GlassPill block onPress={() => session.reveal()} style={styles.primaryPill}>
               <Text style={styles.primaryText}>{t('review.showAnswer')}</Text>
             </GlassPill>
           )}
@@ -258,17 +259,12 @@ function Notice({ mark, title, note }: { mark: string; title: string; note: stri
 /** 相鄰控制項之間的距離。有邊框的元件約 12pt（HIG `L-11`），也讓兩塊玻璃靠得夠近會融形。 */
 const BAR_GAP = 12;
 
-/** 評分鈕左右各留多少。橫排時四顆要擠在一列裡，因此比其他膠囊窄。 */
-const RATING_PILL_PADDING = 4;
-
 /** 卡片裡上下相鄰兩塊的距離。詞條、分隔線、釋義都照這個節奏排。 */
 const STACK_GAP = 20;
 
 /** 分隔線多長。整張卡多寬都一樣，就是這一段——置中，不撐滿。 */
 const DIVIDER_WIDTH = 140;
 
-/** 底部那幾顆的圓角。網頁版 `.actions > button` 是 `0.75rem`，換算過來就是這個數字。 */
-const ACTION_RADIUS = 12;
 
 const styles = StyleSheet.create({
   root: {
@@ -391,13 +387,10 @@ const styles = StyleSheet.create({
   /** 四顆評分鈕同尺寸、平分整條列——同一組選項用同尺寸，不用大小區分主次（HIG `B-05`）。 */
   ratingPill: {
     flex: 1,
-    paddingHorizontal: RATING_PILL_PADDING,
-    borderRadius: ACTION_RADIUS,
   },
   /** 直排時四顆各佔滿一行，彼此仍然一樣大。 */
   ratingPillStacked: {
     alignSelf: 'stretch',
-    borderRadius: ACTION_RADIUS,
   },
   /**
    * 評分鈕的字級與字重。**顏色不在這裡**，四顆各自帶自己的那一個，見 `RATINGS`。
@@ -412,7 +405,6 @@ const styles = StyleSheet.create({
   },
   primaryPill: {
     flex: 1,
-    borderRadius: ACTION_RADIUS,
   },
   /**
    * 「顯示答案」與四顆評分鈕是同一種做法：玻璃底、文字上色。整條底部因此只有一套語言。

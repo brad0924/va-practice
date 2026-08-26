@@ -19,6 +19,13 @@ const canRenderGlass = isGlassEffectAPIAvailable();
 /** 相鄰的玻璃元件從多遠開始互相影響。靠得夠近時系統會讓它們融成一塊。 */
 const MERGE_SPACING = 20;
 
+/**
+ * 每一顆左右各留多少。**匯出去是因為有人要拿它算「四顆排不排得下同一列」**——
+ * 那個算式必須用真正畫出來的內距，抄一個差不多的數字進去就會算錯換行時機，
+ * 見 `./review-screen.tsx` 的 `ratingsFitOneRow()`。
+ */
+export const PILL_PADDING_H = 18;
+
 export interface GlassGroupProps {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -64,17 +71,29 @@ export interface GlassPillProps {
   onPress(): void;
   accessibilityLabel?: string;
   /**
-   * 蓋在預設樣式上。**底部那幾顆靠它把圓角改成方的**（票 `06` 定案 1a），
-   * 標題列那幾顆維持膠囊。它排在 `styles.pill` 後面，因此蓋得掉預設值。
+   * 方塊而不是膠囊。底部那幾顆是方塊（票 `06` 定案 1a），標題列那幾顆維持膠囊。
+   *
+   * 這裡做成一個開關而不是讓呼叫端傳圓角，是因為圓角要套在**裡面**那層玻璃上，
+   * 而 `style` 套的是外面那層——見下面那條的說明。
+   */
+  block?: boolean;
+  /**
+   * **只放版面**：`flex`、`alignSelf` 這一類。
+   *
+   * 它套在**外面那層可按區域**上，不是玻璃本身；玻璃在裡面撐滿它。`padding`、`borderRadius`
+   * 這種「玻璃長什麼樣」的值放進來不會生效——那些改 `styles.pill` 或走上面那個開關。
+   *
+   * > 這一格原本是套在玻璃上的，於是 `flex: 1` 全都落在裡層，外層仍然縮到跟文字一樣寬，
+   * > 四顆評分鈕因此擠在整條列的中間而不是平分它（真機踩到，2026-08-26）。
    */
   style?: StyleProp<ViewStyle>;
 }
 
-export function GlassPill({ children, onPress, accessibilityLabel, style }: GlassPillProps) {
+export function GlassPill({ children, onPress, accessibilityLabel, block, style }: GlassPillProps) {
   const body = (pressed: boolean) =>
     canRenderGlass ? (
       <GlassView
-        style={[styles.pill, style, pressed && styles.pressed]}
+        style={[styles.pill, block && styles.block, pressed && styles.pressed]}
         glassEffectStyle="regular"
         // 自訂玻璃按鈕要開啟互動反應，才有系統按鈕那種按壓感（HIG `B-12`）。
         isInteractive
@@ -82,7 +101,7 @@ export function GlassPill({ children, onPress, accessibilityLabel, style }: Glas
         {children}
       </GlassView>
     ) : (
-      <View style={[styles.pill, styles.fallback, style, pressed && styles.pressed]}>
+      <View style={[styles.pill, styles.fallback, block && styles.block, pressed && styles.pressed]}>
         {children}
       </View>
     );
@@ -90,7 +109,7 @@ export function GlassPill({ children, onPress, accessibilityLabel, style }: Glas
   // 自訂按鈕一定要有按下狀態（HIG `B-03`）。玻璃自己的互動反應只在 iOS 26 上有，
   // 退回一般區塊的機器上就只剩這一層透明度，因此兩條路都掛。
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
+    <Pressable style={style} onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
       {({ pressed }) => body(pressed)}
     </Pressable>
   );
@@ -133,7 +152,11 @@ const styles = StyleSheet.create({
     minHeight: TAP_SIZE,
     minWidth: TAP_SIZE,
     borderRadius: 999,
-    paddingHorizontal: 18,
+    // 撐滿外面那層可按區域的寬度。可按區域預設是直向排列，橫的那一軸因此是它的交錯軸，
+    // `stretch` 在那一軸上生效。少了這一行，呼叫端給的 `flex: 1` 只會讓可按區域變寬，
+    // 玻璃仍然縮在中間，看起來就是「按鈕沒有滿版」。
+    alignSelf: 'stretch',
+    paddingHorizontal: PILL_PADDING_H,
     paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -154,6 +177,13 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
     transform: [{ scale: 0.96 }],
+  },
+  /**
+   * 方塊版的圓角。值抄網頁版 `src/styles.css` 的 `.actions > button`（`0.75rem`），
+   * 底部那幾顆兩邊因此長得一樣。
+   */
+  block: {
+    borderRadius: 12,
   },
   /** iOS 26 以下走到這裡。一塊看得出邊界的半透明區塊，不假裝自己是玻璃。 */
   fallback: {
