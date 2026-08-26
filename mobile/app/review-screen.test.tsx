@@ -1,6 +1,7 @@
 // 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
 // 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
 import { describe, it, expect, jest } from '@jest/globals';
+import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createStore, type StorageLike } from '@core/lib/storage';
@@ -8,6 +9,7 @@ import { DEFAULT_EASE } from '@core/lib/review';
 import type { AppData } from '@core/lib/types';
 import { createReviewSession, type ReviewSession } from '../lib/review-session';
 import { ReviewScreen, ratingsFitOneRow } from './review-screen';
+import { color } from './theme';
 
 /**
  * 複習畫面的畫面測試。`ADR-0014` 那批 jsdom 畫面測試在 React Native 上作廢，
@@ -179,7 +181,7 @@ describe('通往其他畫面的按鈕', () => {
 });
 
 describe('複製', () => {
-  it('按鈕就在詞條旁邊，蓋著答案時也在', async () => {
+  it('按鈕在卡片最下面那一排，蓋著答案時也在', async () => {
     const view = await show(build(一張卡));
     expect(view.getByText('複製')).toBeTruthy();
   });
@@ -216,5 +218,37 @@ describe('評分鈕排不排得下同一列', () => {
     for (const scale of [1, 1.5, 2, 2.5, 3]) {
       if (ratingsFitOneRow(320, scale)) expect(ratingsFitOneRow(430, scale)).toBe(true);
     }
+  });
+});
+
+describe('評分鈕與「顯示答案」的顏色', () => {
+  /**
+   * 四個顏色沿用網頁版 `src/styles.css` 的 `--again`／`--hard`／`--good`／`--easy`。
+   * 這一條守的是「換一台裝置不必重新學哪一顆是哪一顆」——維護者兩邊都在用。
+   */
+  const 評分色 = {
+    再次: '#d9534f',
+    困難: '#d9843f',
+    好: '#46a758',
+    簡單: '#4a90d9',
+  } as const;
+
+  it('四顆的文字各自上色，與網頁版同一組', async () => {
+    const view = await show(build(一張卡));
+    await fireEvent.press(view.getByText('顯示答案'));
+    await view.redraw();
+
+    for (const [label, tint] of Object.entries(評分色))
+      expect(StyleSheet.flatten(view.getByText(label).props.style).color).toBe(tint);
+  });
+
+  it('四顆沒有兩顆撞色', () => {
+    const tints = Object.values(評分色);
+    expect(new Set(tints).size).toBe(tints.length);
+  });
+
+  it('「顯示答案」的字走系統藍，不是上色背景配白字', async () => {
+    const view = await show(build(一張卡));
+    expect(StyleSheet.flatten(view.getByText('顯示答案').props.style).color).toBe(color.accent);
   });
 });

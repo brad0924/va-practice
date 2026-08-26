@@ -10,7 +10,8 @@
  *
  * **通往其他畫面的按鈕這一版都沒有**：網頁版這一頁上的「卡片」「編輯」，以及零本畫面的
  * 「去建立單字本」，目的地都排在後面的票。放上去就是三顆死鈕，因此不放。
- * 標題列上那顆「探針」是暫時的後門，資料頁做好之後整顆拆掉，見 `./probe-screen.tsx`。
+ * 標題列上那顆「探針」是暫時的後門（見 `./probe-screen.tsx`）。票 `09` 會把它搬進
+ * 「資料」那個 tab 並拆掉這一顆——在那之前不能先拆，它是探針目前唯一的入口。
  */
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
@@ -31,12 +32,21 @@ import { color, fontSize, SCREEN_INSET, TAP_SIZE, weight } from './theme';
  * 那比 `initI18n()` 還早。與網頁版 `review-view.ts` 的 `RATING_BUTTONS` 同一種寫法。
  *
  * **沒有快捷鍵那一欄。** 那是電腦端鍵盤的事，手機上沒有對應物。
+ *
+ * `tint` 是那顆鈕上文字的顏色，**四個值直接抄網頁版 `src/styles.css` 的
+ * `--again`／`--hard`／`--good`／`--easy`**。這是票 `06` 定案 1a 指定的，
+ * 理由是維護者兩邊都在用，換一台裝置不該重新學哪一顆是哪一顆。
+ *
+ * > **這四格是寫死的色碼，違反 `./theme.ts` 那條「顏色一律走 `PlatformColor`」。**
+ * > 沒有別的走法：iOS 的語意色裡沒有任何一個等於這四個值，換成 `systemRed` 那一組
+ * > 就不是同一個顏色了，而這條規定要的正是兩邊對得起來。代價是「提高對比」打開時
+ * > 這四個顏色不會跟著調整——已知並接受，見票 `06` 那筆 `M-09` 的偏離說明。
  */
-const RATINGS: { rating: Rating; label: Key }[] = [
-  { rating: 'again', label: 'review.ratingAgain' },
-  { rating: 'hard', label: 'review.ratingHard' },
-  { rating: 'good', label: 'review.ratingGood' },
-  { rating: 'easy', label: 'review.ratingEasy' },
+const RATINGS: { rating: Rating; label: Key; tint: string }[] = [
+  { rating: 'again', label: 'review.ratingAgain', tint: '#d9534f' },
+  { rating: 'hard', label: 'review.ratingHard', tint: '#d9843f' },
+  { rating: 'good', label: 'review.ratingGood', tint: '#46a758' },
+  { rating: 'easy', label: 'review.ratingEasy', tint: '#4a90d9' },
 ];
 
 /** 後門那顆鈕上的字。理由見底下它出現的地方。 */
@@ -129,32 +139,43 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
           ) : complete ? (
             <Notice mark="✓" title={t('review.doneTitle')} note={t('review.doneNote')} />
           ) : (
-            <>
-              <View style={styles.face}>
+            /**
+             * 詞條、分隔線、釋義、動作鈕**一疊由上而下**，每一段之間的距離都照同一個節奏。
+             *
+             * 原本是兩塊：詞條與「複製」一塊，釋義與「朗讀」另一塊，中間一條撐滿整張卡的
+             * 分隔線。改成一疊是票 `06` 定案 1a——兩顆鈕合成一排落到最下面，
+             * 分隔線縮短置中，整張卡因此只剩一條中軸線。
+             */
+            <View style={styles.face}>
               <Term text={card!.text} showReading={revealed} />
-              {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
-                  留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
-                <CopyButton key={card!.id} text={card!.text} />
-              </View>
-
               {revealed && (
-                <View style={styles.answer}>
+                <>
+                  {/* 分隔線不撐滿，置中一小段。撐滿的話它會把一張卡切成上下兩張，
+                      而詞條與釋義本來就是同一件事的兩面。 */}
+                  <View style={styles.divider} />
                   {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
                       這是詞條做不到、只有這裡補得回來的那一半。 */}
                   <Text style={styles.meaning} selectable>
                     {card!.meaning}
                   </Text>
-                  {voice !== null && (
-                    <ContentPill
-                      onPress={() => speakTerm(card!.text, voice)}
-                      accessibilityLabel={t('review.speakLabel')}
-                    >
-                      <Text style={styles.speakText}>{t('review.speak')}</Text>
-                    </ContentPill>
-                  )}
-                </View>
+                </>
               )}
-            </>
+              {/* 「複製」與「朗讀」並排在最底下。它們是輔助動作，因此讓開一段再出現，
+                  而那一段刻意等於詞條到釋義的距離——一疊東西只用同一個節奏。 */}
+              <View style={styles.actions}>
+                {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
+                    留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
+                <CopyButton key={card!.id} text={card!.text} />
+                {revealed && voice !== null && (
+                  <ContentPill
+                    onPress={() => speakTerm(card!.text, voice)}
+                    accessibilityLabel={t('review.speakLabel')}
+                  >
+                    <Text style={styles.speakText}>{t('review.speak')}</Text>
+                  </ContentPill>
+                )}
+              </View>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -199,7 +220,7 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
           onLayout={measure(setFooterHeight)}
         >
           {revealed ? (
-            RATINGS.map(({ rating, label }) => (
+            RATINGS.map(({ rating, label, tint }) => (
               <GlassPill
                 key={rating}
                 onPress={() => session.rate(rating)}
@@ -207,11 +228,11 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
                 // 用樣式而不是尺寸區分主次（HIG `B-05`）。
                 style={stackRatings ? styles.ratingPillStacked : styles.ratingPill}
               >
-                <Text style={styles.ratingText}>{t(label)}</Text>
+                <Text style={[styles.ratingText, { color: tint }]}>{t(label)}</Text>
               </GlassPill>
             ))
           ) : (
-            <GlassPill onPress={() => session.reveal()} tinted style={styles.primaryPill}>
+            <GlassPill onPress={() => session.reveal()} style={styles.primaryPill}>
               <Text style={styles.primaryText}>{t('review.showAnswer')}</Text>
             </GlassPill>
           )}
@@ -237,6 +258,15 @@ const BAR_GAP = 12;
 
 /** 評分鈕左右各留多少。橫排時四顆要擠在一列裡，因此比其他膠囊窄。 */
 const RATING_PILL_PADDING = 4;
+
+/** 卡片裡上下相鄰兩塊的距離。詞條、分隔線、釋義都照這個節奏排。 */
+const STACK_GAP = 20;
+
+/** 分隔線多長。整張卡多寬都一樣，就是這一段——置中，不撐滿。 */
+const DIVIDER_WIDTH = 140;
+
+/** 底部那幾顆的圓角。網頁版 `.actions > button` 是 `0.75rem`，換算過來就是這個數字。 */
+const ACTION_RADIUS = 12;
 
 const styles = StyleSheet.create({
   root: {
@@ -264,19 +294,26 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 20,
     justifyContent: 'center',
-    gap: 28,
   },
-  /** 詞條那一塊。 */
+  /** 卡片裡那一疊：詞條、分隔線、釋義、動作鈕，全部對齊同一條中軸。 */
   face: {
     alignItems: 'center',
-    gap: 24,
+    gap: STACK_GAP,
   },
-  answer: {
+  divider: {
+    width: DIVIDER_WIDTH,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: color.separator,
+  },
+  /**
+   * 「複製」與「朗讀」那一排。`marginTop` 疊在 `face` 的 `gap` 上，因此它離釋義的距離
+   * 是兩個 `STACK_GAP`——剛好等於詞條到釋義的距離（那一段中間隔了分隔線，也是兩個）。
+   */
+  actions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: color.separator,
-    paddingTop: 28,
+    gap: BAR_GAP,
+    marginTop: STACK_GAP,
   },
   meaning: {
     color: color.secondaryLabel,
@@ -351,25 +388,37 @@ const styles = StyleSheet.create({
   ratingPill: {
     flex: 1,
     paddingHorizontal: RATING_PILL_PADDING,
+    borderRadius: ACTION_RADIUS,
   },
   /** 直排時四顆各佔滿一行，彼此仍然一樣大。 */
   ratingPillStacked: {
     alignSelf: 'stretch',
+    borderRadius: ACTION_RADIUS,
   },
   /**
-   * 評分鈕上的文字走單色，不套色（HIG `M-09`）。網頁版那四個顏色刻意沒有跟過來——
-   * 這一頁只有「顯示答案」那一顆的**背景**上色（`M-10`），而且它與評分鈕不會同時在場。
+   * 評分鈕的字級與字重。**顏色不在這裡**，四顆各自帶自己的那一個，見 `RATINGS`。
+   *
+   * > **一筆知情的偏離：`M-09` 說玻璃上的文字與符號走單色、不套色。** 上色是票 `06`
+   * > 定案 1a 指定的，為的是與 Capacitor 版對得起來。折衷有兩層：只有標籤上色，鈕本身不動；
+   * > 四顆的位置固定，轉成灰階仍然分得出來（`T-14` 因此不受影響）。
    */
   ratingText: {
-    color: color.label,
     fontSize: fontSize.subheadline,
     fontWeight: weight.medium,
   },
   primaryPill: {
     flex: 1,
+    borderRadius: ACTION_RADIUS,
   },
+  /**
+   * 「顯示答案」與四顆評分鈕是同一種做法：玻璃底、文字上色。整條底部因此只有一套語言。
+   *
+   * > **另一筆知情的偏離：`M-10` 說要強調主要動作時色彩加在背景，一頁給一個。** 改成藍字
+   * > 之後這一頁不再有任何上色的背景。理由是蓋著答案的那個狀態下它是畫面上唯一的動作，
+   * > 沒有第二顆跟它搶注意，不必再靠底色喊一次。
+   */
   primaryText: {
-    color: color.onAccent,
+    color: color.accent,
     fontSize: fontSize.headline,
     fontWeight: weight.semibold,
   },

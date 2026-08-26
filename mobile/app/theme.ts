@@ -22,17 +22,16 @@ export const color = {
   secondaryLabel: PlatformColor('secondaryLabel'),
   tertiaryLabel: PlatformColor('tertiaryLabel'),
   separator: PlatformColor('separator'),
-  /** 該頁唯一一個上色的控制項背景（HIG `M-10`、`B-04`）。 */
-  accent: PlatformColor('systemBlue'),
   /**
-   * 上了色的背景之上的文字。
+   * 主要動作的顏色。這一頁是「顯示答案」那顆鈕上的字。
    *
-   * **這一格不能寫成 `PlatformColor('white')`。** React Native 的 iOS 語意色對照表
-   * （`react-native/React/Base/RCTConvert.mm`）只收 40 個名字，`white` 不在裡面——
-   * 查不到就給不出顏色，字會變成透明的，「顯示答案」按鈕上會是一片空白。
-   * 那不會報錯，只會安靜地不見（真機實測踩到，2026-08-26）。
+   * **它現在上在文字不上在背景**（票 `06` 定案 1a）。原本走的是玻璃底套藍色配白字，
+   * 那條路踩過一個坑：白色只能寫色碼，不能寫 `PlatformColor('white')`——
+   * React Native 的 iOS 語意色對照表（`react-native/React/Base/RCTConvert.mm`）
+   * 只收 40 個名字，`white` 不在裡面，查不到就安靜地給不出顏色，
+   * 整顆鈕上會是一片空白（真機實測踩到，2026-08-26）。改成藍字之後那一格不必存在了。
    */
-  onAccent: '#ffffff',
+  accent: PlatformColor('systemBlue'),
 } as const;
 
 /**
@@ -56,13 +55,6 @@ export const weight = {
   medium: '500',
   semibold: '600',
 } as const;
-
-/**
- * 上色那顆玻璃控制項的底色。**只有這一格是寫死的色碼**——`GlassView` 的 `tintColor`
- * 只吃字串，遞不進 `PlatformColor` 給的那種語意色。值取 iOS `systemBlue` 的深色版本，
- * 這支 app 的 `userInterfaceStyle` 在 `app.json` 裡就釘死是深色（票 `03`）。
- */
-export const ACCENT_TINT = '#0a84ff';
 
 /** 控制項的最小點擊區。HIG `B-01`、`B-02` 都是這個數字。 */
 export const TAP_SIZE = 44;

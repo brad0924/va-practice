@@ -1,5 +1,5 @@
 /**
- * 玻璃膠囊：這一頁所有控制項的形狀。標題列那三顆、底部的「顯示答案」與四顆評分鈕都是它。
+ * 玻璃控制項：這一頁上面那兩條列都是它。標題列那三顆是膠囊，底部那幾顆由呼叫端蓋成圓角矩形。
  *
  * **玻璃只用在控制與導覽這一層**（HIG `M-01`）。卡片本體、釋義、頁面底色一律不套——
  * 那些是內容層，要分層時用標準材質（`M-02`），見 `./theme.ts`。
@@ -11,7 +11,7 @@
 import { GlassContainer, GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
-import { ACCENT_TINT, color, TAP_SIZE } from './theme';
+import { color, TAP_SIZE } from './theme';
 
 /** 模組層算一次就好：一支 app 從開到關不會變，放進 render 只是每次重畫多問一次同樣的問題。 */
 const canRenderGlass = isGlassEffectAPIAvailable();
@@ -51,29 +51,27 @@ export interface GlassPillProps {
   children: ReactNode;
   /** 沒有 `onPress` 的就不是按鈕，是一塊靜態的膠囊（標題列的「剩餘 N 張」）。 */
   onPress?: () => void;
-  /**
-   * 上色的那一顆。**一頁只給一個**（HIG `M-10`）——這一頁是「顯示答案」。
-   * 色彩加在背景不加在文字，因此玻璃吃 `tintColor`，文字仍走單色。
-   */
-  tinted?: boolean;
   accessibilityLabel?: string;
+  /**
+   * 蓋在預設樣式上。**底部那幾顆靠它把圓角改成方的**（票 `06` 定案 1a），
+   * 標題列那幾顆維持膠囊。它排在 `styles.pill` 後面，因此蓋得掉預設值。
+   */
   style?: StyleProp<ViewStyle>;
 }
 
-export function GlassPill({ children, onPress, tinted, accessibilityLabel, style }: GlassPillProps) {
+export function GlassPill({ children, onPress, accessibilityLabel, style }: GlassPillProps) {
   const body = (pressed: boolean) =>
     canRenderGlass ? (
       <GlassView
         style={[styles.pill, style, pressed && styles.pressed]}
         glassEffectStyle="regular"
-        tintColor={tinted ? ACCENT_TINT : undefined}
         // 自訂玻璃按鈕要開啟互動反應，才有系統按鈕那種按壓感（HIG `B-12`）。
         isInteractive={onPress !== undefined}
       >
         {children}
       </GlassView>
     ) : (
-      <View style={[styles.pill, styles.fallback, tinted && styles.fallbackTinted, style, pressed && styles.pressed]}>
+      <View style={[styles.pill, styles.fallback, style, pressed && styles.pressed]}>
         {children}
       </View>
     );
@@ -115,7 +113,8 @@ export function ContentPill({ children, onPress, accessibilityLabel, style }: Co
 
 const styles = StyleSheet.create({
   /**
-   * 膠囊形狀：小元件用膠囊，大元件才改圓角矩形（HIG `B-13`）。這一頁的控制項都是小的。
+   * 膠囊形狀：小元件用膠囊，大元件才改圓角矩形（HIG `B-13`）。標題列那幾顆走這個預設；
+   * 底部整寬的那幾顆自己傳 `style` 蓋成圓角矩形，見 `./review-screen.tsx`。
    *
    * > `B-10` 說不要寫死按鈕的尺寸與圓角、讓系統套 iOS 26 的新值。**這一條做不到**：
    * > React Native 沒有系統按鈕元件可用，尺寸只能自己給。這裡守的是下限——
@@ -152,9 +151,5 @@ const styles = StyleSheet.create({
     backgroundColor: color.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: color.separator,
-  },
-  fallbackTinted: {
-    backgroundColor: color.accent,
-    borderColor: 'transparent',
   },
 });
