@@ -3,15 +3,19 @@
 iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rewrite/spec.md` 與
 `docs/adr/0017-react-native-rewrite-for-liquid-glass.md`，這一份只寫「怎麼跑、怎麼出包」。
 
-**首頁是複習畫面**（票 `06`，`app/review-screen.tsx`）——改寫的第一頁正式程式碼，接的是真的
-MMKV 資料與真的排程。其餘四頁（卡片列表、編輯、資料、統計）還沒做，因此網頁版這一頁上通往
-它們的按鈕（「卡片」「編輯」「去建立單字本」）這一版都沒有放。
+**底部一條系統原生的導覽列，四個 tab**（票 `09`）：複習、卡片、資料、統計。走的是
+`expo-router` 的原生 tabs，底下就是 `UITabBarController`——浮著的膠囊、捲動時自己縮小，
+全部由系統畫。**預設那一頁是複習**（票 `06`，`ui/review-screen.tsx`），接的是真的 MMKV
+資料與真的排程。
 
-**標題列上那顆「探針」是暫時的後門**，通往票 `03`–`05` 的探針畫面（`app/probe-screen.tsx`）：
-一塊 `GlassView` 墊在斜條紋背景上，底下四塊狀態方塊——玻璃的可用性檢查、MMKV 裡有幾本幾張卡
-附一顆「加 5 張卡」、雲端備份的標答比對過了沒、輸入暱稱密碼真的推拉一次備份。
+**「資料」那個 tab 裝的是票 `03`–`05` 的探針畫面**（`ui/probe-screen.tsx`）：一塊 `GlassView`
+墊在斜條紋背景上，底下四塊狀態方塊——玻璃的可用性檢查、MMKV 裡有幾本幾張卡附一顆「加 5 張卡」、
+雲端備份的標答比對過了沒、輸入暱稱密碼真的推拉一次備份。
 **手機上目前只有這裡建得出單字本、登得進雲端**，所以留著。
-資料頁那張票一做完，這支檔案連同 `lib/cloud-probe.ts` 與那顆按鈕一起刪掉。
+資料頁那張票一做完，這支檔案連同 `lib/cloud-probe.ts` 就地被取代。
+
+**「卡片」與「統計」是兩頁「還沒做」的說明**（`ui/placeholder-screen.tsx`）。tab 不因為內容是空的
+就停用或隱藏（HIG `N-05`）——那樣按下去沒反應，人會以為 app 壞了。
 
 > **雲端那塊按不動，要等標答比對跑完。** 兩件事都會抽 12 個位元組當初始向量，而比對期間
 > 亂數來源被換成表裡那個固定值。重疊的話，推上去那份會用到一個**公開在版控裡**的初始向量——
@@ -40,7 +44,7 @@ npm start
 手機與電腦要在同一個網路。用 iPhone 開熱點、電腦連上去最省事。
 
 **不要用 Expo Go 開這支 app。** Expo Go 裡沒有 `expo-glass-effect` 的原生模組，
-`App.tsx` 一載入就會丟例外。這一點刻意不用 try/catch 包起來——原生模組不在的時候整支
+一載入就會丟例外。這一點刻意不用 try/catch 包起來——原生模組不在的時候整支
 app 本來就是壞的，把錯誤吞掉只會讓人花更久才查出是包沒編對。
 
 ## 跑測試
@@ -61,7 +65,7 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 
 現在收進來的是八支。`mobile/` 自己五支：`lib/storage-mmkv.test.ts`、`lib/review-session.test.ts`、
 `lib/term-layout.test.ts`、`lib/japanese-voice.test.ts`，加上第一支畫面測試
-`app/review-screen.test.tsx`。`core/lib/` 三支：`storage.test.ts`、`safety-copy.test.ts` 與
+`ui/review-screen.test.tsx`。`core/lib/` 三支：`storage.test.ts`、`safety-copy.test.ts` 與
 `cloud-crypto-vectors.test.ts`。**`core/` 那三支一行未改**，仍寫著 `from 'vitest'`——
 改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
 
@@ -98,17 +102,43 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 Metro 那邊刻意**不用** `resolver.extraNodeModules`：那張表是照套件名查的，而 `@` 開頭在 npm
 的規矩裡是 scope，`@core/lib` 整段會被當成套件名，`@core` 這一格永遠對不上。
 
+## 四個畫面是怎麼接起來的
+
+`expo-router` 把 **`app/` 整個目錄當成路由表**——那裡面每一支檔就是一頁。因此那個目錄
+**只放路由檔**，畫面本體與共用元件住在 `ui/`，共用的那份資料住在 `lib/`。
+
+| 檔 | 管什麼 |
+| --- | --- |
+| `index.ts` | 進入點。**先補齊 `crypto`，再交給 `expo-router/entry`**——順序錯了載入當場炸 |
+| `app/_layout.tsx` | 導覽列本體。四個 `NativeTabs.Trigger`，各帶一個詞的標籤與一個 SF Symbol |
+| `app/index.tsx` | 「複習」，預設那一頁 |
+| `app/cards.tsx`、`app/stats.tsx` | 「卡片」「統計」，兩頁「還沒做」的說明 |
+| `app/data.tsx` | 「資料」，現在裝的是探針畫面 |
+| `lib/app-context.tsx` | 儲存、複習流程、雲端備份，四個畫面共用同一份 |
+
+**共用那一份不是可有可無的講究。** 那三樣彼此接線（雲端拉下來要重建複習佇列、每次評分存完
+要推上去），任何一頁自己再建一份就是兩套實作在寫同一批資料——`spec.md`〈程式碼怎麼擺〉
+把「邏輯層分岔」列為這條路上最不能踩的線。它同時管標答比對：**那一段掛在開 app 的時候跑，
+不是進「資料」tab 才跑**，因為 `mobile-crypto.yml` 只是把 app 開起來然後等結論寫成檔案。
+
+**導覽列不是自己畫的。** `NativeTabs` 底下就是 `UITabBarController`，浮著的膠囊形狀、
+底下內容透出來（HIG `N-01`）、`minimizeBehavior="onScrollDown"` 那個捲動縮小，全部是系統行為。
+自己用 `GlassView` 畫一條的話玻璃過得了關，但**捲動縮小做不到**——那是 tab bar 內部的行為，
+不對外開放，而票 `09` 接受「底部一次兩條 chrome」時寫下的減輕因素正是它。
+
 ## 複習畫面是怎麼組起來的
 
 | 檔 | 管什麼 |
 | --- | --- |
 | `lib/review-session.ts` | 資料、當日佇列、答案掀開了沒，以及每次變動之後存檔。**沒有 React**，因此測得動 |
-| `app/review-screen.tsx` | 畫面。三種狀態同一支函式畫：複習中、今日份完成、零本 |
+| `ui/review-screen.tsx` | 畫面。三種狀態同一支函式畫：複習中、今日份完成、零本 |
 | `lib/term-layout.ts` | 振假名的算式（切欄、位移量） |
-| `app/term.tsx` | 振假名怎麼畫，兩層 `<Text>` 疊字 |
-| `app/glass-pill.tsx` | 所有控制項的形狀。玻璃只出現在這裡 |
-| `app/book-scope-sheet.tsx` | 複習範圍的開關，點開是系統的 page sheet |
-| `app/copy-button.tsx` | 「複製」，把去掉讀音標記後的詞條原文放進剪貼簿 |
+| `ui/term.tsx` | 振假名怎麼畫，兩層 `<Text>` 疊字 |
+| `ui/glass-pill.tsx` | 玻璃控制項的形狀。玻璃只出現在這裡 |
+| `ui/icon-button.tsx` | 圓形圖示鈕。「複製」「朗讀」走它，符號來自 `expo-symbols` |
+| `ui/notice.tsx` | 「這裡是空的，原因是這個」那一塊。今日份完成、零本、兩頁佔位共用 |
+| `ui/book-scope-sheet.tsx` | 複習範圍的開關，點開是系統的 page sheet |
+| `ui/copy-button.tsx` | 「複製」，把去掉讀音標記後的詞條原文放進剪貼簿 |
 | `lib/japanese-voice.ts` | 挑日文語音、朗讀 |
 
 狀態機拆出來是為了測得動：`ADR-0014` 那 1,319 行 jsdom 畫面測試在 React Native 上作廢，
@@ -195,7 +225,7 @@ JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaS
 >
 > 這支 app 的識別碼與 Capacitor 版是**同一組**（`io.github.brad0924.vapractice`），
 > 所以 iPhone 會把它當成同一支 app **覆蓋掉**。現在天天在用的那支連同裡面的卡片會一起消失。
-> 這一版有複習畫面了（票 `06`），但它是空的——卡片要靠標題列那顆「探針」登入雲端拉回來。
+> 這一版有複習畫面了（票 `06`），但它是空的——卡片要到「資料」那個 tab 登入雲端拉回來。
 >
 > **裝之前先在 Capacitor 版做一次雲端備份。** 這一步不只是保險，它是**把資料交接給網頁版**：
 > 兩邊共用同一份雲端備份，推上去之後在網頁版輸入同一組暱稱與密碼就接得回同一批卡片。

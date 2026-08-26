@@ -23,6 +23,14 @@ export const color = {
   tertiaryLabel: PlatformColor('tertiaryLabel'),
   separator: PlatformColor('separator'),
   /**
+   * 內容層裡那種「一塊淡淡的底」。卡片最下面那兩顆圓形圖示鈕就是它。
+   *
+   * 對照的是樣版 1a 上的 `rgba(120,120,128,0.2)`——那組數字正是 iOS 這個語意色在
+   * 深色模式下的值（`react-native/React/Base/RCTConvert.mm` 的 `systemFillColor`
+   * 備援值是 `0x33787880`）。寫語意名而不是抄那串色碼，「提高對比」才跟得動（`T-11`）。
+   */
+  fill: PlatformColor('systemFill'),
+  /**
    * 主要動作的顏色。這一頁是「顯示答案」那顆鈕上的字。
    *
    * **它現在上在文字不上在背景**（票 `06` 定案 1a）。原本走的是玻璃底套藍色配白字，

@@ -1,6 +1,6 @@
 // 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
 // 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
-import { describe, it, expect, jest } from '@jest/globals';
+import { describe, it, expect } from '@jest/globals';
 import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -42,6 +42,19 @@ function seed(books: AppData['books'], cards: AppData['cards']): AppData {
   return { version: 3, books, cards, scopes: { review: ids, list: ids, stats: ids }, updatedAt: 0 };
 }
 
+/**
+ * 這顆按鈕裡的 SF Symbol 叫什麼名字。
+ *
+ * `expo-symbols` 在測試環境裡畫出來的是一個叫 `ViewManagerAdapter_SymbolModule` 的
+ * 節點，符號名字原封不動留在它的 `name` 上——**查得到名字，就查得到「有沒有換錯符號」**。
+ * 名字打錯由 `tsc` 擋（型別收了 SF Symbols 全表），換錯只有這裡擋得下來。
+ */
+function symbolNames(button: { queryAll(match: (node: { type: unknown }) => boolean): { props: { name?: unknown } }[] }) {
+  return button
+    .queryAll((node) => typeof node.type === 'string' && node.type.includes('SymbolModule'))
+    .map((node) => node.props.name);
+}
+
 /** 亂數固定成「每張卡都跟自己交換」，佇列順序因此就是卡片原本的順序。見狀態機那支測試。 */
 function build(data: AppData): ReviewSession {
   const store = createStore(fakeStorage());
@@ -57,16 +70,16 @@ function build(data: AppData): ReviewSession {
 /**
  * 畫一次，交回查詢函式與一支 `redraw()`。
  *
- * 狀態機不經過 React 的 state，畫面因此不會自己重畫；正式跑的時候是 `App.tsx` 收到
+ * 狀態機不經過 React 的 state，畫面因此不會自己重畫；正式跑的時候是 `../lib/app-context.tsx` 收到
  * `onChange` 之後重畫（見那支檔案）。測試裡由 `redraw()` 代勞，按下按鈕之後叫一次。
  */
-async function show(session: ReviewSession, onOpenProbe: () => void = () => {}) {
+async function show(session: ReviewSession) {
   // 每次都造一個新的 element。**同一個 element 物件遞第二次的話 React 會直接跳過重畫**，
   // 而狀態機的改變不經過 props，畫面就永遠停在第一次的樣子。
-  // 正式跑的時候不會踩到：`App.tsx` 是靠自己重畫，每一輪本來就是新的 element。
+  // 正式跑的時候不會踩到：`AppProvider` 是靠自己重畫，每一輪本來就是新的 element。
   const tree = () => (
     <SafeAreaProvider initialMetrics={{ frame: FRAME, insets: INSETS }}>
-      <ReviewScreen session={session} onOpenProbe={onOpenProbe} />
+      <ReviewScreen session={session} />
     </SafeAreaProvider>
   );
   const rendered = await render(tree());
@@ -165,31 +178,47 @@ describe('零本', () => {
   });
 });
 
+/**
+ * 票 `09` 之後**這一頁不通往任何地方**，換頁全部交給底部的導覽列。
+ * 標題列上那顆「探針」跟著沒了，它現在是導覽列上「資料」那個 tab。
+ */
 describe('通往其他畫面的按鈕', () => {
-  it('「編輯」與「卡片」這一版都不放，因為目的地還沒做', async () => {
+  it('「編輯」與「卡片」都不放，因為那是導覽列的事', async () => {
     const view = await show(build(一張卡));
     expect(view.queryByText('編輯')).toBeNull();
     expect(view.queryByText('卡片')).toBeNull();
   });
 
-  it('探針那顆後門按得到', async () => {
-    const onOpenProbe = jest.fn();
-    const view = await show(build(一張卡), onOpenProbe);
-    await fireEvent.press(view.getByText('探針'));
-    expect(onOpenProbe).toHaveBeenCalledTimes(1);
+  it('標題列上沒有「探針」那顆後門了', async () => {
+    const view = await show(build(一張卡));
+    expect(view.queryByText('探針')).toBeNull();
+    expect(view.queryByLabelText('探針')).toBeNull();
   });
 });
 
+/**
+ * 這一組原本查的是鈕上那行字。票 `09` 把它換成圓形圖示鈕（樣版 1a），鈕面上沒有字了，
+ * 因此改查唸出來的那一句——**那是換掉外觀之後還留著的同一個承諾**：這顆鈕叫「複製」，
+ * 按下去會回報「已複製」。
+ */
 describe('複製', () => {
   it('按鈕在卡片最下面那一排，蓋著答案時也在', async () => {
     const view = await show(build(一張卡));
-    expect(view.getByText('複製')).toBeTruthy();
+    expect(view.getByLabelText('複製')).toBeTruthy();
   });
 
   it('按下去之後回報一次「已複製」', async () => {
     const view = await show(build(一張卡));
-    await fireEvent.press(view.getByText('複製'));
-    expect(view.getByText('已複製')).toBeTruthy();
+    await fireEvent.press(view.getByLabelText('複製'));
+    expect(view.getByLabelText('已複製')).toBeTruthy();
+  });
+
+  /** `B-14`：系統已經有的符號不自己畫。打錯字 `tsc` 擋得下來，換錯符號只有這裡擋得下來。 */
+  it('用的是系統符號 doc.on.doc，按下去換成一個勾', async () => {
+    const view = await show(build(一張卡));
+    expect(symbolNames(view.getByLabelText('複製'))).toEqual(['doc.on.doc']);
+    await fireEvent.press(view.getByLabelText('複製'));
+    expect(symbolNames(view.getByLabelText('已複製'))).toEqual(['checkmark']);
   });
 });
 

@@ -10,11 +10,9 @@
  */
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
 import { t } from '@core/i18n';
 import { toPlainText } from '@core/lib/reading';
-import { ContentPill } from './glass-pill';
-import { color, fontSize, weight } from './theme';
+import { IconButton } from './icon-button';
 
 /** 「已複製」停留多久。夠久看得到，短到不會擋住下一次操作。 */
 const CONFIRM_MS = 1600;
@@ -42,20 +40,19 @@ export function CopyButton({ text }: CopyButtonProps) {
     timer.current = setTimeout(() => setCopied(false), CONFIRM_MS);
   }
 
+  /**
+   * **回報改由符號說。** 這顆鈕在票 `09` 從一顆寫著「複製」的膠囊換成圓形圖示鈕
+   * （樣版 1a），鈕面上因此沒有位置放「已複製」那三個字了。改成整顆符號換成一個勾，
+   * 那是 iOS 自己在做同一件事時的樣子。
+   *
+   * 唸出來的那一句照樣跟著換（`review.copy` → `review.copied`），看不到畫面的人
+   * 收到的回報與看得到的人一模一樣。
+   */
   return (
-    <ContentPill onPress={copy} accessibilityLabel={t('review.copy')} style={styles.pill}>
-      <Text style={styles.text}>{copied ? t('review.copied') : t('review.copy')}</Text>
-    </ContentPill>
+    <IconButton
+      name={copied ? 'checkmark' : 'doc.on.doc'}
+      accessibilityLabel={copied ? t('review.copied') : t('review.copy')}
+      onPress={copy}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  pill: {
-    paddingHorizontal: 14,
-  },
-  text: {
-    color: color.label,
-    fontSize: fontSize.footnote,
-    fontWeight: weight.medium,
-  },
-});

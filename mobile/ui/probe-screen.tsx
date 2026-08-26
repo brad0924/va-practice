@@ -1,6 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { toMessage } from '@core/lib/app-error';
 import { DEFAULT_EASE } from '@core/lib/review';
@@ -16,9 +17,13 @@ import type { SelfCheckReport } from '../lib/crypto-self-check';
  * `createStore()` 吃得下 MMKV 嗎、**手機上加出來的備份電腦解不解得開**——
  * 第三項要靠人按按鈕、關掉 app、重開來驗，自動測試碰不到「關掉再開」那一段。
  *
- * > **這是暫時的後門。** 票 `06` 之後首頁是複習畫面，這一支退到標題列那顆「探針」底下，
- * > 因為手機上目前沒有別的地方能建單字本、加卡、或登入雲端——資料頁排在後面的票。
- * > **資料頁一做好，這整支檔案連同那顆按鈕一起刪掉。**
+ * > **它現在是「資料」tab 的內容**（票 `09`）。原本掛在複習畫面標題列一顆寫著「探針」的
+ * > 後門膠囊底下，那顆鈕已經拆掉——它做的事本來就是資料頁的事。
+ * > **資料頁一做好，這整支檔案就地被取代。**
+ *
+ * 沒有「回上一頁」那種按鈕，因為它不是被蓋上來的一層：四個 tab 平起平坐，
+ * 回複習畫面就是按導覽列上的「複習」（HIG `N-10` 那條講的是返回鈕該長什麼樣，
+ * 而這一頁根本不該有返回鈕）。
  */
 
 /**
@@ -91,34 +96,47 @@ export interface ProbeScreenProps {
   onStatus(message: string): void;
   /** 這支畫面改過本機資料了，外面要重讀。 */
   onDataChanged(): void;
-  onClose(): void;
 }
 
-export function ProbeScreen({
-  store,
-  cloud,
-  vectors,
-  cloudStatus,
-  onStatus,
-  onDataChanged,
-  onClose,
-}: ProbeScreenProps) {
+/**
+ * 讀一次本機資料，讀不出來就交回一句話而不是讓它往上丟。
+ *
+ * `store.load()` 在資料壞掉時會丟出帶 key 的錯（`ADR-0013`），沒接住的話畫面直接掛掉，
+ * 人看到的是一片空白——**正好在最需要它說話的那一刻失聲**。這裡不捏一份假的空資料頂上去，
+ * 資料就是讀不出來，畫面照實說。
+ */
+function open(store: Store): { data: AppData | null; failure: string | null } {
+  try {
+    return { data: store.load(), failure: null };
+  } catch (error) {
+    return { data: null, failure: toMessage(error) };
+  }
+}
+
+export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDataChanged }: ProbeScreenProps) {
+  const [opened, setOpened] = useState(() => open(store));
+  const { data, failure } = opened;
+  const setData = (next: AppData) => setOpened({ data: next, failure: null });
+
   /**
-   * 開機讀一次。這就是驗收要的東西：上次關掉 app 之前存的卡，現在還在不在。
+   * **每次切回這個 tab 都要重讀。**
    *
-   * 讀不出來時交回一句話而不是讓它往上丟。`store.load()` 在資料壞掉時會丟出帶 key 的錯
-   * （`ADR-0013`），沒接住的話畫面直接掛掉，人看到的是一片空白——**正好在最需要它說話的
-   * 那一刻失聲**。這裡不捏一份假的空資料頂上去，資料就是讀不出來，畫面照實說。
+   * 票 `09` 之前這一頁是被蓋上來的一層，離開就整個卸載、回來重建，那時候「開機讀一次」
+   * 就等於「每次進來都讀」。改成 tab 之後四頁同時掛著，切走只是被蓋住——手上那份因此會
+   * 停在上次進來的樣子。
+   *
+   * **停住不只是顯示不準，是會掉資料**：在「複習」評幾張再切過來按「加 5 張卡」，
+   * `store.save()` 存下去的是那份舊快照，中間評的分整批被蓋掉。
+   *
+   * 用 `useFocusEffect` 而不是重建整個元件（換 `key`）：重建會把填到一半的暱稱與密碼
+   * 一起清掉，而票 `09` 的驗收明講「切走再切回來，探針填到一半的欄位還在」。
    */
-  const [opened] = useState(() => {
-    try {
-      return { data: store.load(), failure: null as string | null };
-    } catch (error) {
-      return { data: null, failure: toMessage(error) };
-    }
-  });
-  const [data, setData] = useState<AppData | null>(opened.data);
-  const [failure, setFailure] = useState<string | null>(opened.failure);
+  useFocusEffect(
+    useCallback(() => {
+      setOpened(open(store));
+    }, [store]),
+  );
+
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [cloudBusy, setCloudBusy] = useState(false);
@@ -152,11 +170,10 @@ export function ProbeScreen({
       const next = addBatch(data);
       store.save(next);
       setData(next);
-      setFailure(null);
       onDataChanged();
     } catch (error) {
       // 帶 key 的錯要查表才變成字（`ADR-0013`），畫面層一律走 toMessage()。
-      setFailure(toMessage(error));
+      setOpened({ data, failure: toMessage(error) });
     }
   }
 
@@ -166,7 +183,7 @@ export function ProbeScreen({
    * **兩件事都會去抽 12 個位元組當初始向量。** 標答比對期間亂數來源被換成表裡那個固定值，
    * 這時真的推一份備份上去的話，那份會用上一個**公開在版控裡**的初始向量——
    * 同一把金鑰配同一個初始向量，AES-GCM 的保護就整個垮了。長度一樣，擋不掉，
-   * 只能不讓它們重疊。複習畫面那一端的推送走同一道閘門，見 `../App.tsx`。
+   * 只能不讓它們重疊。複習畫面那一端的推送走同一道閘門，見 `../lib/app-context.tsx`。
    */
   const cloudReady = vectors !== null && !cloudBusy && data !== null;
 
@@ -196,10 +213,6 @@ export function ProbeScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.center}>
-        <Pressable style={styles.button} onPress={onClose}>
-          <Text style={styles.buttonText}>← 回複習畫面</Text>
-        </Pressable>
-
         {canRenderGlass ? (
           <GlassView style={styles.card} glassEffectStyle="regular" />
         ) : (

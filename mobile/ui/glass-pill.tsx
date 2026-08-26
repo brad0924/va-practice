@@ -115,29 +115,12 @@ export function GlassPill({ children, onPress, accessibilityLabel, block, style 
   );
 }
 
-export interface ContentPillProps {
-  children: ReactNode;
-  onPress(): void;
-  accessibilityLabel?: string;
-  style?: StyleProp<ViewStyle>;
-}
-
 /**
- * 內容層裡的按鈕。形狀與 `GlassPill` 一樣，但**一律不套玻璃**。
- *
- * 卡片裡的「複製」與「朗讀」走這一支。HIG `M-01` 說玻璃只用在控制與導覽這一層，
- * 而那兩顆畫在卡片裡面——卡片是內容層。內容層要分層時走標準材質（`M-02`），
- * 也就是這裡用的那組顏色，與 `GlassPill` 在 iOS 26 以下退回的樣子是同一種。
+ * > **這裡以前還有一支 `ContentPill`**：形狀跟 `GlassPill` 一樣但不套玻璃，卡片裡的
+ * > 「複製」與「朗讀」走它。票 `09` 把那兩顆換成圓形圖示鈕（樣版 1a），沒人用了因此刪掉。
+ * > 內容層的按鈕現在看 `./icon-button.tsx`，立場沒變——玻璃只用在控制與導覽那一層
+ * > （`M-01`），卡片裡的東西走標準材質（`M-02`）。
  */
-export function ContentPill({ children, onPress, accessibilityLabel, style }: ContentPillProps) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
-      {({ pressed }) => (
-        <View style={[styles.pill, styles.fallback, style, pressed && styles.pressed]}>{children}</View>
-      )}
-    </Pressable>
-  );
-}
 
 const styles = StyleSheet.create({
   /**

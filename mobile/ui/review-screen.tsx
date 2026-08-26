@@ -12,10 +12,12 @@
  * > 兩條列底下是純黑、玻璃會看起來像扁平的深灰塊（2026-08-26）。票 `09` 加上導覽列與
  * > 真正有內容的三頁之後，這一區會重新長回來，那時候再回頭看。
  *
- * **通往其他畫面的按鈕這一版都沒有**：網頁版這一頁上的「卡片」「編輯」，以及零本畫面的
- * 「去建立單字本」，目的地都排在後面的票。放上去就是三顆死鈕，因此不放。
- * 標題列上那顆「探針」是暫時的後門（見 `./probe-screen.tsx`）。票 `09` 會把它搬進
- * 「資料」那個 tab 並拆掉這一顆——在那之前不能先拆，它是探針目前唯一的入口。
+ * **通往其他畫面的按鈕這一頁上一顆都沒有**：網頁版這一頁上的「卡片」「編輯」，以及零本
+ * 畫面的「去建立單字本」，目的地都排在後面的票。放上去就是三顆死鈕，因此不放。
+ *
+ * > 標題列上那顆「探針」在票 `09` 拆掉了。它做的事是資料頁的事，因此改當導覽列上
+ * > 「資料」那個 tab 的內容（見 `../app/data.tsx`）。從此這一頁不負責通往任何地方——
+ * > 換頁是導覽列的事。
  */
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
@@ -27,7 +29,9 @@ import { loadJapaneseVoice, speakTerm, type VoiceLike } from '../lib/japanese-vo
 import type { ReviewSession } from '../lib/review-session';
 import { BookScopeSheet } from './book-scope-sheet';
 import { CopyButton } from './copy-button';
-import { ContentPill, GlassGroup, GlassPill, PILL_PADDING_H } from './glass-pill';
+import { GlassGroup, GlassPill, PILL_PADDING_H } from './glass-pill';
+import { IconButton } from './icon-button';
+import { Notice } from './notice';
 import { Term } from './term';
 import { color, fontSize, SCREEN_INSET, TAP_SIZE, weight } from './theme';
 
@@ -53,13 +57,8 @@ const RATINGS: { rating: Rating; label: Key; tint: string }[] = [
   { rating: 'easy', label: 'review.ratingEasy', tint: '#4a90d9' },
 ];
 
-/** 後門那顆鈕上的字。理由見底下它出現的地方。 */
-const PROBE_LABEL = '探針';
-
 export interface ReviewScreenProps {
   session: ReviewSession;
-  /** 暫時的後門，通往票 `03`–`05` 的探針畫面。 */
-  onOpenProbe(): void;
 }
 
 /**
@@ -77,7 +76,7 @@ export function ratingsFitOneRow(width: number, fontScale: number): boolean {
   return pill * RATINGS.length + BAR_GAP * (RATINGS.length - 1) + SCREEN_INSET * 2 <= width;
 }
 
-export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
+export function ReviewScreen({ session }: ReviewScreenProps) {
   const { data, queue, revealed } = session.snapshot();
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
@@ -162,12 +161,14 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
                     留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
                 <CopyButton key={card!.id} text={card!.text} />
                 {revealed && voice !== null && (
-                  <ContentPill
-                    onPress={() => speakTerm(card!.text, voice)}
+                  // 符號用 SF Symbols 的喇叭，不自己畫（`B-14`）。翻譯檔裡 `review.speak`
+                  // 那條是「🔊 朗讀」，帶著表情符號、是給文字鈕用的；圖示鈕改讀
+                  // `review.speakLabel`，那條本來就是唸給 VoiceOver 聽的整句話。
+                  <IconButton
+                    name="speaker.wave.2"
                     accessibilityLabel={t('review.speakLabel')}
-                  >
-                    <Text style={styles.speakText}>{t('review.speak')}</Text>
-                  </ContentPill>
+                    onPress={() => speakTerm(card!.text, voice)}
+                  />
                 )}
               </View>
             </View>
@@ -186,8 +187,12 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
             塞不下換行時兩格都會收成 0，不會多出空隙。
 
             **中間那顆只是「差不多」置中**：兩格彈簧一樣長，因此單字本的中心會落在
-            左右兩邊寬度的平均處，不是螢幕正中心。這一頁上兩邊差不到幾點，看不出來；
-            要真的對準螢幕中心得改用絕對定位，那會讓大字級下的換行整個失效。 */}
+            左右兩邊剩餘寬度的平均處，往右偏了「剩餘 N 張」那行字的一半。
+            要真的對準螢幕中心得改用絕對定位，那會讓大字級下的換行整個失效。
+
+            > 票 `09` 拆掉右邊那顆「探針」之後這個偏移變明顯了——它以前在右邊佔著位置，
+            > 兩邊因此差不多一樣寬。換來的是標題列乾淨了，探針的入口改成導覽列上的
+            > 「資料」tab。偏移多少留給並排目測那把尺判。 */}
         <View style={styles.headerSpacer} />
         {!noBooks && (
           <BookScopeSheet
@@ -197,12 +202,6 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
           />
         )}
         <View style={styles.headerSpacer} />
-        {/* **只有這一顆的字沒查表**，刻意的：`ADR-0013` 管的是介面文字，而這顆鈕不是
-            介面的一部分——它是通往探針畫面的暫時後門，而探針畫面整支的字本來就寫死中文
-            （票 `03`–`05`）。為一顆要刪掉的鈕往三份翻譯檔各加一條，留下的是三條孤兒。 */}
-        <GlassPill onPress={onOpenProbe} accessibilityLabel={PROBE_LABEL}>
-          <Text style={styles.probe}>{PROBE_LABEL}</Text>
-        </GlassPill>
       </GlassGroup>
 
       {/* 完成與零本兩種狀態底下沒有可按的東西，整條控制列就不出現——
@@ -244,16 +243,6 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
   );
 }
 
-/** 完成與零本共用的一塊。差的只有符號與兩行字。 */
-function Notice({ mark, title, note }: { mark: string; title: string; note: string }) {
-  return (
-    <View style={styles.notice}>
-      <Text style={styles.noticeMark}>{mark}</Text>
-      <Text style={styles.noticeTitle}>{title}</Text>
-      <Text style={styles.noticeNote}>{note}</Text>
-    </View>
-  );
-}
 
 /** 相鄰控制項之間的距離。有邊框的元件約 12pt（HIG `L-11`），也讓兩塊玻璃靠得夠近會融形。 */
 const BAR_GAP = 12;
@@ -318,29 +307,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.title3,
     textAlign: 'center',
   },
-  speakText: {
-    color: color.label,
-    fontSize: fontSize.subheadline,
-    fontWeight: weight.medium,
-  },
-  notice: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  noticeMark: {
-    fontSize: 44,
-  },
-  noticeTitle: {
-    color: color.label,
-    fontSize: fontSize.title2,
-    fontWeight: weight.semibold,
-    textAlign: 'center',
-  },
-  noticeNote: {
-    color: color.secondaryLabel,
-    fontSize: fontSize.body,
-    textAlign: 'center',
-  },
   /**
    * 兩條控制列都浮在內容之上，左右內縮到系統邊距內——按鈕不貼齊螢幕邊（HIG `L-05`）。
    * `gap` 12 是有邊框元件之間該留的距離（`L-11`），也讓相鄰的兩塊玻璃靠得夠近會融形。
@@ -379,10 +345,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.footnote,
     fontWeight: weight.semibold,
     letterSpacing: 1.4,
-  },
-  probe: {
-    color: color.secondaryLabel,
-    fontSize: fontSize.footnote,
   },
   /** 四顆評分鈕同尺寸、平分整條列——同一組選項用同尺寸，不用大小區分主次（HIG `B-05`）。 */
   ratingPill: {

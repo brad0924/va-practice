@@ -1,22 +1,24 @@
-import { StatusBar } from 'expo-status-bar';
-import { getLocales } from 'expo-localization';
-import { useEffect, useReducer, useState } from 'react';
-import { AppState } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { initI18n } from '@core/i18n';
-import { createStore } from '@core/lib/storage';
-import type { AppData } from '@core/lib/types';
-import { ProbeScreen } from './app/probe-screen';
-import { ReviewScreen } from './app/review-screen';
-import { createCloudProbe } from './lib/cloud-probe';
-import { reportCryptoSelfCheck, type SelfCheckReport } from './lib/crypto-self-check';
-import { createReviewSession, type ReviewSession } from './lib/review-session';
-import { createMmkvStorage } from './lib/storage-mmkv';
-
 /**
- * 這支 app 的根。首頁是複習畫面（票 `06`），標題列上那顆「探針」通往票 `03`–`05` 的
- * 探針畫面——那是暫時的後門，資料頁做好之後連同 `app/probe-screen.tsx` 一起刪掉。
+ * 整支 app 共用的那一份：儲存、複習流程、雲端備份，加上標答比對的結論。
+ *
+ * **四個畫面拿到的必須是同一份。** 這三樣彼此接線（雲端拉下來要重建複習佇列、每次評分
+ * 存完要推上去），任何一頁自己再建一份就是兩套實作在寫同一批資料——`spec.md`
+ * 〈程式碼怎麼擺〉把「邏輯層分岔」列為這條路上最不能踩的線。
+ *
+ * 這一支原本是 `App.tsx`。票 `09` 換上導覽列之後那支檔沒有了（進入點交給
+ * `expo-router/entry`），內容搬到這裡，畫面那一半留在 `app/_layout.tsx`。
  */
+import { getLocales } from 'expo-localization';
+import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
+import { initI18n } from '@core/i18n';
+import { createStore, type Store } from '@core/lib/storage';
+import type { CloudBackup } from '@core/lib/cloud-backup';
+import type { AppData } from '@core/lib/types';
+import { createCloudProbe } from './cloud-probe';
+import { reportCryptoSelfCheck, type SelfCheckReport } from './crypto-self-check';
+import { createReviewSession, type ReviewSession } from './review-session';
+import { createMmkvStorage } from './storage-mmkv';
 
 /**
  * 這台裝置那一格儲存，開一次就好。
@@ -24,9 +26,7 @@ import { createMmkvStorage } from './lib/storage-mmkv';
  * 三行的順序不能換：`storage.ts` 與 `app-error.ts` 都會查介面字串表，接上之前叫到就丟例外。
  *
  * **語言跟著裝置走**，與網頁版 `src/app.ts` 遞 `navigator.language` 是同一件事
- * （`ADR-0013`）。票 `03`–`05` 的探針畫面在這裡寫死繁體中文，因為那幾張票只要顯示錯誤，
- * 為那一句話多帶一個原生模組進包裡不划算；正式畫面每一個字都要查表，所以現在接上。
- * `getLocales()` 是同步的，畫面出來之前就答得出來。
+ * （`ADR-0013`）。`getLocales()` 是同步的，畫面出來之前就答得出來。
  */
 const storage = createMmkvStorage();
 initI18n(storage, getLocales()[0]?.languageTag ?? 'en');
@@ -48,7 +48,7 @@ function createWiring(onChange: () => void, onStatus: (message: string) => void)
   /**
    * 標答比對還在跑的時候不准推。**兩件事都會去抽 12 個位元組當初始向量**，而比對期間
    * 亂數來源被換成表裡那個公開在版控裡的固定值——同一把金鑰配同一個初始向量，
-   * AES-GCM 的保護就整個垮了。理由的正本在 `app/probe-screen.tsx` 的 `cloudReady`。
+   * AES-GCM 的保護就整個垮了。理由的正本在 `../ui/probe-screen.tsx` 的 `cloudReady`。
    *
    * 擋掉的那幾次不會遺失：`push()` 送的是整份資料，比對跑完補推一次就全帶到了。
    */
@@ -59,7 +59,7 @@ function createWiring(onChange: () => void, onStatus: (message: string) => void)
     storage,
     store,
     // 兩條刻意分開：拉下來是「整份資料被換掉了」，要重讀；推上去只是伺服器蓋了新的
-    // 時間戳，資料一個字沒變，動不得——理由見 `lib/review-session.ts` 的 `noteCloudTimestamp`。
+    // 時間戳，資料一個字沒變，動不得——理由見 `./review-session.ts` 的 `noteCloudTimestamp`。
     onPulled: () => session.reload(),
     onPushed: (updatedAt) => session.noteCloudTimestamp(updatedAt),
     onStatus,
@@ -92,11 +92,35 @@ function createWiring(onChange: () => void, onStatus: (message: string) => void)
   return { cloud, session, openGate };
 }
 
-export default function App() {
-  // 這支 app 的畫面本來就是整片重畫的，狀態機自己記著資料，React 這一側只要知道
-  // 「有東西變了」。與網頁版不引入 signal／store／observer 是同一個理由（票 `02`）。
+export interface AppShared {
+  store: Store;
+  cloud: CloudBackup;
+  session: ReviewSession;
+  /** 標答比對的結論。`null` 代表還在跑，那時候不准動雲端。 */
+  vectors: SelfCheckReport | null;
+  cloudStatus: string;
+  setCloudStatus(message: string): void;
+}
+
+const AppContext = createContext<AppShared | null>(null);
+
+/** 拿共用的那一份。沒有被 `AppProvider` 包住時當場說清楚，不要交回一個假的空殼。 */
+export function useApp(): AppShared {
+  const shared = useContext(AppContext);
+  if (shared === null) throw new Error('useApp() 只能在 <AppProvider> 底下叫');
+  return shared;
+}
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  /**
+   * 這支 app 的畫面本來就是整片重畫的，狀態機自己記著資料，React 這一側只要知道
+   * 「有東西變了」。與網頁版不引入 signal／store／observer 是同一個理由（票 `02`）。
+   *
+   * **那個數字沒有人讀，往前走一格只是為了讓這個元件重畫。** 重畫一次底下那個
+   * `value` 就是一個新物件，四個畫面身上的 `useApp()` 因此跟著重畫——context 是看
+   * 物件是不是同一個，不是看內容有沒有變。
+   */
   const [, redraw] = useReducer((count: number) => count + 1, 0);
-  const [showProbe, setShowProbe] = useState(false);
   const [vectors, setVectors] = useState<SelfCheckReport | null>(null);
   const [cloudStatus, setCloudStatus] = useState('');
   const [wiring] = useState(() => createWiring(redraw, setCloudStatus));
@@ -106,8 +130,10 @@ export default function App() {
    * 最後那一筆明文有 4 MB，PBKDF2 又刻意跑得慢——放進第一次畫面就是開 app 先黑幾秒。
    *
    * 只跑一次。空的相依陣列是刻意的：這張表不會因為畫面重畫而改變答案。
-   * CI 也靠它——那支流程只是把 app 開起來，然後等結論寫成檔案
-   * （`.github/workflows/mobile-crypto.yml`），所以它必須在首頁就跑，不能等人點進探針。
+   *
+   * **它掛在這裡而不是「資料」那一頁，是刻意的。** CI 只是把 app 開起來然後等結論寫成檔案
+   * （`.github/workflows/mobile-crypto.yml`），改成進頁才跑的話那支流程會永遠等不到。
+   * 它同時是雲端推送的閘門，閘門也在這裡開。
    */
   useEffect(() => {
     let alive = true;
@@ -133,21 +159,17 @@ export default function App() {
   }, [wiring]);
 
   return (
-    <SafeAreaProvider>
-      {showProbe ? (
-        <ProbeScreen
-          store={store}
-          cloud={wiring.cloud}
-          vectors={vectors}
-          cloudStatus={cloudStatus}
-          onStatus={setCloudStatus}
-          onDataChanged={() => wiring.session.reload()}
-          onClose={() => setShowProbe(false)}
-        />
-      ) : (
-        <ReviewScreen session={wiring.session} onOpenProbe={() => setShowProbe(true)} />
-      )}
-      <StatusBar style="light" />
-    </SafeAreaProvider>
+    <AppContext.Provider
+      value={{
+        store,
+        cloud: wiring.cloud,
+        session: wiring.session,
+        vectors,
+        cloudStatus,
+        setCloudStatus,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
   );
 }

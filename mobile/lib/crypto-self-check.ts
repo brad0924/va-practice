@@ -6,7 +6,7 @@
  * 真正在加密備份的那一份。**兩者對不上的話，電腦存的備份手機解不開，反過來也一樣，
  * 而且不會當場報錯**——存的時候一切正常，某天想還原才發現打不開。
  *
- * 兩個地方會叫它：`App.tsx` 的自我檢查方塊（人看得到），以及 CI 在 iOS 模擬器裡開這支 app
+ * 兩個地方會叫它：`app-context.tsx` 的開機那一段（結論畫在「資料」tab 上，人看得到），以及 CI 在 iOS 模擬器裡開這支 app
  * 之後去撈 `MARKER` 那一行（機器看得到，見 `.github/workflows/mobile-crypto.yml`）。
  */
 import { File, Paths } from 'expo-file-system';
