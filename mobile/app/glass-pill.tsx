@@ -24,6 +24,14 @@ export interface GlassGroupProps {
   style?: StyleProp<ViewStyle>;
   /** 這一組實際佔了多高。呼叫端靠它讓開捲動內容，見 `./review-screen.tsx`。 */
   onLayout?: ViewProps['onLayout'];
+  /**
+   * 這一組裡的玻璃靠多近才融成一塊。**傳 0 就是「同一組，但各自獨立」**。
+   *
+   * 底部那一條要的正是 0：票 `06` 定案 1a 說評分是「四顆分開的玻璃方塊」，融在一起就不是
+   * 四顆了，而且融形時系統會照自己的形狀畫，各自的圓角設定跟著失效。
+   * 標題列不傳，走預設值，那邊本來就該連成一氣。
+   */
+  spacing?: number;
 }
 
 /**
@@ -33,7 +41,7 @@ export interface GlassGroupProps {
  * 容器本身不畫任何東西，只負責告訴系統「這幾塊是一組的」，因此不算多疊一層背景（`M-08`）。
  * `GlassContainer` 與 `GlassView` 同樣要先問過 `isGlassEffectAPIAvailable()`，套件文件明寫。
  */
-export function GlassGroup({ children, style, onLayout }: GlassGroupProps) {
+export function GlassGroup({ children, style, onLayout, spacing = MERGE_SPACING }: GlassGroupProps) {
   if (!canRenderGlass)
     return (
       <View style={style} onLayout={onLayout}>
@@ -41,7 +49,7 @@ export function GlassGroup({ children, style, onLayout }: GlassGroupProps) {
       </View>
     );
   return (
-    <GlassContainer spacing={MERGE_SPACING} style={style} onLayout={onLayout}>
+    <GlassContainer spacing={spacing} style={style} onLayout={onLayout}>
       {children}
     </GlassContainer>
   );
@@ -49,8 +57,11 @@ export function GlassGroup({ children, style, onLayout }: GlassGroupProps) {
 
 export interface GlassPillProps {
   children: ReactNode;
-  /** 沒有 `onPress` 的就不是按鈕，是一塊靜態的膠囊（標題列的「剩餘 N 張」）。 */
-  onPress?: () => void;
+  /**
+   * **一定要有。** 玻璃是控制層的材質（HIG `M-01`），套在不能按的東西上等於騙人家去按。
+   * 標題列的「剩餘 N 張」原本走這裡的靜態版本，已改回一行純文字。
+   */
+  onPress(): void;
   accessibilityLabel?: string;
   /**
    * 蓋在預設樣式上。**底部那幾顆靠它把圓角改成方的**（票 `06` 定案 1a），
@@ -66,7 +77,7 @@ export function GlassPill({ children, onPress, accessibilityLabel, style }: Glas
         style={[styles.pill, style, pressed && styles.pressed]}
         glassEffectStyle="regular"
         // 自訂玻璃按鈕要開啟互動反應，才有系統按鈕那種按壓感（HIG `B-12`）。
-        isInteractive={onPress !== undefined}
+        isInteractive
       >
         {children}
       </GlassView>
@@ -75,8 +86,6 @@ export function GlassPill({ children, onPress, accessibilityLabel, style }: Glas
         {children}
       </View>
     );
-
-  if (onPress === undefined) return body(false);
 
   // 自訂按鈕一定要有按下狀態（HIG `B-03`）。玻璃自己的互動反應只在 iOS 26 上有，
   // 退回一般區塊的機器上就只剩這一層透明度，因此兩條路都掛。

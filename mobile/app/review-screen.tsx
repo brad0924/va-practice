@@ -184,9 +184,9 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
         style={[styles.bar, styles.header, { top: insets.top + SCREEN_INSET }]}
         onLayout={measure(setHeaderHeight)}
       >
-        <GlassPill>
-          <Text style={styles.remaining}>{t('review.remaining', { count: queue.length })}</Text>
-        </GlassPill>
+        {/* **剩餘張數是一行字，不是一顆膠囊。** 它不能按，套上玻璃只會讓人以為按得下去；
+            標題列因此也從三顆等寬的膠囊變成「一行標題、右邊兩顆控制項」，看得出主從。 */}
+        <Text style={styles.remaining}>{t('review.remaining', { count: queue.length })}</Text>
         {/* 標題靠左、控制項靠右，中間讓開——真的導覽列就是這個結構（HIG `N-19`）。
             原本三顆等距擠在左邊，寬度各不相同，看起來像三個沒關係的東西各自漂著。
             塞不下換行時這一格會收成 0，不會多出一條空隙。 */}
@@ -217,6 +217,8 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
             stackRatings && revealed && styles.footerStacked,
             { bottom: insets.bottom + SCREEN_INSET },
           ]}
+          // 底部這幾顆各自獨立，不融形——理由見 `GlassGroupProps.spacing`。
+          spacing={0}
           onLayout={measure(setFooterHeight)}
         >
           {revealed ? (
@@ -375,10 +377,12 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
   },
+  /** 標題列左邊那一行字。字距是樣版 1a 上就有的，讓它讀起來像標籤而不是句子。 */
   remaining: {
-    color: color.label,
-    fontSize: fontSize.subheadline,
+    color: color.secondaryLabel,
+    fontSize: fontSize.footnote,
     fontWeight: weight.semibold,
+    letterSpacing: 1.4,
   },
   probe: {
     color: color.secondaryLabel,
