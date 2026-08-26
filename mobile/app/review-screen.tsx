@@ -103,49 +103,60 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
     <View style={styles.root} key={fontScale}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          // 捲動區本身鋪滿整頁，內容靠內距讓開那兩條浮著的控制列。這樣捲到底時
-          // 卡片會從控制列底下經過，而不是在它上方就停住（HIG `L-02`）。
-          // 讓開多少是量出來的，見上面的 headerHeight／footerHeight。
-          {
-            paddingTop: insets.top + headerHeight + SCREEN_INSET * 2,
-            paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
-          },
-        ]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
       >
-        {noBooks ? (
-          <Notice mark="📚" title={t('review.noBooksTitle')} note={t('review.noBooksNote')} />
-        ) : complete ? (
-          <Notice mark="✓" title={t('review.doneTitle')} note={t('review.doneNote')} />
-        ) : (
-          <View style={styles.card}>
-            <View style={styles.face}>
+        {/**
+         * 卡片**撐滿整頁**，兩條控制列浮在它上面。
+         *
+         * 這是「玻璃看不出來」的解法。玻璃的重點是折射，底下沒東西經過就跟一塊素色區塊
+         * 沒有兩樣——原本卡片是一個浮在純黑裡的小方塊，控制列底下永遠是黑的，
+         * 折射無從發生（真機截圖比對出來的，2026-08-26）。深色模式下頁面底色本來就是純黑，
+         * 那是 iOS 的語意色，不該改；要改的是**讓內容層真的鋪到控制列底下**（HIG `L-02`）。
+         *
+         * 卡片自己的內距讓開那兩條列，所以字不會被壓到，但卡片的材質會從它們底下透出去。
+         */}
+        <View
+          style={[
+            styles.card,
+            {
+              paddingTop: headerHeight + SCREEN_INSET * 2,
+              paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
+            },
+          ]}
+        >
+          {noBooks ? (
+            <Notice mark="📚" title={t('review.noBooksTitle')} note={t('review.noBooksNote')} />
+          ) : complete ? (
+            <Notice mark="✓" title={t('review.doneTitle')} note={t('review.doneNote')} />
+          ) : (
+            <>
+              <View style={styles.face}>
               <Term text={card!.text} showReading={revealed} />
               {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
                   留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
-              <CopyButton key={card!.id} text={card!.text} />
-            </View>
-
-            {revealed && (
-              <View style={styles.answer}>
-                {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
-                    這是詞條做不到、只有這裡補得回來的那一半。 */}
-                <Text style={styles.meaning} selectable>
-                  {card!.meaning}
-                </Text>
-                {voice !== null && (
-                  <ContentPill
-                    onPress={() => speakTerm(card!.text, voice)}
-                    accessibilityLabel={t('review.speakLabel')}
-                  >
-                    <Text style={styles.speakText}>{t('review.speak')}</Text>
-                  </ContentPill>
-                )}
+                <CopyButton key={card!.id} text={card!.text} />
               </View>
-            )}
-          </View>
-        )}
+
+              {revealed && (
+                <View style={styles.answer}>
+                  {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
+                      這是詞條做不到、只有這裡補得回來的那一半。 */}
+                  <Text style={styles.meaning} selectable>
+                    {card!.meaning}
+                  </Text>
+                  {voice !== null && (
+                    <ContentPill
+                      onPress={() => speakTerm(card!.text, voice)}
+                      accessibilityLabel={t('review.speakLabel')}
+                    >
+                      <Text style={styles.speakText}>{t('review.speak')}</Text>
+                    </ContentPill>
+                  )}
+                </View>
+              )}
+            </>
+          )}
+        </View>
       </ScrollView>
 
       <GlassGroup
@@ -155,6 +166,10 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
         <GlassPill>
           <Text style={styles.remaining}>{t('review.remaining', { count: queue.length })}</Text>
         </GlassPill>
+        {/* 標題靠左、控制項靠右，中間讓開——真的導覽列就是這個結構（HIG `N-19`）。
+            原本三顆等距擠在左邊，寬度各不相同，看起來像三個沒關係的東西各自漂著。
+            塞不下換行時這一格會收成 0，不會多出一條空隙。 */}
+        <View style={styles.headerSpacer} />
         {!noBooks && (
           <BookScopeSheet
             books={data.books}
@@ -234,30 +249,34 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    justifyContent: 'center',
     paddingHorizontal: SCREEN_INSET,
   },
   /**
    * 卡片是**內容層**，因此不套玻璃（HIG `M-01`）。要與頁面底分層時走標準材質那一組，
    * 顏色見 `./theme.ts`。圓角比膠囊小，因為它是大面積元件（`B-13`）。
+   *
+   * `flexGrow` 讓它把整頁撐滿，控制列底下才有東西可以折。上下內距在畫的地方給，
+   * 因為那個數字要量出來（見那裡的說明）。
    */
   card: {
+    flexGrow: 1,
     backgroundColor: color.card,
     borderRadius: 24,
-    paddingVertical: 32,
     paddingHorizontal: 20,
-    gap: 24,
+    justifyContent: 'center',
+    gap: 28,
   },
+  /** 詞條那一塊。 */
   face: {
     alignItems: 'center',
-    gap: 20,
+    gap: 24,
   },
   answer: {
     alignItems: 'center',
     gap: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: color.separator,
-    paddingTop: 24,
+    paddingTop: 28,
   },
   meaning: {
     color: color.secondaryLabel,
@@ -309,6 +328,10 @@ const styles = StyleSheet.create({
   },
   footer: {
     justifyContent: 'center',
+  },
+  /** 把標題與右邊那組控制項推開。換行時它收成 0，不會多出一條空隙。 */
+  headerSpacer: {
+    flexGrow: 1,
   },
   /** 四顆評分鈕排不下同一列時，整條列改成直的。 */
   footerStacked: {
