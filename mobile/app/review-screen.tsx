@@ -4,9 +4,13 @@
  * 三種狀態同一支函式畫：**複習中**、**今日份完成**（佇列清空）、**零本**。
  * 零本是另一套畫面，因為那時候單字本開關的選單是空的，放上去就是顆死按鈕。
  *
- * 版面是「內容鋪滿整頁，兩條控制列浮在上面」：捲動區一路捲到螢幕最底與最邊，
- * 內容從控制層底下透出來（HIG `L-01`、`L-02`）。玻璃只出現在那兩條控制列上，
+ * 版面是「一張四邊都看得見的卡片，上下各浮一條控制列」。玻璃只出現在那兩條控制列上，
  * 卡片本體是內容層、走標準材質（`M-01`、`M-02`）。
+ *
+ * > **這一頁因此放棄了玻璃的折射。** 卡片曾經鋪滿整頁、從控制列底下透出去（`L-02`），
+ * > 那是為了讓玻璃有東西可折。維護者看過兩種之後選了「卡片要有明確的邊」，並知情接受
+ * > 兩條列底下是純黑、玻璃會看起來像扁平的深灰塊（2026-08-26）。票 `09` 加上導覽列與
+ * > 真正有內容的三頁之後，這一區會重新長回來，那時候再回頭看。
  *
  * **通往其他畫面的按鈕這一版都沒有**：網頁版這一頁上的「卡片」「編輯」，以及零本畫面的
  * 「去建立單字本」，目的地都排在後面的票。放上去就是三顆死鈕，因此不放。
@@ -113,27 +117,18 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
     <View style={styles.root} key={fontScale}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
+        contentContainerStyle={[
+          styles.content,
+          // 卡片**讓開上下那兩條列**，四個邊因此都看得到。量出來的兩個高度加上與列之間的
+          // 一段距離：`insets.top + SCREEN_INSET` 是列的上緣，`+ headerHeight` 到列的下緣，
+          // 再 `+ SCREEN_INSET` 才輪到卡片。底下同理。
+          {
+            paddingTop: insets.top + headerHeight + SCREEN_INSET * 2,
+            paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
+          },
+        ]}
       >
-        {/**
-         * 卡片**撐滿整頁**，兩條控制列浮在它上面。
-         *
-         * 這是「玻璃看不出來」的解法。玻璃的重點是折射，底下沒東西經過就跟一塊素色區塊
-         * 沒有兩樣——原本卡片是一個浮在純黑裡的小方塊，控制列底下永遠是黑的，
-         * 折射無從發生（真機截圖比對出來的，2026-08-26）。深色模式下頁面底色本來就是純黑，
-         * 那是 iOS 的語意色，不該改；要改的是**讓內容層真的鋪到控制列底下**（HIG `L-02`）。
-         *
-         * 卡片自己的內距讓開那兩條列，所以字不會被壓到，但卡片的材質會從它們底下透出去。
-         */}
-        <View
-          style={[
-            styles.card,
-            {
-              paddingTop: headerHeight + SCREEN_INSET * 2,
-              paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
-            },
-          ]}
-        >
+        <View style={styles.card}>
           {noBooks ? (
             <Notice mark="📚" title={t('review.noBooksTitle')} note={t('review.noBooksNote')} />
           ) : complete ? (
@@ -187,9 +182,12 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
         {/* **剩餘張數是一行字，不是一顆膠囊。** 它不能按，套上玻璃只會讓人以為按得下去；
             標題列因此也從三顆等寬的膠囊變成「一行標題、右邊兩顆控制項」，看得出主從。 */}
         <Text style={styles.remaining}>{t('review.remaining', { count: queue.length })}</Text>
-        {/* 標題靠左、控制項靠右，中間讓開——真的導覽列就是這個結構（HIG `N-19`）。
-            原本三顆等距擠在左邊，寬度各不相同，看起來像三個沒關係的東西各自漂著。
-            塞不下換行時這一格會收成 0，不會多出一條空隙。 */}
+        {/* 左、中、右三段——真的導覽列就是這個結構（HIG `N-19`）。兩格彈簧把單字本推到中間。
+            塞不下換行時兩格都會收成 0，不會多出空隙。
+
+            **中間那顆只是「差不多」置中**：兩格彈簧一樣長，因此單字本的中心會落在
+            左右兩邊寬度的平均處，不是螢幕正中心。這一頁上兩邊差不到幾點，看不出來；
+            要真的對準螢幕中心得改用絕對定位，那會讓大字級下的換行整個失效。 */}
         <View style={styles.headerSpacer} />
         {!noBooks && (
           <BookScopeSheet
@@ -198,6 +196,7 @@ export function ReviewScreen({ session, onOpenProbe }: ReviewScreenProps) {
             onChange={(ids) => session.setReviewScope(ids)}
           />
         )}
+        <View style={styles.headerSpacer} />
         {/* **只有這一顆的字沒查表**，刻意的：`ADR-0013` 管的是介面文字，而這顆鈕不是
             介面的一部分——它是通往探針畫面的暫時後門，而探針畫面整支的字本來就寫死中文
             （票 `03`–`05`）。為一顆要刪掉的鈕往三份翻譯檔各加一條，留下的是三條孤兒。 */}
@@ -283,14 +282,15 @@ const styles = StyleSheet.create({
    * 卡片是**內容層**，因此不套玻璃（HIG `M-01`）。要與頁面底分層時走標準材質那一組，
    * 顏色見 `./theme.ts`。圓角比膠囊小，因為它是大面積元件（`B-13`）。
    *
-   * `flexGrow` 讓它把整頁撐滿，控制列底下才有東西可以折。上下內距在畫的地方給，
-   * 因為那個數字要量出來（見那裡的說明）。
+   * `flexGrow` 讓它把兩條列之間剩下的空間吃滿——上下左右四個邊因此都在螢幕上看得到。
+   * 讓開那兩條列的距離由捲動區的內距給，因為那兩個數字要量出來（見那裡的說明）。
    */
   card: {
     flexGrow: 1,
     backgroundColor: color.card,
     borderRadius: 24,
     paddingHorizontal: 20,
+    paddingVertical: 28,
     justifyContent: 'center',
   },
   /** 卡片裡那一疊：詞條、分隔線、釋義、動作鈕，全部對齊同一條中軸。 */
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   footer: {
     justifyContent: 'center',
   },
-  /** 把標題與右邊那組控制項推開。換行時它收成 0，不會多出一條空隙。 */
+  /** 標題列的彈簧。用兩格把中間那顆推到中央；換行時它們收成 0，不會多出空隙。 */
   headerSpacer: {
     flexGrow: 1,
   },
