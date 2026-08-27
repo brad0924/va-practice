@@ -195,24 +195,46 @@ export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDa
 
   return (
     <View style={styles.root}>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {Array.from({ length: STRIPE_COUNT }, (_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.stripe,
-              {
-                top: STRIPE_TOP + index * STRIPE_STEP,
-                backgroundColor: STRIPE_COLORS[index % STRIPE_COLORS.length],
-              },
-            ]}
-          />
-        ))}
-        <View style={[styles.blob, styles.blobTop]} />
-        <View style={[styles.blob, styles.blobBottom]} />
-      </View>
-
       <ScrollView contentContainerStyle={styles.center}>
+        {/**
+         * **這層彩色背景必須待在捲動區「裡面」，而且捲動區必須是 `root` 的第一個孩子。**
+         * 看起來像是把裝飾塞錯地方，其實是被原生那一端的找法逼出來的。
+         *
+         * iOS 26 的 tab bar 要「捲動時自己縮成小膠囊」，得先讓 `UITabBarController`
+         * 認得這一頁的捲動區。`react-native-screens` 幫我們找，找法寫在
+         * `RNSScrollViewFinder.mm`：**它從畫面根部開始，一路只走 `subviews[0]`，
+         * 完全不看兄弟。** 找不到就回 `nil`，tab bar 手上沒東西可盯，一輩子不縮。
+         *
+         * 這層背景原本是 `root` 的第一個孩子、捲動區排第二——於是那支 finder 鑽進
+         * 條紋堆裡走到底，回 `nil`。2026-08-27 真機測票 `09` 那條驗收就是掛在這裡，
+         * 而且看起來很像「iOS 版本不夠」，其實跟版本無關。
+         *
+         * 排在前面又要畫在底下，在 iOS 上是互斥的——「畫在底下」就等於「排在前面」。
+         * 因此改成搬進捲動區當第一層。**代價是它會跟著內容一起捲**，玻璃卡與背景的
+         * 相對位置不再變化，滑動時看不到卡片掠過不同顏色。這一頁是暫時的鷹架
+         * （資料頁那張票會整張換掉），因此接受。
+         *
+         * 官方另有一個逃生門 `ScrollViewMarker`，可以直接指定捲動區是哪一個；
+         * 但它的原生那一半包在 `#if RNS_GAMMA_ENABLED` 裡，要裝 pod 時開環境變數
+         * 才編得進來，這包沒開。
+         */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {Array.from({ length: STRIPE_COUNT }, (_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.stripe,
+                {
+                  top: STRIPE_TOP + index * STRIPE_STEP,
+                  backgroundColor: STRIPE_COLORS[index % STRIPE_COLORS.length],
+                },
+              ]}
+            />
+          ))}
+          <View style={[styles.blob, styles.blobTop]} />
+          <View style={[styles.blob, styles.blobBottom]} />
+        </View>
+
         {canRenderGlass ? (
           <GlassView style={styles.card} glassEffectStyle="regular" />
         ) : (
