@@ -64,4 +64,6 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 **不做 Android。** 每個決定只需要對 iOS 負責——真要寫原生模組時只寫 Swift，不必再寫一份 Kotlin。Liquid Glass 本來也只有 iOS 有。
 
-**五個原生功能全部要在 React Native 上重接**：每日提醒、原生日文語音、評分觸覺、Keychain 存密碼、保險副本。`ADR-0015` 寫明這五項是通過 App Store 審查準則 4.2（Minimum Functionality）的實質內容，少一項就是一支「把網站裝進殼裡」的 app。
+**四個原生功能全部要在 React Native 上重接**：每日提醒、原生日文語音、評分觸覺、Keychain 存密碼。`ADR-0015` 寫明這四項是通過 App Store 審查準則 4.2（Minimum Functionality）的實質內容，少一項就是一支「把網站裝進殼裡」的 app。
+
+**保險副本不在這四項裡**（訂正於 2026-08-27，`.scratch/rn-rewrite/issues/07`）。本行原本寫「五個」並把保險副本算進 4.2 的實質內容，那是轉述 `ADR-0015` 時多算的——那份 ADR 自己數的就是四項，保險副本是用「另外」帶出來的附加項。React Native 版不接保險副本：它防的是 iOS 清掉 WebView 那一層的網站資料，而這一版沒有 WebView。

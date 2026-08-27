@@ -175,7 +175,11 @@ JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaS
 而且 `app.json` 的 `ITSAppUsesNonExemptEncryption: false` 現在還是真的，開下去就不是了。
 
 **沒有保險副本。** Capacitor 版有一份，防的是 iOS 把 WebView 那層的網站資料清掉；React Native
-版沒有 WebView，MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。去留由票 `07` 決定。
+版沒有 WebView，MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。票 `07` 已拍板不留。
+
+**檔案壞掉時退回上一版，不歸零。** `createMmkvStorage()` 明訂 `recoveryStrategy: 'recover-on-error'`。
+不設的話 MMKV 的預設是整格丟掉，app 開起來像剛裝好的。理由與溯源寫在 `lib/storage-mmkv.ts` 的註解。
+這條路純本機，與雲端備份無關——雲端那邊解不開是「密碼不對」，本機資料一個字不動。
 
 **`crypto.randomUUID()`、`crypto.subtle`、`btoa()`／`atob()` 都是補上去的。** 瀏覽器裡這些
 是免費附贈的，React Native 一個都沒有。補丁在 `lib/install-crypto.ts`，接在 `index.ts` 第一行，

@@ -8,9 +8,11 @@
  *
  * **這裡沒有 React。** 當前時間與亂數一律由外面遞進來，跟 `core/lib/review.ts` 同一個規矩。
  *
- * 它不做的事：導覽（路由表在 `../app/`）、每日提醒、保險副本。
+ * 它不做的事：導覽（路由表在 `../app/`）、每日提醒。
  * 名單的正本在票 `06` 的〈這張票不做的事〉。**觸覺已經不在名單上**——票 `08` 接上了，
- * 走的是外面遞進來的 `haptic`。
+ * 走的是外面遞進來的 `haptic`。**保險副本也不在名單上**——票 `07` 拍板整個
+ * React Native 版都不接，票 `06` 正文是已收的票、不改，這件事以 `../../CONTEXT.md`
+ * 與 `ADR-0002` 為準。
  */
 import { cardsInBooks, setScope, type Store } from '@core/lib/storage';
 import { currentCard, rate as rateCard, rebuildQueue, toDateKey, type Queue } from '@core/lib/review';

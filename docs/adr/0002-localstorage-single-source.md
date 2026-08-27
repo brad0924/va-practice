@@ -14,7 +14,9 @@
 >
 > **換的只是實作，本 ADR 的立場不變：那一格仍是唯一真相來源。** 選 MMKV 而不是 React Native 官方的 `AsyncStorage`，理由正是為了讓這句話原樣成立——MMKV 是完全同步的，`StorageLike` 這個同步介面因此原封搬得過去，27 處呼叫端一行不改。`AsyncStorage` 是非同步的，改下去會傳染到每一個呼叫端。
 >
-> 上面那則 2026-08-18 的補充只對 Capacitor 版成立。**React Native 版沒有保險副本**：它防的是 iOS 清掉 WebView 那一層的網站資料，而 MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。去留由 `.scratch/rn-rewrite/issues/07` 決定。
+> 上面那則 2026-08-18 的補充只對 Capacitor 版成立。**React Native 版沒有保險副本**：它防的是 iOS 清掉 WebView 那一層的網站資料，而 MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。**`.scratch/rn-rewrite/issues/07` 已於 2026-08-27 拍板不留**，理由就是這個威脅不存在了；Capacitor 版那一份原封不動。
+
+> **補充（2026-08-27，`.scratch/rn-rewrite/issues/07`）**：MMKV 那一格明訂 `recoveryStrategy: 'recover-on-error'`。**這不是第二個真相來源，本 ADR 的立場一樣不變**——它管的是**同一格**壞掉時怎麼讀回來，不是多開一格。不設的話 MMKV 的預設是整格丟掉，app 會開起來像剛裝好的。機制與上游溯源（附行號）寫在 `mobile/lib/storage-mmkv.ts` 的 JSDoc，那份是正本。
 
 ## Considered Options
 
