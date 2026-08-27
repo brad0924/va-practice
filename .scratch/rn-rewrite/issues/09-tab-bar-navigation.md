@@ -296,3 +296,47 @@ Brief 說「斷言不動」，那是針對元件搬家。**這兩條不是搬家
 #### 這條規矩以後每一頁都適用
 
 **任何想吃到捲動縮小的畫面，捲動區都必須在「一路只走第一個孩子」那條鏈上。** 裝飾層、絕對定位的標題列、任何排在捲動區前面的兄弟，都會把它擋掉。程式碼看不出來，測試也守不住（那是原生的 subview 順序），只有真機會說話。
+
+### 2026-08-27（同日更正）— 上一則的結論是錯的。缺的是一顆 `ScrollViewMarker`，不必重出包
+
+搬完裝飾層之後真機再測，**還是不縮**。回頭把整條鏈重查一次，上一則有兩個地方講錯：
+
+**錯的第一件：「`RNS_GAMMA_ENABLED` 沒開」。** 那是我從 podspec 讀到旗標存在就推論的，沒有去查實際的包。查了兩份 build log，`-DRNS_GAMMA_ENABLED=1` **確實在 RNScreens 的編譯參數裡**——Expo SDK 57 預設就開著。
+
+**錯的第二件：以為那支「只走第一個孩子」的 finder 管的是捲動縮小。** 它管的是別的事（點狀態列回到頂端）。真正把捲動區交給 `UITabBarController` 的是 `setContentScrollView:forEdge:`，而整個套件裡**只有一條路會叫它**：
+
+```objc
+- (void)registerDescendantScrollView:(UIScrollView *)scrollView fromMarker:(RNSScrollViewMarkerComponentView *)marker
+{
+  [_controller setContentScrollView:scrollView forEdge:NSDirectionalRectEdgeAll];
+```
+
+`fromMarker:` ——**要有人真的畫出一顆 `ScrollViewMarker`，這條路才會被走到。** 我們一顆都沒有，所以從頭到尾沒有任何人告訴 tab bar 該盯哪個捲動區。`minimizeBehavior` 那一行設得再對也沒有用。
+
+#### 修法：一顆不畫任何東西的元件
+
+```tsx
+import { ScrollViewMarker } from 'react-native-screens/experimental';
+
+<ScrollViewMarker>
+  <ScrollView contentContainerStyle={styles.center}>…</ScrollView>
+</ScrollViewMarker>
+```
+
+它從自己**唯一的那個孩子**解析出捲動區，再往上找到這一頁的 tab screen 去註冊。**它是往上找的，因此擺哪一層都行**，裝飾層排在前面也不影響。
+
+**上一則那個「裝飾層搬進捲動區」的改動已經倒回去了。** 它當時是為了討好那支找錯對象的 finder，代價是條紋會跟著內容捲、玻璃卡與背景的相對位置不再變化——而那正是這一頁存在的理由。理由消失，代價就不該留著。
+
+#### 不必重新出包
+
+`RNSScrollViewMarkerComponentView.mm` 在現有這包裡**已經被編成 `.o`**（build log 查得到）。加的是純 JavaScript 的一行 import 與一層包裝，Metro 重載就吃得到。
+
+#### 這條規矩以後每一頁都適用
+
+**任何想吃到捲動縮小的畫面，都要自己包一顆 `ScrollViewMarker`。** 它不是自動的，`NativeTabs` 也不會幫你補。兩條規矩不能破：只能有一個孩子（原生那邊有 assert），而且那個孩子要解析得出捲動區。
+
+它來自 `react-native-screens/experimental`，那個入口的檔頭寫明「隨時可能改，不跟大版號」。升 SDK 之後這條驗收若又不過，先回來確認 `RNS_GAMMA_ENABLED` 那個旗標還在不在。
+
+#### 上一則裡仍然成立的那一段
+
+複習畫面**一個螢幕就塞得下、沒東西可捲**，因此票 `09` 拿來抵銷「底部一次兩條 chrome」的那個減輕因素，在最擠的那一頁上本來就兌現不了。這筆帳還是要在並排目測那一輪重算。

@@ -3,6 +3,7 @@ import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'ex
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollViewMarker } from 'react-native-screens/experimental';
 import { toMessage } from '@core/lib/app-error';
 import { DEFAULT_EASE } from '@core/lib/review';
 import { addBook, type Store } from '@core/lib/storage';
@@ -195,116 +196,116 @@ export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDa
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.center}>
-        {/**
-         * **這層彩色背景必須待在捲動區「裡面」，而且捲動區必須是 `root` 的第一個孩子。**
-         * 看起來像是把裝飾塞錯地方，其實是被原生那一端的找法逼出來的。
-         *
-         * iOS 26 的 tab bar 要「捲動時自己縮成小膠囊」，得先讓 `UITabBarController`
-         * 認得這一頁的捲動區。`react-native-screens` 幫我們找，找法寫在
-         * `RNSScrollViewFinder.mm`：**它從畫面根部開始，一路只走 `subviews[0]`，
-         * 完全不看兄弟。** 找不到就回 `nil`，tab bar 手上沒東西可盯，一輩子不縮。
-         *
-         * 這層背景原本是 `root` 的第一個孩子、捲動區排第二——於是那支 finder 鑽進
-         * 條紋堆裡走到底，回 `nil`。2026-08-27 真機測票 `09` 那條驗收就是掛在這裡，
-         * 而且看起來很像「iOS 版本不夠」，其實跟版本無關。
-         *
-         * 排在前面又要畫在底下，在 iOS 上是互斥的——「畫在底下」就等於「排在前面」。
-         * 因此改成搬進捲動區當第一層。**代價是它會跟著內容一起捲**，玻璃卡與背景的
-         * 相對位置不再變化，滑動時看不到卡片掠過不同顏色。這一頁是暫時的鷹架
-         * （資料頁那張票會整張換掉），因此接受。
-         *
-         * 官方另有一個逃生門 `ScrollViewMarker`，可以直接指定捲動區是哪一個；
-         * 但它的原生那一半包在 `#if RNS_GAMMA_ENABLED` 裡，要裝 pod 時開環境變數
-         * 才編得進來，這包沒開。
-         */}
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {Array.from({ length: STRIPE_COUNT }, (_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.stripe,
-                {
-                  top: STRIPE_TOP + index * STRIPE_STEP,
-                  backgroundColor: STRIPE_COLORS[index % STRIPE_COLORS.length],
-                },
-              ]}
-            />
-          ))}
-          <View style={[styles.blob, styles.blobTop]} />
-          <View style={[styles.blob, styles.blobBottom]} />
-        </View>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {Array.from({ length: STRIPE_COUNT }, (_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.stripe,
+              {
+                top: STRIPE_TOP + index * STRIPE_STEP,
+                backgroundColor: STRIPE_COLORS[index % STRIPE_COLORS.length],
+              },
+            ]}
+          />
+        ))}
+        <View style={[styles.blob, styles.blobTop]} />
+        <View style={[styles.blob, styles.blobBottom]} />
+      </View>
 
-        {canRenderGlass ? (
-          <GlassView style={styles.card} glassEffectStyle="regular" />
-        ) : (
-          <View style={[styles.card, styles.fallbackCard]} />
-        )}
-
-        <View style={styles.statusPill}>
-          <Text style={styles.statusText}>{status}</Text>
-        </View>
-
-        <View style={styles.statusPill}>
-          <Text style={styles.statusText}>
-            {data === null
-              ? 'MMKV：讀不出來'
-              : `MMKV：${data.books.length} 本 · ${data.cards.length} 張卡`}
-          </Text>
-          {data !== null && (
-            <Pressable style={styles.button} onPress={press}>
-              <Text style={styles.buttonText}>{`加 ${BATCH_SIZE} 張卡`}</Text>
-            </Pressable>
-          )}
-          {failure !== null && <Text style={styles.failureText}>{failure}</Text>}
-        </View>
-
-        <View style={styles.statusPill}>
-          {vectors === null ? (
-            <Text style={styles.statusText}>標答比對：執行中⋯</Text>
+      {/**
+       * **這層 `ScrollViewMarker` 是 iOS 26 的 tab bar 會不會捲動縮小的唯一開關。**
+       * 它不畫任何東西，存在的目的只有一個：告訴原生那一端「這一頁要盯的捲動區是哪一個」。
+       *
+       * 少了它，`UITabBarController` 手上沒有捲動區可盯，`app/_layout.tsx` 那行
+       * `minimizeBehavior="onScrollDown"` 就永遠不會發生任何事——2026-08-27 真機測
+       * 票 `09` 那條驗收就是掛在這裡，而症狀長得極像「iOS 版本不夠」。
+       *
+       * 接線在 `RNSScrollViewMarkerComponentView.mm`：它從自己**唯一的那個孩子**解析出
+       * 捲動區，再往上找到這一頁的 tab screen，呼叫 `setContentScrollView:forEdge:`。
+       * **那支 `setContentScrollView:` 全套件只有這一條路會叫**——沒有 marker 就沒有人叫。
+       *
+       * 兩條規矩不能破：**只能有一個孩子**（原生那邊有 assert），而且那個孩子要解析得出
+       * 捲動區。它擺哪一層不重要，因為它是往上找而不是往下找——裝飾層排在前面也沒關係。
+       *
+       * 它來自 `react-native-screens/experimental`，那個入口的檔頭寫明「隨時可能改，
+       * 不跟大版號」。原生那一半包在 `#if RNS_GAMMA_ENABLED` 裡，而 Expo SDK 57 預設把它
+       * 開著（`-DRNS_GAMMA_ENABLED=1` 在 build log 的 RNScreens 編譯參數裡），因此不必
+       * 為了它重新出包。哪天升 SDK 之後這條驗收又不過，先回來確認那個旗標還在不在。
+       */}
+      <ScrollViewMarker>
+        <ScrollView contentContainerStyle={styles.center}>
+          {canRenderGlass ? (
+            <GlassView style={styles.card} glassEffectStyle="regular" />
           ) : (
-            <Text style={vectors.passed ? styles.statusText : styles.failureText}>
-              {`標答比對：${vectors.summary}`}
-            </Text>
+            <View style={[styles.card, styles.fallbackCard]} />
           )}
-        </View>
 
-        <View style={styles.statusPill}>
-          <Text style={styles.statusText}>
-            {cloud.nickname() === null ? '雲端備份：沒登入' : `雲端備份：${cloud.nickname()}`}
-          </Text>
-          <TextInput
-            style={styles.input}
-            value={nickname}
-            onChangeText={setNickname}
-            placeholder="暱稱"
-            placeholderTextColor="#8b93a3"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="密碼"
-            placeholderTextColor="#8b93a3"
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-          />
-          <Pressable
-            style={[styles.button, cloudReady ? null : styles.buttonOff]}
-            disabled={!cloudReady}
-            onPress={() => void signIn()}
-          >
-            <Text style={styles.buttonText}>{cloudBusy ? '進行中⋯' : '登入並跑一次雲端備份'}</Text>
-          </Pressable>
-          {!cloudReady && vectors === null && (
-            <Text style={styles.statusText}>等標答比對跑完才能按（見程式碼註解）</Text>
-          )}
-          {cloudStatus !== '' && <Text style={styles.statusText}>{cloudStatus}</Text>}
-        </View>
-      </ScrollView>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusText}>{status}</Text>
+          </View>
+
+          <View style={styles.statusPill}>
+            <Text style={styles.statusText}>
+              {data === null
+                ? 'MMKV：讀不出來'
+                : `MMKV：${data.books.length} 本 · ${data.cards.length} 張卡`}
+            </Text>
+            {data !== null && (
+              <Pressable style={styles.button} onPress={press}>
+                <Text style={styles.buttonText}>{`加 ${BATCH_SIZE} 張卡`}</Text>
+              </Pressable>
+            )}
+            {failure !== null && <Text style={styles.failureText}>{failure}</Text>}
+          </View>
+
+          <View style={styles.statusPill}>
+            {vectors === null ? (
+              <Text style={styles.statusText}>標答比對：執行中⋯</Text>
+            ) : (
+              <Text style={vectors.passed ? styles.statusText : styles.failureText}>
+                {`標答比對：${vectors.summary}`}
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.statusPill}>
+            <Text style={styles.statusText}>
+              {cloud.nickname() === null ? '雲端備份：沒登入' : `雲端備份：${cloud.nickname()}`}
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={nickname}
+              onChangeText={setNickname}
+              placeholder="暱稱"
+              placeholderTextColor="#8b93a3"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="密碼"
+              placeholderTextColor="#8b93a3"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+            />
+            <Pressable
+              style={[styles.button, cloudReady ? null : styles.buttonOff]}
+              disabled={!cloudReady}
+              onPress={() => void signIn()}
+            >
+              <Text style={styles.buttonText}>{cloudBusy ? '進行中⋯' : '登入並跑一次雲端備份'}</Text>
+            </Pressable>
+            {!cloudReady && vectors === null && (
+              <Text style={styles.statusText}>等標答比對跑完才能按（見程式碼註解）</Text>
+            )}
+            {cloudStatus !== '' && <Text style={styles.statusText}>{cloudStatus}</Text>}
+          </View>
+        </ScrollView>
+      </ScrollViewMarker>
     </View>
   );
 }
