@@ -55,35 +55,35 @@ const RECIPES = [
   {
     name: 'ascii-short',
     why: '純 ASCII 短字串。最單純的一筆，對不上就代表接線整條是錯的。',
-    nickname: 'brad',
+    nickname: 'bradtest',
     password: 'hunter2',
     plaintext: '{"version":2,"books":[],"cards":[]}',
   },
   {
     name: 'japanese-mixed',
     why: '日文：漢字、平假名、片假名各有。UTF-8 下它們是三位元組字元。',
-    nickname: 'brad',
+    nickname: 'bradtest',
     password: 'hunter2',
     plaintext: '{"text":"拝む","meaning":"参拝する／ザルソバ","kana":"おがむ"}',
   },
   {
     name: 'reading-markup',
     why: '帶讀音標記的詞條。方括號是 ASCII、夾在中間的是日文，混在一起最容易踩到邊界。',
-    nickname: 'brad',
+    nickname: 'bradtest',
     password: 'hunter2',
     plaintext: '{"text":"焦[こ]がす／気[き]を付[つ]ける","meaning":"燒焦；小心"}',
   },
   {
     name: 'emoji',
     why: '表情符號。UTF-16 下它們占兩格（代理對），逐字元處理的程式碼會在這裡裂開。',
-    nickname: 'brad',
+    nickname: 'bradtest',
     password: 'hunter2',
     plaintext: '{"meaning":"拉麵 🍜 と 🍣 と 👩‍👩‍👧‍👦 と 🇯🇵 と 🧑🏽‍🎓"}',
   },
   {
     name: 'japanese-credentials',
     why: '暱稱與密碼本身是日文。暱稱是 salt、密碼是金鑰原料，對不上的話指紋與金鑰全歪。',
-    nickname: 'ブラッド',
+    nickname: 'ブラッドテスト',
     password: '合言葉は「山」',
     plaintext: '{"version":2,"cards":[{"text":"雪[ゆき]","meaning":"雪"}]}',
   },
@@ -91,7 +91,7 @@ const RECIPES = [
     name: 'huge-backup',
     why: '接近上限的長備份。驗的不是編碼對不對，是量大了會不會垮——'
       + 'base64 那個逐字元接起來的迴圈、底層 C++ 的分段處理，都只在這個量級才發作。',
-    nickname: 'brad',
+    nickname: 'bradtest',
     password: 'hunter2',
     // 一張卡的樣子。整串接起來**不是合法的 JSON**，這是刻意的：加解密只看位元組，
     // 不解析內容，為了讓它成為合法 JSON 而多帶頭尾兩段字串，只是讓配方變難懂。

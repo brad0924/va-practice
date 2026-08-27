@@ -12,7 +12,7 @@ import { DEFAULT_EASE } from './review';
 import type { AppData } from './types';
 import zhHant from '../i18n/zh-Hant';
 
-const NICKNAME = 'brad';
+const NICKNAME = 'bradtest';
 const PASSWORD = 'hunter2';
 
 /**

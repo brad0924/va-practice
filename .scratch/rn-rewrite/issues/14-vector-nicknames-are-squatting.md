@@ -1,6 +1,6 @@
 # 14 — 標答表的測試暱稱換掉，別佔著真人會用的名字
 
-Status: ready-for-agent
+Status: done
 Type: bug
 
 決策背景見 `core/lib/cloud-crypto-vectors.json` 與 `scripts/generate-crypto-vectors.mjs` 的配方清單。
@@ -84,9 +84,30 @@ const updatedAt = await write(keys, local);
 
 ## 驗收
 
-- [ ] `scripts/generate-crypto-vectors.mjs` 的六筆配方，暱稱換成 `bradtest` / `ブラッドテスト`
-- [ ] 重跑腳本，`core/lib/cloud-crypto-vectors.json` 整份更新
-- [ ] repo 根的 `npm test` 綠燈（`cloud-crypto-vectors.test.ts` 用新表跑得過）
-- [ ] `mobile/` 的 `npm test` 綠燈
+- [x] `scripts/generate-crypto-vectors.mjs` 的六筆配方，暱稱換成 `bradtest` / `ブラッドテスト`
+- [x] 重跑腳本，`core/lib/cloud-crypto-vectors.json` 整份更新
+- [x] repo 根的 `npm test` 綠燈（`cloud-crypto-vectors.test.ts` 用新表跑得過）
+- [x] `mobile/` 的 `npm test` 綠燈
 - [ ] `mobile-crypto.yml` 在 iOS 模擬器上跑出 `PASS 6/6`
-- [ ] `japanese-credentials` 那一列的暱稱與密碼仍然都是日文
+- [x] `japanese-credentials` 那一列的暱稱與密碼仍然都是日文
+
+**最後一條還沒驗。** 這台是 Windows，跑不了 iOS 模擬器。`mobile-crypto.yml` 的觸發條件
+含 `core/**`，本次改動有動到，所以 push 之後那支 workflow 會自動跑一趟。**綠燈之前這張票
+不算全驗完。**
+
+## Comments
+
+### 2026-08-27 — 收票，順帶多換了兩支測試與補了一份 ADR
+
+實作範圍比票上寫的多兩件，兩件都經維護者當場拍板：
+
+- **`core/lib/cloud-crypto.test.ts` 與 `core/lib/cloud-backup.test.ts` 的 `brad` 也換成
+  `bradtest`。** 那兩支直接呼叫 `deriveKeys('brad', 'hunter2')`，同一組帳密照樣公開在
+  版控裡，路徑與指紋照樣算得出來——本票只換標答表的話，這張票想解的風險只解了一半。
+  `cloud-consent.test.ts` 與 `keychain.test.ts` 裡的 `brad` **沒換**：那兩支不呼叫
+  `deriveKeys()`，只把它當顯示用的名字字串，算不出任何東西。
+
+- **補了 `docs/adr/0018-test-nicknames-must-not-be-real-ones.md`。**
+  `scripts/generate-crypto-vectors.mjs` 的檔頭要求重跑標答表之前先寫 ADR。
+  這次重跑不動演算法、不會讓任何既有備份解不開，是那條規矩涵蓋到的最輕的一種情況，
+  但規矩沒有例外條款，照走。
