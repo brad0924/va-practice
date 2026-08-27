@@ -1,6 +1,6 @@
 // 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
 // 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -56,7 +56,7 @@ function symbolNames(button: { queryAll(match: (node: { type: unknown }) => bool
 }
 
 /** 亂數固定成「每張卡都跟自己交換」，佇列順序因此就是卡片原本的順序。見狀態機那支測試。 */
-function build(data: AppData): ReviewSession {
+function build(data: AppData, haptic: () => void = () => {}): ReviewSession {
   const store = createStore(fakeStorage());
   store.save(data);
   return createReviewSession({
@@ -64,6 +64,7 @@ function build(data: AppData): ReviewSession {
     now: () => new Date(2026, 7, 25),
     random: () => 0.999999,
     onChange: () => {},
+    haptic,
   });
 }
 
@@ -193,6 +194,33 @@ describe('通往其他畫面的按鈕', () => {
     const view = await show(build(一張卡));
     expect(view.queryByText('探針')).toBeNull();
     expect(view.queryByLabelText('探針')).toBeNull();
+  });
+});
+
+/**
+ * 票 `08` 驗收第三條的程式碼那一半：**觸覺只加在評分上**。
+ *
+ * 這一頁不知道觸覺存在——震的那一下接在狀態機的 `rate()` 裡（見 `../lib/review-session.ts`）。
+ * 因此這裡驗的不是這一頁做了什麼，而是**它沒有偷偷多接一條**：按下複製或掀開答案時，
+ * 那條線不該被碰到。真的震不震只有真機驗得了，這支守的是「以後有人加第二處」。
+ */
+describe('觸覺只加在評分上', () => {
+  it('按評分鈕震一下', async () => {
+    const haptic = jest.fn();
+    const view = await show(build(一張卡, haptic));
+    await fireEvent.press(view.getByText('顯示答案'));
+    await view.redraw();
+    await fireEvent.press(view.getByText('好'));
+    expect(haptic).toHaveBeenCalledTimes(1);
+  });
+
+  it('掀開答案與複製都不震', async () => {
+    const haptic = jest.fn();
+    const view = await show(build(一張卡, haptic));
+    await fireEvent.press(view.getByLabelText('複製'));
+    await fireEvent.press(view.getByText('顯示答案'));
+    await view.redraw();
+    expect(haptic).not.toHaveBeenCalled();
   });
 });
 

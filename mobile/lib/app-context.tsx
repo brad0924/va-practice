@@ -17,6 +17,7 @@ import type { CloudBackup } from '@core/lib/cloud-backup';
 import type { AppData } from '@core/lib/types';
 import { createCloudProbe } from './cloud-probe';
 import { reportCryptoSelfCheck, type SelfCheckReport } from './crypto-self-check';
+import { rateHaptic } from './haptics';
 import { createReviewSession, type ReviewSession } from './review-session';
 import { createMmkvStorage } from './storage-mmkv';
 
@@ -79,6 +80,7 @@ function createWiring(onChange: () => void, onStatus: (message: string) => void)
     random: Math.random,
     onChange,
     onPersisted: push,
+    haptic: rateHaptic,
   });
 
   /** 標答比對跑完了，閘門打開；期間擋掉過的話補推一次。 */

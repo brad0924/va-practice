@@ -8,17 +8,27 @@
  *
  * **這裡沒有 React。** 當前時間與亂數一律由外面遞進來，跟 `core/lib/review.ts` 同一個規矩。
  *
- * 它不做的事：導覽（另外四個畫面還沒有）、每日提醒、觸覺、保險副本。
- * 那四項寫在票 `06` 的〈這張票不做的事〉裡。
+ * 它不做的事：導覽（路由表在 `../app/`）、每日提醒、保險副本。
+ * 名單的正本在票 `06` 的〈這張票不做的事〉。**觸覺已經不在名單上**——票 `08` 接上了，
+ * 走的是外面遞進來的 `haptic`。
  */
 import { cardsInBooks, setScope, type Store } from '@core/lib/storage';
 import { currentCard, rate as rateCard, rebuildQueue, toDateKey, type Queue } from '@core/lib/review';
 import type { AppData, Card, Rating } from '@core/lib/types';
+import type { Haptic } from './haptics';
 
 export interface ReviewSessionHooks {
   store: Store;
   now(): Date;
   random(): number;
+  /**
+   * 評分時震的那一下。**永遠可以呼叫**，因此底下 `rate()` 不問「這台機器震得動嗎」——
+   * 那個判斷屬於 `./haptics.ts`，不屬於這台機器（理由的正本在該檔）。
+   *
+   * 它是遞進來的而不是直接 import：原生模組在 Node 裡不存在，這支檔一沾上就整批測不動。
+   * 與當前時間、亂數同一個規矩。
+   */
+  haptic: Haptic;
   /** 資料、佇列或掀開狀態變了。畫面靠它重畫。 */
   onChange(): void;
   /**
@@ -65,7 +75,7 @@ export interface ReviewSession {
 }
 
 export function createReviewSession(hooks: ReviewSessionHooks): ReviewSession {
-  const { store, now, random, onChange, onPersisted } = hooks;
+  const { store, now, random, haptic, onChange, onPersisted } = hooks;
 
   let data = store.load();
   let queue: Queue = [];
@@ -123,6 +133,11 @@ export function createReviewSession(hooks: ReviewSessionHooks): ReviewSession {
     },
 
     rate(rating) {
+      // 擺在最前面是為了立刻震——存檔與推雲端慢不慢，跟手指的回饋無關。
+      // 接在這支而不是接在按鈕上：四顆評分鈕走的是同一條路，行為因此一致，
+      // 而畫面層一個字都不必為觸覺改（`review-screen.tsx` 不知道觸覺存在）。
+      // 位置與網頁版 `src/app.ts` 的 rate() 第一行相同。
+      haptic();
       // 整晚開著 app、早上直接評分的那條路：先把佇列換成今天這份，這一下才是評在
       // 當日的佇列上。必須早於 rateCard()——手上那張卡尚未評分、到期日停在昨天或更早，
       // 重建後仍是隊首（見 `review.ts` 的 `rebuildQueue()`），使用者評的還是同一張。

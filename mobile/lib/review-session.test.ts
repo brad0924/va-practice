@@ -54,7 +54,14 @@ function seed(): AppData {
 const NO_SHUFFLE = () => 0.999999;
 
 
-function session(options: { now?: () => Date; onChange?: () => void; onPersisted?: (data: AppData) => void } = {}) {
+function session(
+  options: {
+    now?: () => Date;
+    onChange?: () => void;
+    onPersisted?: (data: AppData) => void;
+    haptic?: () => void;
+  } = {},
+) {
   const storage = fakeStorage();
   const store = createStore(storage);
   store.save(seed());
@@ -64,6 +71,7 @@ function session(options: { now?: () => Date; onChange?: () => void; onPersisted
     random: NO_SHUFFLE,
     onChange: options.onChange ?? (() => {}),
     onPersisted: options.onPersisted,
+    haptic: options.haptic ?? (() => {}),
   });
 }
 
@@ -129,6 +137,55 @@ describe('掀開與評分', () => {
   });
 });
 
+describe('評分的觸覺回饋', () => {
+  it('四顆評分鈕都震，每次一下', () => {
+    for (const rating of ['again', 'hard', 'good', 'easy'] as const) {
+      const haptic = jest.fn();
+      session({ haptic }).rate(rating);
+      expect(haptic).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('震的那一下在存檔之前，手指不等本機寫完', () => {
+    // 驗收第五條。存檔之後還接著雲端推送，順序寫反的話手指要等的就不只是本機那一步。
+    const trace: string[] = [];
+    const cells = fakeStorage();
+    const store = createStore({
+      getItem: cells.getItem,
+      setItem: (key, value) => {
+        trace.push('存檔');
+        cells.setItem(key, value);
+      },
+      removeItem: cells.removeItem,
+    });
+    store.save(seed());
+    const it_ = createReviewSession({
+      store,
+      now: () => TODAY,
+      random: NO_SHUFFLE,
+      onChange: () => {},
+      haptic: () => trace.push('震'),
+    });
+    trace.length = 0;
+
+    it_.rate('good');
+
+    expect(trace).toEqual(['震', '存檔']);
+  });
+
+  it('掀開答案不震', () => {
+    const haptic = jest.fn();
+    session({ haptic }).reveal();
+    expect(haptic).not.toHaveBeenCalled();
+  });
+
+  it('切單字本不震', () => {
+    const haptic = jest.fn();
+    session({ haptic }).setReviewScope(['A']);
+    expect(haptic).not.toHaveBeenCalled();
+  });
+});
+
 describe('複習範圍', () => {
   it('切掉一本，佇列跟著重建', () => {
     const it_ = session();
@@ -171,7 +228,7 @@ describe('複習範圍', () => {
     const data = seed();
     data.books.push({ id: 'C', name: '空本' });
     store.save(data);
-    const it_ = createReviewSession({ store, now: () => TODAY, random: NO_SHUFFLE, onChange: () => {} });
+    const it_ = createReviewSession({ store, now: () => TODAY, random: NO_SHUFFLE, onChange: () => {}, haptic: () => {} });
 
     it_.rate('again');
     const before = it_.snapshot().queue.map((entry) => entry.id);
@@ -245,7 +302,7 @@ describe('零本', () => {
   it('一本都沒有時佇列是空的，而且不會誤判成今日份完成', () => {
     const storage = fakeStorage();
     const store = createStore(storage);
-    const it_ = createReviewSession({ store, now: () => TODAY, random: NO_SHUFFLE, onChange: () => {} });
+    const it_ = createReviewSession({ store, now: () => TODAY, random: NO_SHUFFLE, onChange: () => {}, haptic: () => {} });
     const snapshot = it_.snapshot();
     expect(snapshot.data.books).toHaveLength(0);
     expect(snapshot.queue).toHaveLength(0);
