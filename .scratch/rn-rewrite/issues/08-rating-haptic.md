@@ -109,3 +109,44 @@ try {
 票說「動工時先確認還有沒有別的原生模組要一起加」。確認過了，這一次要帶三個：`expo-haptics`（這張票）、`expo-symbols` 與 `react-native-screens`（票 `09`，已經在 `package.json` 裡）。
 
 **EAS Build 沒有跑**——它要 Expo 帳號登入，而且會佔掉維護者的 Metro 迭代一段時間，不該由 agent 自己按下去。出包之後票 `09` 那七條真機驗收與這張票的五條一起走一輪。
+
+### 2026-08-27 — 第一次出包掛了，卡在 worklets，不是卡在觸覺
+
+`b6cff3f3` 那一趟 EAS Build 失敗。四萬四千行的 log 裡**只有一個編譯錯誤**：
+
+```
+expo-modules-core/ios/WorkletsAdapter/ExpoWorkletsBridgeProvider.mm:236:19:
+error: no member named 'executeSync' in 'worklets::WorkletRuntime'
+```
+
+**跟 `expo-haptics` 沒有關係。** 病灶是三個套件對「worklets 該是哪一版」的意見不合：
+
+| 誰 | 要 worklets 哪一版 | 從哪來 |
+| --- | --- | --- |
+| `expo-modules-core@57.0.13` | `^0.7.4 \|\| ^0.8.0 \|\| ^0.9.0 \|\| ^0.10.0` | `expo` |
+| `react-native-reanimated@4.6.0` | `0.12.x` | `expo-router` 的相依 |
+| 樹上實際裝的 | **0.12.1** | reanimated 贏了 |
+
+`executeSync` 這支方法在 worklets 0.10 有、0.12 拿掉了。`expo-modules-core` 那支 `.mm` 是照 0.10 的樣子寫的，一撞上 0.12 就編不過。
+
+**為什麼是票 `09` 種下的**：`expo-router` 把 `react-native-reanimated` 與 `react-native-gesture-handler` 都列成 `*` 的 peer——意思是「哪一版都行」，於是 npm 抓了當下最新的 4.6.0，而它比 SDK 57 測過的那一版新。`node_modules/expo/bundledNativeModules.json` 才是 Expo 自己認證過的配對表：reanimated `4.5.1`、worklets `0.10.1`。
+
+修法是把那兩支釘回配對表上的版本：
+
+```json
+"overrides": {
+  "react-dom": "19.2.3",
+  "react-native-reanimated": "4.5.1",
+  "react-native-worklets": "0.10.1"
+}
+```
+
+4.5.1 要的正好是 `0.10.x`，`expo-modules-core` 要的 `^0.10.0` 也吃得下，三邊終於對得起來。`npm ls --all` 現在一個 `invalid` 都沒有。lockfile 差異 12 加 12 減，沒有套件被刮掉；`npm ci`、型別檢查、189 條測試都重跑過。
+
+**`react-native-gesture-handler` 沒有動。** 它同樣偏離配對表（樹上 3.2.1，表上 `~2.32.0`），但 log 裡它一個錯都沒有，而降一個大版是本機驗不了的事。留著，等下一趟出包看它會不會叫。
+
+#### 順帶查到的、這次沒處理的漂移
+
+`npx expo install --check` 說有 10 支直接相依落後於這個 SDK 期望的版本（`expo` 57.0.16→57.0.17、`react-native` 0.86.2→0.86.3、`expo-router`、`expo-haptics` 57.0.1→57.0.2⋯）。
+
+**這次沒一起做，是刻意的**：跟出包的病灶無關，而且它會讓下一趟出包的差異變成「10 支套件升版 + 2 支釘版」，失敗時分不出是誰的錯。另外開票處理比較划算。
