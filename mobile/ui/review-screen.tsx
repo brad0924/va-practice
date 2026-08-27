@@ -21,6 +21,7 @@
  */
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
+import { ScrollViewMarker } from 'react-native-screens/experimental';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t, type Key } from '@core/i18n';
 import { currentCard, isComplete } from '@core/lib/review';
@@ -114,67 +115,82 @@ export function ReviewScreen({ session }: ReviewScreenProps) {
     // 膠囊會停在舊尺寸、字被擠出去（真機踩到，2026-08-26——當時要把 app 滑掉重開才正常）。
     // 換掉 key 等於整頁重建，那一下就重新量了。字級只有在使用者去改設定時才會變，不是熱路徑。
     <View style={styles.root} key={fontScale}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          // 卡片**讓開上下那兩條列**，四個邊因此都看得到。量出來的兩個高度加上與列之間的
-          // 一段距離：`insets.top + SCREEN_INSET` 是列的上緣，`+ headerHeight` 到列的下緣，
-          // 再 `+ SCREEN_INSET` 才輪到卡片。底下同理。
-          {
-            paddingTop: insets.top + headerHeight + SCREEN_INSET * 2,
-            paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
-          },
-        ]}
-      >
-        <View style={styles.card}>
-          {noBooks ? (
-            <Notice mark="📚" title={t('review.noBooksTitle')} note={t('review.noBooksNote')} />
-          ) : complete ? (
-            <Notice mark="✓" title={t('review.doneTitle')} note={t('review.doneNote')} />
-          ) : (
-            /**
-             * 詞條、分隔線、釋義、動作鈕**一疊由上而下**，每一段之間的距離都照同一個節奏。
-             *
-             * 原本是兩塊：詞條與「複製」一塊，釋義與「朗讀」另一塊，中間一條撐滿整張卡的
-             * 分隔線。改成一疊是票 `06` 定案 1a——兩顆鈕合成一排落到最下面，
-             * 分隔線縮短置中，整張卡因此只剩一條中軸線。
-             */
-            <View style={styles.face}>
-              <Term text={card!.text} showReading={revealed} />
-              {revealed && (
-                <>
-                  {/* 分隔線不撐滿，置中一小段。撐滿的話它會把一張卡切成上下兩張，
-                      而詞條與釋義本來就是同一件事的兩面。 */}
-                  <View style={styles.divider} />
-                  {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
-                      這是詞條做不到、只有這裡補得回來的那一半。 */}
-                  <Text style={styles.meaning} selectable>
-                    {card!.meaning}
-                  </Text>
-                </>
-              )}
-              {/* 「複製」與「朗讀」並排在最底下。它們是輔助動作，因此讓開一段再出現，
-                  而那一段刻意等於詞條到釋義的距離——一疊東西只用同一個節奏。 */}
-              <View style={styles.actions}>
-                {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
-                    留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
-                <CopyButton key={card!.id} text={card!.text} />
-                {revealed && voice !== null && (
-                  // 符號用 SF Symbols 的喇叭，不自己畫（`B-14`）。翻譯檔裡 `review.speak`
-                  // 那條是「🔊 朗讀」，帶著表情符號、是給文字鈕用的；圖示鈕改讀
-                  // `review.speakLabel`，那條本來就是唸給 VoiceOver 聽的整句話。
-                  <IconButton
-                    name="speaker.wave.2"
-                    accessibilityLabel={t('review.speakLabel')}
-                    onPress={() => speakTerm(card!.text, voice)}
-                  />
+      {/**
+       * **這層 `ScrollViewMarker` 是導覽列會不會捲動縮小的唯一開關**，理由的正本在
+       * `./probe-screen.tsx` 那一顆的說明。它不畫任何東西，只負責告訴原生那一端
+       * 「這一頁要盯的捲動區是這個」——沒有它，`app/_layout.tsx` 那行
+       * `minimizeBehavior="onScrollDown"` 在這一頁上永遠不會發生任何事。
+       *
+       * **這一頁最需要它。** 票 `09` 接受「底部一次兩條 chrome」這個代價時，寫下的減輕因素
+       * 就是「iOS 26 的導覽列會在捲動時自己縮小」，而那句話講的正是最大字級下評分鈕堆成
+       * 四行的這一頁。只接探針那一頁的話，那筆帳就沒有兌現。
+       *
+       * `flex: 1` 要跟著搬上來：它是一個真的 view、沒有預設的伸縮，少了這一行捲動區會被
+       * 壓成內容高度，卡片就不再撐滿兩條列之間那一段。
+       */}
+      <ScrollViewMarker style={styles.scroll}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            // 卡片**讓開上下那兩條列**，四個邊因此都看得到。量出來的兩個高度加上與列之間的
+            // 一段距離：`insets.top + SCREEN_INSET` 是列的上緣，`+ headerHeight` 到列的下緣，
+            // 再 `+ SCREEN_INSET` 才輪到卡片。底下同理。
+            {
+              paddingTop: insets.top + headerHeight + SCREEN_INSET * 2,
+              paddingBottom: insets.bottom + footerHeight + SCREEN_INSET * 2,
+            },
+          ]}
+        >
+          <View style={styles.card}>
+            {noBooks ? (
+              <Notice mark="📚" title={t('review.noBooksTitle')} note={t('review.noBooksNote')} />
+            ) : complete ? (
+              <Notice mark="✓" title={t('review.doneTitle')} note={t('review.doneNote')} />
+            ) : (
+              /**
+               * 詞條、分隔線、釋義、動作鈕**一疊由上而下**，每一段之間的距離都照同一個節奏。
+               *
+               * 原本是兩塊：詞條與「複製」一塊，釋義與「朗讀」另一塊，中間一條撐滿整張卡的
+               * 分隔線。改成一疊是票 `06` 定案 1a——兩顆鈕合成一排落到最下面，
+               * 分隔線縮短置中，整張卡因此只剩一條中軸線。
+               */
+              <View style={styles.face}>
+                <Term text={card!.text} showReading={revealed} />
+                {revealed && (
+                  <>
+                    {/* 分隔線不撐滿，置中一小段。撐滿的話它會把一張卡切成上下兩張，
+                        而詞條與釋義本來就是同一件事的兩面。 */}
+                    <View style={styles.divider} />
+                    {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
+                        這是詞條做不到、只有這裡補得回來的那一半。 */}
+                    <Text style={styles.meaning} selectable>
+                      {card!.meaning}
+                    </Text>
+                  </>
                 )}
+                {/* 「複製」與「朗讀」並排在最底下。它們是輔助動作，因此讓開一段再出現，
+                    而那一段刻意等於詞條到釋義的距離——一疊東西只用同一個節奏。 */}
+                <View style={styles.actions}>
+                  {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
+                      留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
+                  <CopyButton key={card!.id} text={card!.text} />
+                  {revealed && voice !== null && (
+                    // 符號用 SF Symbols 的喇叭，不自己畫（`B-14`）。翻譯檔裡 `review.speak`
+                    // 那條是「🔊 朗讀」，帶著表情符號、是給文字鈕用的；圖示鈕改讀
+                    // `review.speakLabel`，那條本來就是唸給 VoiceOver 聽的整句話。
+                    <IconButton
+                      name="speaker.wave.2"
+                      accessibilityLabel={t('review.speakLabel')}
+                      onPress={() => speakTerm(card!.text, voice)}
+                    />
+                  )}
+                </View>
               </View>
-            </View>
-          )}
-        </View>
-      </ScrollView>
+            )}
+          </View>
+        </ScrollView>
+      </ScrollViewMarker>
 
       <GlassGroup
         style={[styles.bar, styles.header, { top: insets.top + SCREEN_INSET }]}
@@ -259,7 +275,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: color.background,
   },
-  /** 背景要延伸到螢幕實體邊緣，四邊不留白條（HIG `L-01`）。 */
+  /**
+   * 背景要延伸到螢幕實體邊緣，四邊不留白條（HIG `L-01`）。
+   *
+   * **同一格套在兩層上**：捲動區本身，以及外面那層 `ScrollViewMarker`。marker 是一個真的
+   * view、沒有預設的伸縮，只套在裡面那層的話它會被壓成內容高度，卡片就不再撐滿兩條列
+   * 之間那一段。與 `./glass-pill.tsx` 那筆「`flex: 1` 套錯層」是同一種坑。
+   */
   scroll: {
     flex: 1,
   },
