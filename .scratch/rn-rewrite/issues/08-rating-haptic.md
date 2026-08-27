@@ -82,7 +82,7 @@ try {
 
 #### 票沒要求、但非做不可的一件事：`react-dom` 的版本相衝
 
-**加原生模組的第一步就撞牆了**：`npm install expo-haptics` 直接失敗，而且不是這個套件的錯——**現在這份 lockfile 誰都裝不起來**，`npm install`、`npm ci` 全部一樣，`.github/workflows/test.yml` 與 `mobile-crypto.yml` 那兩支 CI 也會掛在裝套件那一步。
+**加原生模組的第一步就撞牆了**：`npm install expo-haptics` 直接失敗，而且不是這個套件的錯——**修之前那份 lockfile 誰都裝不起來**，`npm install` 與 `npm ci` 都一樣。本機用 npm 11 與 npm 10（CI 上 Node 22 帶的那一版）各重現過一次，所以兩支 CI 大概也會掛在裝套件那一步——不過那是推論，沒有一趟真的 CI 跑在修之前的狀態上，證不了。
 
 病灶：lockfile 裡釘的 `react-dom@19.2.8` 的 peer 要 `react ^19.2.8`，而 Expo SDK 57 把 `react` 釘在 `19.2.3`。`react-dom` 是票 `09` 裝 `expo-router` 時被連帶拉進來的（它的網頁那一半要），沒有人直接用它。
 
@@ -150,3 +150,26 @@ error: no member named 'executeSync' in 'worklets::WorkletRuntime'
 `npx expo install --check` 說有 10 支直接相依落後於這個 SDK 期望的版本（`expo` 57.0.16→57.0.17、`react-native` 0.86.2→0.86.3、`expo-router`、`expo-haptics` 57.0.1→57.0.2⋯）。
 
 **這次沒一起做，是刻意的**：跟出包的病灶無關，而且它會讓下一趟出包的差異變成「10 支套件升版 + 2 支釘版」，失敗時分不出是誰的錯。另外開票處理比較划算。
+
+### 2026-08-27 — GitHub Actions 掛的是同一個錯，而且它是一條免費的驗證路
+
+`mobile-crypto.yml` 那一趟（跑在 `256fc09`）也失敗了。整份 53,055 行的 log 裡**只有一個錯誤，跟 EAS 那趟同一個**：
+
+```
+expo-modules-core/ios/WorkletsAdapter/ExpoWorkletsBridgeProvider.mm:236:19:
+error: no member named 'executeSync' in 'worklets::WorkletRuntime'
+```
+
+同一支檔、同一行、同一個符號。一台是模擬器的 Release build、一台是實機的 Archive，兩台都倒在同一塊石頭上——這反過來證實了病灶跟簽章、裝置、`expo-haptics` 都無關，就是 worklets 的版本。
+
+#### 這一趟順帶回答了兩個原本要靠猜的問題
+
+**一、`react-dom` 那個 override 真的有效。** 這趟 CI 的「裝套件」那一步過了（`added 850 packages in 12s`），而它跑的正是加了 override 之後的 commit。上一則裡「兩支 CI 也會掛在裝套件」那句是推論，沒有一趟真的 CI 跑在修之前的狀態上——已經在該處改成推論的措辭。
+
+**二、`react-native-gesture-handler@3.2.1` 不必釘。** log 裡 `libRNGestureHandler.a` 有被 Libtool 產出來，代表它整支編完也連結完了，一個錯都沒有。同一份 log 裡 `libRNScreens.a`、`libExpoSymbols.a`、`libRNReanimated.a`、`libRNWorklets.a` 也都完成——**連 worklets 自己那顆 pod 在 0.12.1 都編得過**，編不過的只有 `expo-modules-core` 那支照 0.10 寫的轉接層。診斷因此站得住。
+
+#### 下一步：先讓 CI 講話，再燒 EAS
+
+`mobile-crypto.yml` 做的事跟 EAS 有重疊的那一半——它同樣跑 `expo prebuild` 再 `xcodebuild`，同樣會編到 `ExpoModulesWorkletsAdapter`。**把 `9ad8e69` 推上去，那支 workflow 就會免費幫我們驗編譯過不過**，不必先花一個 EAS 名額與等待。
+
+它過了才排 EAS Build。
