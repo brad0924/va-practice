@@ -1,5 +1,5 @@
 /**
- * 整支 app 共用的那一份：儲存、複習流程、雲端備份，加上標答比對的結論。
+ * 整支 app 共用的那一份：儲存、複習流程、雲端備份。
  *
  * **四個畫面拿到的必須是同一份。** 這三樣彼此接線（雲端拉下來要重建複習佇列、每次評分
  * 存完要推上去），任何一頁自己再建一份就是兩套實作在寫同一批資料——`spec.md`
@@ -14,9 +14,8 @@ import { AppState } from 'react-native';
 import { initI18n } from '@core/i18n';
 import { createStore, type Store } from '@core/lib/storage';
 import type { CloudBackup } from '@core/lib/cloud-backup';
-import type { AppData } from '@core/lib/types';
 import { createCloudProbe } from './cloud-probe';
-import { reportCryptoSelfCheck, type SelfCheckReport } from './crypto-self-check';
+import { isSelfCheckRequested, reportCryptoSelfCheck } from './crypto-self-check';
 import { rateHaptic } from './haptics';
 import { createReviewSession, type ReviewSession } from './review-session';
 import { createMmkvStorage } from './storage-mmkv';
@@ -46,15 +45,6 @@ const store = createStore(storage);
  * 把推送接在同一個位置。
  */
 function createWiring(onChange: () => void, onStatus: (message: string) => void) {
-  /**
-   * 標答比對還在跑的時候不准推。**兩件事都會去抽 12 個位元組當初始向量**，而比對期間
-   * 亂數來源被換成表裡那個公開在版控裡的固定值——同一把金鑰配同一個初始向量，
-   * AES-GCM 的保護就整個垮了。理由的正本在 `../ui/probe-screen.tsx` 的 `cloudReady`。
-   *
-   * 擋掉的那幾次不會遺失：`push()` 送的是整份資料，比對跑完補推一次就全帶到了。
-   */
-  const gate = { open: false, missed: false };
-
   let session: ReviewSession;
   const cloud = createCloudProbe({
     storage,
@@ -66,40 +56,29 @@ function createWiring(onChange: () => void, onStatus: (message: string) => void)
     onStatus,
   });
 
-  function push(data: AppData): void {
-    if (!gate.open) {
-      gate.missed = true;
-      return;
-    }
-    cloud.push(data);
-  }
-
   session = createReviewSession({
     store,
     now: () => new Date(),
     random: Math.random,
     onChange,
-    onPersisted: push,
+    /**
+     * **評分存完就直接推。**中間沒有閘門了。
+     *
+     * 票 `13` 之前這裡隔著一道：標答比對會把**全域**亂數來源換成表裡那個固定的初始向量，
+     * 那幾秒內推備份上去的話，那一份會用一個公開在版控裡的初始向量加密。
+     * 比對搬出使用者的啟動路徑之後沒有人再鎖亂數來源，閘門就沒有存在的理由。
+     */
+    onPersisted: (data) => cloud.push(data),
     haptic: rateHaptic,
   });
 
-  /** 標答比對跑完了，閘門打開；期間擋掉過的話補推一次。 */
-  function openGate(): void {
-    gate.open = true;
-    if (!gate.missed) return;
-    gate.missed = false;
-    cloud.push(store.load());
-  }
-
-  return { cloud, session, openGate };
+  return { cloud, session };
 }
 
 export interface AppShared {
   store: Store;
   cloud: CloudBackup;
   session: ReviewSession;
-  /** 標答比對的結論。`null` 代表還在跑，那時候不准動雲端。 */
-  vectors: SelfCheckReport | null;
   cloudStatus: string;
   setCloudStatus(message: string): void;
 }
@@ -123,31 +102,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * 物件是不是同一個，不是看內容有沒有變。
    */
   const [, redraw] = useReducer((count: number) => count + 1, 0);
-  const [vectors, setVectors] = useState<SelfCheckReport | null>(null);
   const [cloudStatus, setCloudStatus] = useState('');
   const [wiring] = useState(() => createWiring(redraw, setCloudStatus));
 
   /**
-   * 標答比對排在畫面畫完之後才跑。它會佔住 JavaScript 那條執行緒好幾秒——
-   * 最後那一筆明文有 4 MB，PBKDF2 又刻意跑得慢——放進第一次畫面就是開 app 先黑幾秒。
+   * 標答比對：**只有 CI 塞了觸發檔的時候才跑**，使用者那台問完那一句就走。
    *
-   * 只跑一次。空的相依陣列是刻意的：這張表不會因為畫面重畫而改變答案。
+   * 那一句是同步的（`exists` 是布林值），所以擺在這個 `useEffect` 的第一行就問得出來，
+   * 不必先開一個 Promise 才知道要不要跑。使用者那台走到這裡就 return，一列標答都不碰。
    *
    * **它掛在這裡而不是「資料」那一頁，是刻意的。** CI 只是把 app 開起來然後等結論寫成檔案
    * （`.github/workflows/mobile-crypto.yml`），改成進頁才跑的話那支流程會永遠等不到。
-   * 它同時是雲端推送的閘門，閘門也在這裡開。
+   *
+   * 結論不交回畫面：FAIL 的唯一去處是 CI 紅燈（票 `13` 拍板）。
+   *
+   * 只跑一次。空的相依陣列是刻意的：這張表不會因為畫面重畫而改變答案。
    */
   useEffect(() => {
-    let alive = true;
-    void reportCryptoSelfCheck().then((report) => {
-      if (!alive) return;
-      setVectors(report);
-      wiring.openGate();
-    });
-    return () => {
-      alive = false;
-    };
-  }, [wiring]);
+    if (!isSelfCheckRequested()) return;
+    void reportCryptoSelfCheck();
+  }, []);
 
   /**
    * 回到前景時檢查一次有沒有跨過午夜。網頁版靠 `visibilitychange` 加一個原生事件兩條訊號，
@@ -166,7 +140,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         store,
         cloud: wiring.cloud,
         session: wiring.session,
-        vectors,
         cloudStatus,
         setCloudStatus,
       }}

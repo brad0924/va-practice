@@ -9,7 +9,6 @@ import { DEFAULT_EASE } from '@core/lib/review';
 import { addBook, type Store } from '@core/lib/storage';
 import type { CloudBackup } from '@core/lib/cloud-backup';
 import type { AppData, Card } from '@core/lib/types';
-import type { SelfCheckReport } from '../lib/crypto-self-check';
 
 /**
  * 票 `03`（骨架）、`04`（儲存）與 `05`（加解密）的探針畫面。**它不是任何一頁正式介面。**
@@ -17,6 +16,9 @@ import type { SelfCheckReport } from '../lib/crypto-self-check';
  * 它回答四件事：EAS Build 出來的包裝得進真機嗎、`GlassView` 在這台機器上真的長出玻璃嗎、
  * `createStore()` 吃得下 MMKV 嗎、**手機上加出來的備份電腦解不解得開**——
  * 第三項要靠人按按鈕、關掉 app、重開來驗，自動測試碰不到「關掉再開」那一段。
+ *
+ * > 這裡本來還有一行「標答比對：⋯」。票 `13` 把那項比對整個搬出使用者的啟動路徑，
+ * > 只剩 CI 塞了觸發檔時才跑，FAIL 的唯一去處是 CI 紅燈，畫面上因此沒有東西可顯示。
  *
  * > **它現在是「資料」tab 的內容**（票 `09`）。原本掛在複習畫面標題列一顆寫著「探針」的
  * > 後門膠囊底下，那顆鈕已經拆掉——它做的事本來就是資料頁的事。
@@ -90,8 +92,6 @@ export interface ProbeScreenProps {
   store: Store;
   /** 雲端備份。與複習畫面共用同一個——兩套實作在寫同一批資料是這條路上最不能踩的線。 */
   cloud: CloudBackup;
-  /** 標答比對的結論。`null` 代表還在跑，那時候不准動雲端，理由見底下的 `cloudReady`。 */
-  vectors: SelfCheckReport | null;
   cloudStatus: string;
   /** 換掉那一行狀態字。與 `cloud` 那一端寫的是同一行。 */
   onStatus(message: string): void;
@@ -114,7 +114,7 @@ function open(store: Store): { data: AppData | null; failure: string | null } {
   }
 }
 
-export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDataChanged }: ProbeScreenProps) {
+export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged }: ProbeScreenProps) {
   const [opened, setOpened] = useState(() => open(store));
   const { data, failure } = opened;
   const setData = (next: AppData) => setOpened({ data: next, failure: null });
@@ -179,14 +179,13 @@ export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDa
   }
 
   /**
-   * 雲端那塊要等標答比對跑完才准動，而且不能同時在忙。
+   * 雲端那塊只要求兩件事：不能同時在忙，而且本機這份讀得出來。
    *
-   * **兩件事都會去抽 12 個位元組當初始向量。** 標答比對期間亂數來源被換成表裡那個固定值，
-   * 這時真的推一份備份上去的話，那份會用上一個**公開在版控裡**的初始向量——
-   * 同一把金鑰配同一個初始向量，AES-GCM 的保護就整個垮了。長度一樣，擋不掉，
-   * 只能不讓它們重疊。複習畫面那一端的推送走同一道閘門，見 `../lib/app-context.tsx`。
+   * 票 `13` 之前還有第三個條件「標答比對跑完了沒」——那項比對會把**全域**亂數來源
+   * 換成一個公開在版控裡的固定初始向量，那幾秒內推備份上去的話，那一份的保護就垮了。
+   * 比對搬出使用者的啟動路徑之後沒有人再鎖亂數來源，那個條件跟著沒了。
    */
-  const cloudReady = vectors !== null && !cloudBusy && data !== null;
+  const cloudReady = !cloudBusy && data !== null;
 
   const status = [
     canRenderGlass ? 'GlassView API 可用' : 'GlassView API 不可用（已退回一般區塊）',
@@ -260,16 +259,6 @@ export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDa
           </View>
 
           <View style={styles.statusPill}>
-            {vectors === null ? (
-              <Text style={styles.statusText}>標答比對：執行中⋯</Text>
-            ) : (
-              <Text style={vectors.passed ? styles.statusText : styles.failureText}>
-                {`標答比對：${vectors.summary}`}
-              </Text>
-            )}
-          </View>
-
-          <View style={styles.statusPill}>
             <Text style={styles.statusText}>
               {cloud.nickname() === null ? '雲端備份：沒登入' : `雲端備份：${cloud.nickname()}`}
             </Text>
@@ -299,9 +288,6 @@ export function ProbeScreen({ store, cloud, vectors, cloudStatus, onStatus, onDa
             >
               <Text style={styles.buttonText}>{cloudBusy ? '進行中⋯' : '登入並跑一次雲端備份'}</Text>
             </Pressable>
-            {!cloudReady && vectors === null && (
-              <Text style={styles.statusText}>等標答比對跑完才能按（見程式碼註解）</Text>
-            )}
             {cloudStatus !== '' && <Text style={styles.statusText}>{cloudStatus}</Text>}
           </View>
         </ScrollView>
