@@ -1,6 +1,6 @@
 # 12 — 相依守門：讓「本機綠、CI 紅」在本機就紅
 
-Status: needs-triage
+Status: ready-for-agent
 Type: enhancement
 
 決策背景見 `mobile/jest.config.js` 的 `moduleDirectories` 註解，那裡記著病灶。
@@ -34,61 +34,92 @@ Type: enhancement
 
 在 `mobile/` 收一支測試，跟著 `npm test` 一起跑：走檔案樹、剝掉註解、抓出每一行的 import 來源，逐個確認那個套件真的找得到。缺的話當場紅燈，訊息要指出是哪一支檔的哪一個套件。
 
-**剝註解不是可有可無的。** 現在 `mobile/` 底下有五支檔的**註解裡**寫著 `from 'vitest'`（四支測試的檔頭加 `test/vitest-shim.ts`），而 `vitest` 沒有裝在 `mobile/` 裡。不剝註解的話這支檢查上線第一天就有五條誤報。
+**剝註解不是可有可無的。** 現在 `mobile/` 底下有**六支**檔的**註解裡**寫著 `from 'vitest'`（五支測試的檔頭加 `test/vitest-shim.ts`），而 `vitest` 沒有裝在 `mobile/` 裡。不剝註解的話這支檢查上線第一天就有六條誤報。
 
-### 這三條沒得選，照著寫就好
+**`require()` 也要抓，不是只抓 `import`。** 設定檔用的是 `require()`：`metro.config.js` 那一行 `require('expo/metro-config')` 只有這種寫法認得出來。只抓 `from '…'` 的話，`jest.config.js` 與 `metro.config.js` 兩支整個掃不到。
 
-動工時不必再議，但也不要漏掉——`mobile/` 現在這 24 種 import 來源裡，這三類佔了一半：
+### 這幾條沒得選，照著寫就好
 
-| 遇到什麼 | 怎麼辦 | 現有例子 |
+動工時不必再議，但也不要漏掉——`mobile/` 現在有 54 種不重複的 import 來源，這三類跳過規則就吃掉 32 種：
+
+| 遇到什麼 | 怎麼辦 | 現有數量 |
 | --- | --- | --- |
-| 相對路徑（`./`、`../`） | 跳過，那是檔案不是套件 | 22 個 |
-| 路徑別名 `@core/*` | 跳過。它是 `tsconfig`／`metro.config`／`jest.config` 三邊各設一次的別名，**不是套件**，查了必定紅燈 | 7 個 |
-| 內建模組 `node:*` | 跳過 | `node:path` |
+| 相對路徑（`./`、`../`） | 跳過，那是檔案不是套件 | 23 種 |
+| 路徑別名 `@core/*` | 跳過。它是 `tsconfig`／`metro.config`／`jest.config` 三邊各設一次的別名，**不是套件**，查了必定紅燈 | 8 種 |
+| 內建模組 `node:*` | 跳過 | 1 種（`node:path`） |
 | 子路徑 | 取套件名那一段再查。scoped 取前兩段，其餘取第一段 | `react-native-screens/experimental`、`expo-router/unstable-native-tabs`、`expo/metro-config` |
 
-## 待決：四件事，選錯的話這支檢查會比沒有更糟
+剩下的 22 種就是要查的外部套件（剝掉註解後是 21 種，`vitest` 只出現在註解裡）。
 
-每一條都有兩個答案，兩邊都有人會踩到。
+## 四件待決已拍板（2026-08-28 triage）
 
-### 一、掃描範圍：只掃 `mobile/`，還是連 `core/` 一起？
+原本的四個問題與各自的代價留在下方 Comments，這裡只寫定案。**動工時照這四條走，不要再議。**
 
-這條最擋路，**因為兩次案發的現場都不完全在 `mobile/` 裡**。`core/` 住在 `mobile/` 外面，但 mobile 的工具鏈（jest 與 tsc）會把它整批載進來——那正是找套件走不進 `mobile/node_modules` 的原因。
+### 一、掃描範圍：只掃 `mobile/`
 
-- **只掃 `mobile/`**：範圍乾淨，跑得快。代價是 `core/` 底下哪天有人 import 一個只有 repo 根裝了的套件，這支檢查照樣看不到。
-- **連 `core/` 一起掃**：涵蓋真正的破口。代價是 `core/` 同時被網頁版用著，它的相依該去 repo 根的 `package.json` 查、還是 `mobile/` 的，得先講清楚——查錯邊就是整批誤報。
+`core/` 不掃。理由不是「範圍乾淨跑得快」，是實測出來的：
 
-### 二、比對的對象：`package.json` 宣告了，還是 `node_modules` 裡真的有？
+- `core/` 底下的外部 import 只有三種——`vitest`（20 次）、`firebase/ai`（1 次，在 `gemini-reading.ts`）、`node:fs`。前兩種都沒裝在 `mobile/` 裡，整批掃進來**現在就是 21 條誤報**。
+- 而 `gemini-reading.ts` 根本不在 mobile 這條路上——沒有任何 mobile 的檔 import 得到它。那條誤報純屬白工。
+- **兩次案發沒有一次是「`core/` 的原始碼 import 了 mobile 沒裝的套件」。** 票 `05` 缺的 `@babel/runtime` 是轉譯產物去叫的，掃原始碼本來就看不到（見上面〈先講它擋不住什麼〉）。
 
-- **查 `node_modules`**：貼近真正會炸的那件事（找不找得到）。代價是它對「靠別人順便帶進來」的套件是綠的——那種相依隨時會因為別人升版而消失。
-- **查 `package.json`**：逼每一個用到的東西都自己宣告，比較嚴。代價是**現在就會有一條紅燈**：`@jest/globals` 被四支測試 import，但它沒有列在 `mobile/package.json` 裡，是 `jest` 帶進來的。要選這條就得順手把它補進 `devDependencies`。
+triage 時評估過第三條路——「從 `mobile/` 出發追 import 鏈，只掃真的被載到的 `core/` 檔」。它確實避得開 `firebase/ai` 那條誤報，但**今天的結果與只掃 `mobile/` 一模一樣（都是零紅燈）**，而且要多寫一個小型找檔器（副檔名、`index.ts`、循環偵測），起點還得去讀 `jest.config.js` 的 `testMatch` 才知道。更糟的是它與第四條的定案打架：追鏈會追到三支寫著 `from 'vitest'` 的 `core/` 檔（兩支 jest 直接跑的測試加 `core/test-setup.ts`），不放行 `vitest` 就是三條紅燈。**將來真需要時再升級，成本跟現在做一樣。**
 
-### 三、`import type` 算不算？
+### 二、比對的對象：查 `package.json`
 
-只有型別的 import 在打包時整行會消失，套件缺了也不會爆——但 `tsc --noEmit` 會紅，而**票 `06` 炸的正是 typecheck 不是執行**。
+不查 `node_modules`。每一個被 import 的套件都要自己列在 `mobile/package.json` 裡，靠別人順便帶進來的不算數。
 
-- **算**：與票 `06` 的實際案發一致。
-- **不算**：只擋執行期真的會爆的。範圍窄，但沒有一次案發是這樣發生的。
+**這代表動工時要順手補一行**：`@jest/globals` 被七支檔 import（不是票上原本寫的四支），但沒列在 `mobile/package.json`，是 `jest` 帶進來的。把它加進 `devDependencies`。除了這一條，現況其餘 20 種外部套件全部查得到。
 
-### 四、jest 的 `moduleNameMapper` 要不要納入考慮？
+### 三、`import type` 算
 
-`jest.config.js` 現在映射掉三條：`^@core/(.*)$`、`^vitest$`、`^react-native-nitro-modules$`。被映射掉的東西**不會真的去 `node_modules` 找**。
+與票 `06` 的實際案發一致——那次炸的是 `tsc --noEmit`，不是執行期。
 
-- **納入**：讀 `jest.config.js` 的映射表，映射掉的一律放行。誠實，但這支檢查從此與那份設定綁在一起，那邊改了這邊要跟。
-- **不納入，改成手寫一張放行名單**：簡單、看得懂，代價是兩份名單會各走各的路。
+### 四、jest 的 `moduleNameMapper`：不讀，自己管一張放行名單
+
+不去讀 `jest.config.js` 的映射表。**理由是它與驗收最後一條直接衝突**：那張表正好映射掉 `^vitest$`，讀了就等於放行 `vitest`，「重現票 `06`」那條驗收當場過不了。
+
+在「只掃 `mobile/` + 查 `package.json`」的組合下，**這張放行名單現在是空的**——映射表那三條，`@core/*` 已由跳過規則吃掉，`react-native-nitro-modules` 本來就列在 `package.json` 裡，`vitest` 只出現在註解裡會被剝掉。名單留著是為了將來真的需要時有地方寫，不是現在就要填東西進去。
 
 ## 這張票不做的事
 
 - **不擋工具鏈偷偷帶進來的相依**（票 `05` 那一種）。理由見上面〈先講它擋不住什麼〉。
+- **不掃 `core/`，也不去讀 `jest.config.js` 的 `moduleNameMapper`。** 兩條都是拍板決定，理由見上面〈四件待決已拍板〉的第一與第四條。
 - **不改 CI 設定。** 這支檢查跟著 `npm test` 走，CI 本來就會跑到。
 - **不動 `moduleDirectories` 那個修法。** 那是票 `05` 的解方，仍然有效，這裡只是多加一道在本機就會響的警報。
 
 ## 驗收
 
 - [ ] `mobile/` 底下每一支 `.ts`／`.tsx`／`.js` 的 import 都被掃到，包含測試檔與設定檔
-- [ ] 註解裡的 `from '…'` 不算——拿現在那五支寫著 `from 'vitest'` 的檔驗，一條誤報都不該有
+- [ ] `require('…')` 也抓得到——`metro.config.js` 那行 `require('expo/metro-config')` 要被掃進來
+- [ ] 註解裡的 `from '…'` 不算——拿現在那六支寫著 `from 'vitest'` 的檔驗，一條誤報都不該有
 - [ ] 相對路徑、`@core/*` 別名、`node:*` 內建模組都不誤報
 - [ ] 子路徑取得出套件名：`react-native-screens/experimental` 要查 `react-native-screens`
+- [ ] `core/` 底下的檔沒有被掃到——那 20 條 `from 'vitest'` 與 `firebase/ai` 一條都不該冒出來
+- [ ] `@jest/globals` 已補進 `mobile/package.json` 的 `devDependencies`
 - [ ] 故意 import 一個不存在的套件，這支測試會紅，而且訊息指得出是哪支檔、哪個套件
-- [ ] 現況跑起來是綠的（照上面四條待決選定的規則）
+- [ ] 現況跑起來是綠的（照上面四條定案的規則，且 `@jest/globals` 已補）
 - [ ] 重現一次票 `06`：在 `mobile/` 隨便一支測試寫 `from 'vitest'`，這支檢查要紅
+
+## Comments
+
+### 2026-08-28 — triage：四件待決全數拍板，狀態轉 `ready-for-agent`
+
+> *This was generated by AI during triage.*
+
+**動手前在 codebase 上查掉的三件事：**
+
+1. **沒有重複實作。** `mobile/lib/`、`mobile/test/` 底下沒有任何掃 import 的測試，`.out-of-scope/` 目錄不存在（本 repo 還沒有被拒絕過的需求紀錄）。
+2. **`core/` 的外部相依實測。** 只有三種：`vitest`（20 次，全在測試檔）、`firebase/ai`（1 次，`gemini-reading.ts` 的 `import type { SchemaRequest }`）、`node:fs`（1 次，`cloud-backup.test.ts`）。前兩種在 `mobile/node_modules` 與 `mobile/package.json` 兩邊都沒有。
+3. **票上兩處數字要更正**（已在內文改掉）：註解裡寫著 `from 'vitest'` 的是**六支**不是五支（票 `06` 加了 `ui/review-screen.test.tsx`）；`@jest/globals` 被**七支**檔 import 不是四支。另外 `expo/metro-config` 只出現在 `require()` 裡，票原本把它列為 `from` 的子路徑例子，會誤導動工的人只抓 `import`。
+
+**原本四個待決各自的代價**（拍板後留檔，不再影響動工）：
+
+| 待決 | 選了什麼 | 沒選的那邊代價是 |
+| --- | --- | --- |
+| 一、掃描範圍 | 只掃 `mobile/` | 連 `core/` 整批掃 → 現在就 21 條誤報；追 import 鏈 → 今天收穫為零，且與第四條打架 |
+| 二、比對對象 | 查 `package.json` | 查 `node_modules` → 靠別人順便帶進來的套件是綠的，別人升版就消失 |
+| 三、`import type` | 算 | 不算 → 範圍窄，但兩次案發沒有一次是執行期爆的 |
+| 四、`moduleNameMapper` | 不讀，自管放行名單 | 讀映射表 → 放行 `vitest`，驗收最後一條當場過不了 |
+
+**第一條的第三選項為什麼沒選**（維護者當場問了難度）：從 `mobile/` 追 import 鏈只會追到 12 支左右的 `core/` 檔（`types`／`storage`／`review`／`reading`／`cloud-backup`／`cloud-crypto`／`cloud-crypto-vectors`／`app-error`／`i18n` 那四支／`test-setup`），外部套件只有 `vitest` 一種。也就是說它與「只掃 `mobile/`」在今天結果相同，卻要多寫找檔器、還要去讀 `jest.config.js` 的 `testMatch` 找起點。將來若真的需要，那時再升級成本相同。
