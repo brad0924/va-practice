@@ -151,7 +151,8 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
   if (data.books.length === 0) {
     return (
       <View style={styles.root}>
-        <Stack.Screen options={{ headerLargeTitle: true, title: t('nav.cards') }} />
+        {/* 零本時導覽列整條收起來。這一頁上沒有搜尋框，留著它就是一條什麼都沒有的玻璃條。 */}
+        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.empty}>
           <Notice mark="📚" title={t('list.noBooksTitle')} note={t('list.noBooks')} />
           {/* **這顆不是死按鈕**：它開的是這一頁自己的新增入口，不是叫人去別頁找
@@ -194,15 +195,29 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ headerLargeTitle: true, title: t('nav.cards') }} />
-      {/* 系統的搜尋列。`hideWhenScrolling` 是預設值，寫出來是因為票明確要求「往下捲收起、
-          往上捲帶回來」——那是這一行帶來的，不是自己接的捲動監聽器。
-          搜尋範圍當場看得出來（HIG `N-20`）：提示文字說了比對哪幾個欄位，
-          底下工具列那顆膠囊說了現在在哪幾本裡面找。 */}
+      {/**
+       * **導覽列上不放標題**（2026-08-31 維護者在真機上看過之後指定）。
+       *
+       * 「卡片」那兩個字在底下的 tab bar 上已經有一份，導覽列再寫一次是同一句話講兩遍，
+       * 而這一頁上面本來就擠——票的〈已知風險〉標的正是這件事。拿掉之後導覽列上只剩搜尋框。
+       *
+       * > 這是對 `N-11`（大標題隨捲動縮成標準標題）的一筆知情偏離。那一條講的是
+       * > 「有大標題的話要會縮」，這一頁乾脆沒有大標題，因此不適用；換來的是上面少一層。
+       */}
+      <Stack.Screen options={{ headerLargeTitle: false, title: '' }} />
+      {/**
+       * 系統的搜尋列。**`hideWhenScrolling` 刻意關掉**——票原本寫「往下捲收起、往上捲
+       * 帶回來」，那是搭配大標題才成立的：大標題縮起來的同時搜尋框跟著收，導覽列上還留著
+       * 一行小標題。標題拿掉之後那條路的終點是**一條完全空白的玻璃條**，
+       * 因此改成常駐（2026-08-31 拍板）。
+       *
+       * 搜尋範圍當場看得出來（HIG `N-20`）：提示文字說了比對哪幾個欄位，
+       * 底下工具列那顆膠囊說了現在在哪幾本裡面找。
+       */}
       <Stack.SearchBar
         placeholder={t('list.searchPlaceholder')}
         autoCapitalize="none"
-        hideWhenScrolling
+        hideWhenScrolling={false}
         onChangeText={(event) => changeQuery(event.nativeEvent.text)}
       />
 
@@ -258,6 +273,7 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
             <BucketHeader
               label={section.label}
               total={section.total}
+              tint={BUCKET_TINTS[section.key]}
               open={expanded.has(section.key)}
               onPress={() => toggleBucket(section.key)}
             />
@@ -283,6 +299,28 @@ const ALL_BUCKETS: readonly BucketKey[] = BUCKETS.map((bucket) => bucket.key);
 
 /** 第一幀先畫幾格。理由見底下 `initialNumToRender` 那一段——六個桶的標頭不能缺。 */
 const FIRST_RENDER_ROWS = 24;
+
+/**
+ * 六個桶各一色。**六個值直接抄網頁版 `src/styles.css` 的 `.bucket-head.*`**
+ * （`--new`／`--danger`／`--hard`／`--soon`／`--easy`／`--good`）。
+ *
+ * 2026-08-31 維護者在真機上看過白色版之後指定改成這樣，理由與票 `06` 那四顆評分鈕相同：
+ * 兩邊都在用，換一台裝置不該重新學哪個顏色是哪一桶。
+ *
+ * > **這六格是寫死的色碼，違反 `./theme.ts` 那條「顏色一律走 `PlatformColor`」。**
+ * > 代價與那四顆一樣：「提高對比」打開時它們不會跟著調整。已知並接受。
+ * >
+ * > **顏色不是唯一的訊號**（HIG `T-14`）：每個桶名本身就是一句話（「明天」「未來」），
+ * > 展開與否另有箭頭，轉成灰階全部讀得出來。
+ */
+const BUCKET_TINTS: Record<BucketKey, string> = {
+  new: '#9a7fe0',
+  now: '#e0574f',
+  today: '#d9843f',
+  tomorrow: '#d9c14f',
+  week: '#4a90d9',
+  future: '#46a758',
+};
 
 interface ToolbarProps {
   count: string;
@@ -320,6 +358,8 @@ function Toolbar({ count, direction, onToggleDirection, books }: ToolbarProps) {
 interface BucketHeaderProps {
   label: string;
   total: number;
+  /** 這一桶的顏色。見 `BUCKET_TINTS`。 */
+  tint: string;
   open: boolean;
   onPress(): void;
 }
@@ -330,7 +370,7 @@ interface BucketHeaderProps {
  * 它黏在捲動區頂端，因此**底色必須是不透明的**——半透明的話底下的卡片會從字後面
  * 穿過去。它是內容層的東西，走標準材質那一組（HIG `M-02`），不是玻璃。
  */
-function BucketHeader({ label, total, open, onPress }: BucketHeaderProps) {
+function BucketHeader({ label, total, tint, open, onPress }: BucketHeaderProps) {
   return (
     <Text
       style={styles.bucket}
@@ -340,9 +380,12 @@ function BucketHeader({ label, total, open, onPress }: BucketHeaderProps) {
       accessibilityLabel={`${label} ${total}`}
       suppressHighlighting
     >
-      {/* 展開與否用符號講，不只靠顏色或位置（HIG `T-14`）。 */}
-      <Text style={styles.bucketMark}>{open ? '▾ ' : '▸ '}</Text>
-      <Text style={styles.bucketLabel}>{label}</Text>
+      {/* 展開與否用符號講，不只靠顏色或位置（HIG `T-14`）。箭頭跟著桶色走，
+          與網頁版相同——那邊是整條 `.bucket-head` 上色，箭頭與桶名一起吃到。 */}
+      <Text style={[styles.bucketMark, { color: tint }]}>{open ? '▾ ' : '▸ '}</Text>
+      <Text style={[styles.bucketLabel, { color: tint }]}>{label}</Text>
+      {/* 張數不上色，維持灰。網頁版的 `.bucket-count` 也另外設了 `--muted` 蓋掉桶色——
+          它是次要資訊，跟著上色會跟桶名搶注意。 */}
       <Text style={styles.bucketCount}>{`　${total}`}</Text>
     </Text>
   );
@@ -470,13 +513,14 @@ const styles = StyleSheet.create({
     borderBottomColor: color.separator,
     lineHeight: 22,
   },
+  /** 顏色不在這裡，跟著桶走——見 `BUCKET_TINTS`。 */
   bucketMark: {
-    color: color.secondaryLabel,
     fontSize: fontSize.footnote,
   },
   bucketLabel: {
-    color: color.label,
     fontSize: fontSize.subheadline,
+    // 網頁版的 `.bucket-label` 是 700。這裡取 semibold（600），因為 iOS 的字重階梯
+    // 到 bold 就會比網頁版那一級重（HIG `T-05` 只禁最細的三級，粗的這一端是質感問題）。
     fontWeight: weight.semibold,
   },
   bucketCount: {

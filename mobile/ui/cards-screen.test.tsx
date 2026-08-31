@@ -1,6 +1,7 @@
 // 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
 // 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
 import { describe, it, expect, jest } from '@jest/globals';
+import { StyleSheet } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { createStore, type StorageLike } from '@core/lib/storage';
 import { DEFAULT_EASE } from '@core/lib/review';
@@ -164,6 +165,54 @@ describe('六個時間桶', () => {
     const view = await show(build(只有新卡));
     expect(view.getByLabelText('明天 0')).toBeTruthy();
     expect(view.getByLabelText('新 1')).toBeTruthy();
+  });
+});
+
+/**
+ * 顏色。**這幾條守的是「有沒有換錯色」，不是「好不好看」。**
+ *
+ * 六個桶色與振假名的藍都是寫死的色碼（抄網頁版 `src/styles.css`），維護者 2026-08-31
+ * 在真機上指定的。寫死的值沒有型別擋得住打錯一位數，也沒有工具看得出「明天」拿到了
+ * 「未來」那一格——只有這裡擋得下來。
+ */
+describe('顏色', () => {
+  const colorOf = (node: { props: { style?: unknown } }) =>
+    (StyleSheet.flatten(node.props.style as never) as { color?: unknown }).color;
+
+  it('六個桶名各自帶自己的顏色，值與網頁版一致', async () => {
+    // 順序即畫面由上而下。對照 `src/styles.css` 的 `.bucket-head.*`。
+    const expected: [string, string][] = [
+      ['新', '#9a7fe0'],
+      ['現在', '#e0574f'],
+      ['<24小時', '#d9843f'],
+      ['明天', '#d9c14f'],
+      ['<1週', '#4a90d9'],
+      ['未來', '#46a758'],
+    ];
+    const view = await show(build(六桶各一張));
+    for (const [label, tint] of expected) {
+      expect(colorOf(view.getByText(label))).toBe(tint);
+    }
+  });
+
+  it('桶上那個張數不上色——它是次要資訊，跟著上色會跟桶名搶注意', async () => {
+    // 只放一張新卡：那時候整頁只有一個「　1」，抓得到唯一的那個。
+    // 六桶各一張的話六個標頭上都是「　1」，指不出是哪一個。
+    const view = await show(build(seed(甲乙兩本, [card('c-new', 'A', '焦[こ]がす', '燒焦', null)])));
+    // 桶名與張數在同一條標頭裡，顏色必須不同。張數走的是 iOS 的語意灰，
+    // `PlatformColor` 攤平之後不是字串，因此比的是「不等於桶色」而不是某個值。
+    expect(colorOf(view.getByText('新'))).toBe('#9a7fe0');
+    expect(colorOf(view.getByText('　1'))).not.toBe('#9a7fe0');
+  });
+
+  /**
+   * 振假名是 `./term.tsx` 的事，複習畫面用的是同一份。守在這裡是因為改動的觸發點在
+   * 這一頁——網頁版三處振假名（複習、卡片列、編輯預覽）都是同一個 `--accent`。
+   */
+  it('振假名是網頁版那個藍，不是 systemBlue', async () => {
+    const view = await show(build(六桶各一張));
+    await fireEvent.press(bucketHead(view, '明天'));
+    expect(colorOf(view.getByText('はば'))).toBe('#6ea8ff');
   });
 });
 

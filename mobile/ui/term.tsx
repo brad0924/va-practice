@@ -76,8 +76,23 @@ const styles = StyleSheet.create({
   column: {
     alignItems: 'center',
   },
+  /**
+   * 振假名。
+   *
+   * > **這一格是寫死的色碼，違反 `./theme.ts` 那條「顏色一律走 `PlatformColor`」。**
+   * > 值抄網頁版 `src/styles.css` 的 `--accent`，那邊三處振假名（複習的 `.term`、
+   * > 卡片列的 `.row-term`、編輯預覽的 `.preview`）用的都是它。2026-08-31 維護者在真機上
+   * > 看過灰色版之後指定改成這個，理由與票 `06` 那四顆評分鈕相同：兩邊都在用，
+   * > 換一台裝置不該重新學哪個顏色是什麼意思。
+   * >
+   * > 代價一樣：「提高對比」打開時這個顏色不會跟著調整。已知並接受。
+   * >
+   * > **它刻意不是 `color.accent`。** 那一格是 `systemBlue`，深色下比這個藍得更飽和，
+   * > 而它管的是「按得下去的東西」（「顯示答案」那顆鈕、sheet 上的打勾）。
+   * > 振假名按不下去，用同一個藍會把它講成一顆按鈕。
+   */
   reading: {
-    color: color.secondaryLabel,
+    color: '#6ea8ff',
     fontWeight: weight.regular,
     textAlign: 'center',
   },
