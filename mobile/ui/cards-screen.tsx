@@ -4,15 +4,20 @@
  * 分桶、搜尋比對、範圍標籤三支邏輯**不住在這裡**，它們在 `core/lib/card-list.ts` 與
  * `core/lib/book-scope.ts`，兩個平台共用一份（票 `15`）。這一頁只負責把它們的結果畫出來。
  *
- * ## 版面（2026-08-31 拍板，圖版一·甲）
+ * ## 版面（2026-08-31 拍板，圖版一·甲；同日真機第二輪修正，圖版五·甲）
  *
- * 上面三層：系統的大標題、系統的搜尋列、自己畫的一條工具列（「共 N 張」／單字本／排序）。
+ * 上面三層：置中的標題、系統的搜尋列、自己畫的一條工具列（「共 N 張」／單字本／排序）。
  * 前兩層都是 `expo-router` 的 `Stack` 直接交給 `UINavigationController` 畫的——**搜尋列
- * 不自己做一個**，往下捲收起、往上捲帶回來、聚焦時跟著鍵盤上滑，那三件事系統本來就會。
+ * 不自己做一個**，聚焦時跟著鍵盤上滑那類行為系統本來就會。
+ *
+ * > 第一層原本是**大標題**。真機上看過之後拿掉了：大標題一律靠左、又佔一整段高度，
+ * > 而「卡片」那兩個字在底下的 tab bar 上已經有一份。中間試過完全不放標題，
+ * > 那會讓導覽列變成一條空白（見 `cardsHeader()` 與底下 `placement` 那兩段），
+ * > 最後落在「標準高度、標題置中」。
  *
  * > **票的〈已知風險〉標的就是這一層。** 加上底部的 tab bar，這一頁一次有三層 chrome。
  * > 並排目測那一關要特別看它，過不了的話砍的是自己畫的那條工具列——
- * > 那時候排序與單字本改成導覽列右邊兩顆圖示鈕（圖版一·乙）。
+ * > 那時候排序與單字本改成導覽列右邊兩顆圖示鈕（圖版一·乙，也就是圖版五·丁）。
  *
  * ## 單字本管理併在這一頁（圖版二·甲）
  *
@@ -151,8 +156,9 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
   if (data.books.length === 0) {
     return (
       <View style={styles.root}>
-        {/* 零本時導覽列整條收起來。這一頁上沒有搜尋框，留著它就是一條什麼都沒有的玻璃條。 */}
-        <Stack.Screen options={{ headerShown: false }} />
+        {/* 零本時沒有搜尋框，導覽列上就只有標題那一列。建了第一本之後底下會多一條搜尋框，
+            標題那一列不動——兩個狀態因此長得一樣，不會在建完本的那一瞬間跳一下。 */}
+        <Stack.Screen options={cardsHeader()} />
         <View style={styles.empty}>
           <Notice mark="📚" title={t('list.noBooksTitle')} note={t('list.noBooks')} />
           {/* **這顆不是死按鈕**：它開的是這一頁自己的新增入口，不是叫人去別頁找
@@ -195,21 +201,15 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
 
   return (
     <View style={styles.root}>
+      <Stack.Screen options={cardsHeader()} />
       {/**
-       * **導覽列上不放標題**（2026-08-31 維護者在真機上看過之後指定）。
+       * 系統的搜尋列。
        *
-       * 「卡片」那兩個字在底下的 tab bar 上已經有一份，導覽列再寫一次是同一句話講兩遍，
-       * 而這一頁上面本來就擠——票的〈已知風險〉標的正是這件事。拿掉之後導覽列上只剩搜尋框。
-       *
-       * > 這是對 `N-11`（大標題隨捲動縮成標準標題）的一筆知情偏離。那一條講的是
-       * > 「有大標題的話要會縮」，這一頁乾脆沒有大標題，因此不適用；換來的是上面少一層。
-       */}
-      <Stack.Screen options={{ headerLargeTitle: false, title: '' }} />
-      {/**
-       * 系統的搜尋列。**`hideWhenScrolling` 刻意關掉**——票原本寫「往下捲收起、往上捲
-       * 帶回來」，那是搭配大標題才成立的：大標題縮起來的同時搜尋框跟著收，導覽列上還留著
-       * 一行小標題。標題拿掉之後那條路的終點是**一條完全空白的玻璃條**，
-       * 因此改成常駐（2026-08-31 拍板）。
+       * **`hideWhenScrolling` 關掉，搜尋框常駐。** 票原本寫「往下捲收起、往上捲帶回來」，
+       * 2026-08-31 拍板改掉——當時標題是拿掉的，收起來的終點是一條完全空白的玻璃條。
+       * 標題後來又放回去了（圖版五·甲），那個理由因此不再成立，但**維護者選的是常駐**，
+       * 沿用。要換回票原本寫的行為，把這一行改成 `hideWhenScrolling` 即可，
+       * 現在收起來之後導覽列上還留著「卡片」兩個字，不會是空的。
        *
        * 搜尋範圍當場看得出來（HIG `N-20`）：提示文字說了比對哪幾個欄位，
        * 底下工具列那顆膠囊說了現在在哪幾本裡面找。
@@ -218,6 +218,26 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
         placeholder={t('list.searchPlaceholder')}
         autoCapitalize="none"
         hideWhenScrolling={false}
+        /**
+         * **搜尋框自成一列，滿版。**
+         *
+         * 這是 UIKit 兩種擺法裡的一種，另一種（`integrated`）是擠進導覽列那一列。
+         * **兩種各有一個拿不掉的代價，不能兼得**（2026-08-31 真機第二輪，圖版五）：
+         *
+         * - `stacked`：搜尋框滿版，但它上面那條導覽列一定存在。
+         * - `integrated`：沒有多的那一列，但它的定義是「放在導覽列的**尾端**」——
+         *   左邊那塊是留給標題與返回鈕的位置，把標題拿掉它也不會讓出來，搜尋框因此靠右。
+         *
+         * 維護者兩種都在真機上看過，選了 `stacked` 並把標題放回去（圖版五·甲）：
+         * 那一列有東西了，搜尋框也維持滿版。
+         *
+         * > 寫明 `stacked` 而不是留預設的 `automatic`：那個值是「看版面自己決定」，
+         * > 也就是同一支程式在不同機型上可能給出上面兩種不同的樣子。
+         * > 順帶一提，`react-native-screens` 在 `stacked` 底下會自己把
+         * > `allowToolbarIntegration` 壓成 `false`——那是繞開一個 UIKit 的 bug
+         * > （搜尋框在根畫面上不出現），因此這裡不必自己設。
+         */
+        placement="stacked"
         onChangeText={(event) => changeQuery(event.nativeEvent.text)}
       />
 
@@ -296,6 +316,32 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
  * 從 `core/` 那份正本導出，不自己再抄一列：抄的話哪天多一個桶，這裡會安靜地少展開一個。
  */
 const ALL_BUCKETS: readonly BucketKey[] = BUCKETS.map((bucket) => bucket.key);
+
+/**
+ * 導覽列那一列。**零本畫面與列表頁共用同一份**，兩個狀態因此長得一樣。
+ *
+ * `headerLargeTitle` 關掉：大標題在 iOS 上一律靠左、而且會佔掉一整段高度，
+ * 而這一頁上面本來就擠（票的〈已知風險〉）。關掉之後是標準高度的那一列，
+ * 標題在正中間。
+ *
+ * `headerTitleAlign` 寫出來是因為**置中是維護者明確要求的**（2026-08-31，圖版五·甲），
+ * 不是順手撿到的預設值——iOS 上它本來就是 `center`，但寫出來這件事就有主人了。
+ *
+ * > 玻璃不在這裡，在 `../app/cards/_layout.tsx` 的 `headerTransparent`；
+ * > 深色不在這裡，在 `../app/_layout.tsx` 的主題。三個各管一段，少一個就少一半。
+ *
+ * **它是一支函式，不是一個常數。** 寫成常數的話 `t('nav.cards')` 會在模組載入的那一刻
+ * 就算完，而那比 `initI18n()` 還早——不是拿到舊語言，是當場丟例外「i18n 還沒啟動」，
+ * 整支檔案載不進來。這個 repo 已經為同一件事在 `BUCKETS` 與 `RATINGS` 上各留過一段註解，
+ * 那兩處的解法是「存 key 不存字」；這裡存不了 key（要交出去的是一整組設定），
+ * 因此改成延後到畫的那一刻才算。
+ */
+const cardsHeader = () =>
+  ({
+    headerLargeTitle: false,
+    title: t('nav.cards'),
+    headerTitleAlign: 'center',
+  }) as const;
 
 /** 第一幀先畫幾格。理由見底下 `initialNumToRender` 那一段——六個桶的標頭不能缺。 */
 const FIRST_RENDER_ROWS = 24;
@@ -508,7 +554,15 @@ const styles = StyleSheet.create({
   bucket: {
     backgroundColor: color.card,
     paddingHorizontal: SCREEN_INSET,
-    paddingVertical: 11,
+    /**
+     * 上下各 15，加上 22 的行高，整條剛好 52 ——**網頁版 `.bucket-head` 的
+     * `min-height: var(--tap)` 就是這個數字**（`3.25rem`）。原本是 11（總高 44），
+     * 真機上看起來太擠（2026-08-31）。
+     *
+     * > 44 是**觸控區的下限**（HIG `B-01`），不是這一條該有的高度。桶標頭是這一頁的
+     * > 骨架，六條連在一起時它得比一般的列更有份量，不然整頁看起來只是一長串灰線。
+     */
+    paddingVertical: 15,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: color.separator,
     lineHeight: 22,

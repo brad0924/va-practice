@@ -13,6 +13,7 @@
  * `app/` 這個目錄整個是 `expo-router` 的路由表，因此**只放路由檔**。畫面本體與共用元件
  * 住在 `../ui/`，共用的那一份資料住在 `../lib/app-context.tsx`。
  */
+import { DarkTheme, ThemeProvider } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { t } from '@core/i18n';
@@ -22,36 +23,50 @@ export default function Layout() {
   return (
     <AppProvider>
       {/**
-       * 捲動時 tab bar 自己縮成小膠囊。要 iOS 26 與 Xcode 26，26 以下這個值被系統忽略。
-       * 它是票 `09`〈已知並接受的代價〉那一段唯一的減輕因素，不能漏掉。
+       * **告訴導覽這支 app 是深色的。** 少了這一行，`Stack` 的導覽列會拿
+       * `DefaultTheme`（淺色）那一組顏色——底是白的、字是黑的。
+       *
+       * `app.json` 那行 `userInterfaceStyle: "dark"` 管的是 UIKit 元件與
+       * `PlatformColor` 語意色，**管不到這裡**：導覽列的顏色由 React Navigation 自己那份
+       * 主題決定，而它的預設值寫死在 `NavigationContainer.js` 的 `theme = DefaultTheme`。
+       *
+       * 票 `09` 到 `14` 之間沒有人看得出這件事，因為那時候畫面上只有 `NativeTabs`——
+       * 它底下是 `UITabBarController`，長相由系統給，不吃這份主題。
+       * 票 `15` 的卡片列表加了第一個 `Stack`，白底黑字才浮出來（真機踩到，2026-08-31）。
        */}
-      <NativeTabs minimizeBehavior="onScrollDown">
+      <ThemeProvider value={DarkTheme}>
         {/**
-         * 四個 tab 的字都查表（`ADR-0013`），`nav.*` 那四條三份翻譯檔本來就有。
-         * 每一條都是一個詞（`N-06`）。
-         *
-         * 圖示是填滿版的系統符號（`N-07`），四個都經維護者目測選定（2026-08-26）：
-         * 「複習」是在做的事，用學士帽；「卡片」是一批東西，用一疊卡。這兩個 tab 天生會
-         * 搶同一個圖案，拆法就在這裡——一個是動作，一個是收藏。
+         * 捲動時 tab bar 自己縮成小膠囊。要 iOS 26 與 Xcode 26，26 以下這個值被系統忽略。
+         * 它是票 `09`〈已知並接受的代價〉那一段唯一的減輕因素，不能漏掉。
          */}
-        <NativeTabs.Trigger name="index">
-          <NativeTabs.Trigger.Icon sf="graduationcap.fill" />
-          <NativeTabs.Trigger.Label>{t('nav.review')}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="cards">
-          <NativeTabs.Trigger.Icon sf="rectangle.stack.fill" />
-          <NativeTabs.Trigger.Label>{t('nav.cards')}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="data">
-          <NativeTabs.Trigger.Icon sf="gearshape.fill" />
-          <NativeTabs.Trigger.Label>{t('nav.data')}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="stats">
-          <NativeTabs.Trigger.Icon sf="chart.bar.fill" />
-          <NativeTabs.Trigger.Label>{t('nav.stats')}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-      </NativeTabs>
-      <StatusBar style="light" />
+        <NativeTabs minimizeBehavior="onScrollDown">
+          {/**
+           * 四個 tab 的字都查表（`ADR-0013`），`nav.*` 那四條三份翻譯檔本來就有。
+           * 每一條都是一個詞（`N-06`）。
+           *
+           * 圖示是填滿版的系統符號（`N-07`），四個都經維護者目測選定（2026-08-26）：
+           * 「複習」是在做的事，用學士帽；「卡片」是一批東西，用一疊卡。這兩個 tab 天生會
+           * 搶同一個圖案，拆法就在這裡——一個是動作，一個是收藏。
+           */}
+          <NativeTabs.Trigger name="index">
+            <NativeTabs.Trigger.Icon sf="graduationcap.fill" />
+            <NativeTabs.Trigger.Label>{t('nav.review')}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="cards">
+            <NativeTabs.Trigger.Icon sf="rectangle.stack.fill" />
+            <NativeTabs.Trigger.Label>{t('nav.cards')}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="data">
+            <NativeTabs.Trigger.Icon sf="gearshape.fill" />
+            <NativeTabs.Trigger.Label>{t('nav.data')}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="stats">
+            <NativeTabs.Trigger.Icon sf="chart.bar.fill" />
+            <NativeTabs.Trigger.Label>{t('nav.stats')}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+        </NativeTabs>
+        <StatusBar style="light" />
+      </ThemeProvider>
     </AppProvider>
   );
 }

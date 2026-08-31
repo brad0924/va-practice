@@ -18,7 +18,8 @@ export default function CardEditorRoute() {
   return (
     <>
       {/* 標題由系統絕對置中，返回鍵是系統的 chevron（HIG `N-10`）——兩者都不自己畫。
-          `headerLargeTitle` 不開：這是被推出來的第二層，大標題留給列表那一頁。 */}
+          `headerLargeTitle` 不開，與列表那一頁一致：這一路上沒有任何一頁用大標題，
+          理由見 `../../ui/cards-screen.tsx` 的 `cardsHeader()`。 */}
       <Stack.Screen options={{ title: '編輯卡片' }} />
       <PlaceholderScreen
         mark="✎"
