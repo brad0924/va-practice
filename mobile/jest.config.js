@@ -35,6 +35,11 @@ module.exports = {
     '<rootDir>/**/*.test.tsx',
     `${coreRoot}/lib/storage.test.ts`,
     `${coreRoot}/lib/cloud-crypto-vectors.test.ts`,
+    // 分桶、搜尋與範圍標籤（票 `15` 從網頁版搬進 `core/` 的那三支）。收在這裡的理由與
+    // `storage` 那支一樣：卡片列表整頁都靠它們，而它們要在 React Native 這套工具鏈底下
+    // 也載得進來——`card-list.ts` 會 import `../i18n`，那條路在這台機器上要走得通。
+    `${coreRoot}/lib/card-list.test.ts`,
+    `${coreRoot}/lib/book-scope.test.ts`,
   ],
   // 跑 core 的測試就要看得到 core 的檔，Jest 預設只看 rootDir 底下。
   roots: ['<rootDir>', coreRoot],

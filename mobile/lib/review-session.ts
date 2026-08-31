@@ -14,7 +14,7 @@
  * React Native 版都不接，票 `06` 正文是已收的票、不改，這件事以 `../../CONTEXT.md`
  * 與 `ADR-0002` 為準。
  */
-import { cardsInBooks, setScope, type Store } from '@core/lib/storage';
+import { cardsInBooks, setScope, type ImportResult, type Store } from '@core/lib/storage';
 import { currentCard, rate as rateCard, rebuildQueue, toDateKey, type Queue } from '@core/lib/review';
 import type { AppData, Card, Rating } from '@core/lib/types';
 import type { Haptic } from './haptics';
@@ -57,6 +57,25 @@ export interface ReviewSession {
   rate(rating: Rating): void;
   /** 換一組複習範圍。存進資料裡，佇列跟著重建。 */
   setReviewScope(bookIds: readonly string[]): void;
+  /**
+   * 換上一份新的資料：存回本機、推上雲端，複習範圍內的卡真的變了才重建佇列。
+   *
+   * **卡片列表頁改單字本走的是這一條**（票 `15`）。它與 `setReviewScope()` 共用同一道
+   * 閘門，因為理由一樣：新增一本空的單字本雖然會自動進三組範圍，卻沒有一張卡因此改變，
+   * 正在進行的複習不該被打斷。網頁版 `src/app.ts` 的 `applyData()` 是同一支。
+   *
+   * **畫面不准自己去 `store.save()`。** 這台機器手上握著 `data`，繞過它寫檔的話這裡就
+   * 停在舊快照，下一次評分會把中間的改動整批蓋掉。
+   */
+  applyData(next: AppData): void;
+  /**
+   * 把一份備份檔的卡加進某一本：寫回本機、重讀、推上雲端，並交回這次匯入的結果。
+   *
+   * 與 `applyData()` 分成兩支是因為寫檔那一步在 `store` 裡面（它要驗格式並判斷哪些詞
+   * 重複），這裡只補上重讀與推雲端。那一本不在了或格式不對時直接丟例外，由畫面接住。
+   * 網頁版 `src/app.ts` 的 `importWords()` 是同一支。
+   */
+  importWords(json: string, bookId: string): ImportResult;
   /**
    * 跨過午夜就把佇列換成今天這份。回到前景時叫一次，評分之前也會自己叫一次。
    * 日期沒變時一件事都不做。
@@ -116,6 +135,24 @@ export function createReviewSession(hooks: ReviewSessionHooks): ReviewSession {
   }
 
   /**
+   * 換上一份新資料，存回本機並推上雲端；複習範圍內的卡真的變了才重建佇列。
+   *
+   * **比的是卡，不是「勾了哪幾本」，也不是「資料物件換了沒」。** 勾一本空的單字本、
+   * 替一本改名，都會產生一份新的資料，卻沒有一張卡因此改變，正在進行的複習不該被打斷——
+   * 重建會重洗一次順序，也會把評為「再次」而排回去的那幾張一起丟掉。
+   *
+   * 換範圍與卡片列表頁改單字本走的是同一支，因為那道閘門只該有一份。
+   * 與網頁版 `src/app.ts` 的 `applyData()` 相同。
+   */
+  function swap(next: AppData): void {
+    const before = cardsInBooks(data.cards, data.scopes.review);
+    data = next;
+    const after = cardsInBooks(data.cards, data.scopes.review);
+    if (!sameCards(before, after)) rebuildKeepingCurrent();
+    persist();
+  }
+
+  /**
    * 跨過午夜就把佇列換成今天這份。
    *
    * 冪等：日期沒變時一件事都不做，順序不重洗、掀開狀態不動。回到前景與評分兩條訊號
@@ -153,15 +190,29 @@ export function createReviewSession(hooks: ReviewSessionHooks): ReviewSession {
     },
 
     setReviewScope(bookIds) {
-      // 比的是**卡**而不是「勾了哪幾本」：勾一本空的單字本雖然改了範圍，卻沒有一張卡
-      // 因此改變，正在進行的複習不該被打斷——重建會重洗一次順序，也會把評為「再次」
-      // 而排回去的那幾張一起丟掉。與網頁版 `src/app.ts` 的 `applyData()` 同一道閘門。
-      const before = cardsInBooks(data.cards, data.scopes.review);
-      data = setScope(data, 'review', bookIds);
-      const after = cardsInBooks(data.cards, data.scopes.review);
-      if (!sameCards(before, after)) rebuildKeepingCurrent();
-      persist();
+      swap(setScope(data, 'review', bookIds));
       onChange();
+    },
+
+    applyData(next) {
+      swap(next);
+      onChange();
+    },
+
+    importWords(json, bookId) {
+      // `store` 這一步自己會驗格式、判斷哪些詞重複，並把整份寫回本機。
+      // 它丟例外時（那一本不在了、檔案壞了）底下三行都不會發生，本機因此一個字沒變。
+      const result = store.importWords(json, bookId);
+      // 一次匯入可能帶進上百張卡，其中到期的那些今天就該複習得到，因此整個重建。
+      // `reload()` 順手把答案蓋回去，那是對的：手上那張很可能已經不在隊首了。
+      data = store.load();
+      rebuild();
+      revealed = false;
+      // 本機已經被 `store` 寫過了，這裡只補推雲端那一步——不推的話下次開 app
+      // 會被雲端那份蓋回去。與網頁版 `src/app.ts` 的 `importWords()` 同一個位置。
+      onPersisted?.(data);
+      onChange();
+      return result;
     },
 
     refreshDay() {

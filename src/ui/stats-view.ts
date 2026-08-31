@@ -1,6 +1,6 @@
 import type { App } from '../app';
 import { t, type Key } from '@core/i18n';
-import { groupByBucket } from './list-view';
+import { groupByBucket } from '@core/lib/card-list';
 import { cardsInBooks, setScope } from '@core/lib/storage';
 import type { Card } from '@core/lib/types';
 import { bookFilter } from './book-filter';

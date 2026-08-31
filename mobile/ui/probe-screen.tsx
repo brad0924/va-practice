@@ -1,21 +1,22 @@
-import { randomUUID } from 'expo-crypto';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ScrollViewMarker } from 'react-native-screens/experimental';
 import { toMessage } from '@core/lib/app-error';
-import { DEFAULT_EASE } from '@core/lib/review';
-import { addBook, type Store } from '@core/lib/storage';
+import type { Store } from '@core/lib/storage';
 import type { CloudBackup } from '@core/lib/cloud-backup';
-import type { AppData, Card } from '@core/lib/types';
+import type { AppData } from '@core/lib/types';
 
 /**
  * 票 `03`（骨架）、`04`（儲存）與 `05`（加解密）的探針畫面。**它不是任何一頁正式介面。**
  *
- * 它回答四件事：EAS Build 出來的包裝得進真機嗎、`GlassView` 在這台機器上真的長出玻璃嗎、
- * `createStore()` 吃得下 MMKV 嗎、**手機上加出來的備份電腦解不解得開**——
- * 第三項要靠人按按鈕、關掉 app、重開來驗，自動測試碰不到「關掉再開」那一段。
+ * 它現在回答三件事：EAS Build 出來的包裝得進真機嗎、`GlassView` 在這台機器上真的長出玻璃嗎、
+ * **手機上加出來的備份電腦解不解得開**。最後一項要靠人輸入暱稱密碼真的推拉一次，
+ * 自動測試碰不到那條路。
+ *
+ * > 本來還有第四件：`createStore()` 吃不吃得下 MMKV。票 `15` 拆掉那一塊之後改由卡片列表驗——
+ * > 建一本、加幾張卡、關掉 app 再開，走的是使用者真的會走的那一條（見底下那段墓誌銘）。
  *
  * > 這裡本來還有一行「標答比對：⋯」。票 `13` 把那項比對整個搬出使用者的啟動路徑，
  * > 只剩 CI 塞了觸發檔時才跑，FAIL 的唯一去處是 CI 紅燈，畫面上因此沒有東西可顯示。
@@ -56,37 +57,17 @@ const STRIPE_COUNT = 40;
 const STRIPE_STEP = 44;
 const STRIPE_TOP = -420;
 
-/** 按一次加幾張卡。「存一批」而不是「存一張」——一張看不出整份資料有沒有完整寫回去。 */
-const BATCH_SIZE = 5;
+/* 這裡以前還有一整塊 MMKV 的儀表：一行「MMKV：N 本 · M 張卡」加一顆「加 5 張卡」，
+   那顆鈕會 `addBook()` 建一本並塞五張進去。票 `15` 把它整塊拆了（2026-08-31 拍板，
+   圖版四·乙）——單字本現在建得出來了，卡片列表那一頁就是正式的入口，探針上再留一個
+   會建資料的後門，只是多一條會把使用者資料弄髒的路。
 
-/**
- * 加一本，往裡面塞一批卡。
- *
- * `addBook()` 是刻意走的：它內部呼叫 `crypto.randomUUID()`，而那是 React Native 沒有、
- * 靠 `lib/install-crypto.ts` 補上去的。補丁沒生效的話這一按就當場丟例外——
- * 自動測試看不到這件事，因為 Node 自己有那個函式。
- *
- * 詞條刻意標了讀音（`探[たん]針[しん]`），複習畫面上才看得到振假名。
- */
-function addBatch(data: AppData): AppData {
-  const next = addBook(data, `探針 ${data.books.length + 1}`);
-  const book = next.books[next.books.length - 1];
-  // 編號接著現有張數往下數，按第二次不會撞到第一次那五張——詞條全域唯一，
-  // 連探針資料也照這條規矩，否則存進去的是一份這支 app 自己不接受的資料。
-  const cards: Card[] = Array.from({ length: BATCH_SIZE }, (_, index) => {
-    const number = data.cards.length + index + 1;
-    return {
-      id: randomUUID(),
-      bookId: book.id,
-      text: `探[たん]針[しん]${number}`,
-      meaning: `第 ${number} 張`,
-      interval: null,
-      ease: DEFAULT_EASE,
-      due: null,
-    };
-  });
-  return { ...next, cards: [...next.cards, ...cards] };
-}
+   它守過的東西沒有跟著消失：票 `04` 那條「關掉 app 再開，資料還在」現在用卡片列表
+   建一本、加幾張卡就驗得到，而且驗的是使用者真的會走的那一條。
+
+   `crypto.randomUUID()` 的補丁也還有人守。那顆鈕當初刻意走 `addBook()` 就是為了讓補丁
+   沒生效時當場丟例外；現在 `addBook()` 由卡片列表的「＋ 新增單字本」呼叫，同一條路，
+   同一個當場。 */
 
 export interface ProbeScreenProps {
   store: Store;
@@ -126,8 +107,9 @@ export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged
    * 就等於「每次進來都讀」。改成 tab 之後四頁同時掛著，切走只是被蓋住——手上那份因此會
    * 停在上次進來的樣子。
    *
-   * **停住不只是顯示不準，是會掉資料**：在「複習」評幾張再切過來按「加 5 張卡」，
-   * `store.save()` 存下去的是那份舊快照，中間評的分整批被蓋掉。
+   * **停住不只是顯示不準，是會掉資料**：這一頁按下「登入」時會把手上那份推上雲端，
+   * 而那份若是切走之前的舊快照，中間在別頁做的事就整批被蓋掉。
+   * （票 `15` 之前這裡舉的例子是「加 5 張卡」那顆鈕，那顆已經拆了，坑還在。）
    *
    * 用 `useFocusEffect` 而不是重建整個元件（換 `key`）：重建會把填到一半的暱稱與密碼
    * 一起清掉，而票 `09` 的驗收明講「切走再切回來，探針填到一半的欄位還在」。
@@ -162,19 +144,6 @@ export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged
       onStatus(toMessage(error));
     } finally {
       setCloudBusy(false);
-    }
-  }
-
-  function press(): void {
-    if (data === null) return;
-    try {
-      const next = addBatch(data);
-      store.save(next);
-      setData(next);
-      onDataChanged();
-    } catch (error) {
-      // 帶 key 的錯要查表才變成字（`ADR-0013`），畫面層一律走 toMessage()。
-      setOpened({ data, failure: toMessage(error) });
     }
   }
 
@@ -244,19 +213,14 @@ export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged
             <Text style={styles.statusText}>{status}</Text>
           </View>
 
-          <View style={styles.statusPill}>
-            <Text style={styles.statusText}>
-              {data === null
-                ? 'MMKV：讀不出來'
-                : `MMKV：${data.books.length} 本 · ${data.cards.length} 張卡`}
-            </Text>
-            {data !== null && (
-              <Pressable style={styles.button} onPress={press}>
-                <Text style={styles.buttonText}>{`加 ${BATCH_SIZE} 張卡`}</Text>
-              </Pressable>
-            )}
-            {failure !== null && <Text style={styles.failureText}>{failure}</Text>}
-          </View>
+          {/* 本機資料讀不出來時仍然要出聲。這一行不是儀表，是**壞掉時唯一會說話的地方**——
+              `store.load()` 丟例外的話底下雲端那一區整個不能用，沒有這一行的話畫面只會
+              安靜地少一塊。平常它不出現。 */}
+          {failure !== null && (
+            <View style={styles.statusPill}>
+              <Text style={styles.failureText}>{failure}</Text>
+            </View>
+          )}
 
           <View style={styles.statusPill}>
             <Text style={styles.statusText}>

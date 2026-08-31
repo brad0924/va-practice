@@ -13,7 +13,7 @@
 - **出處** — Apple 文件的頁面與章節。頁面網址見底下〈出處對照〉。
 - **怎麼驗** — 一個能回答「過／沒過」的動作。看不出過沒過的條目不收。
 
-**這份清單會長大。** 每做一頁畫面碰到新的規定就往對應章節底下追加，不必一次想窮盡。
+**這份清單會長大。** 每做一頁畫面碰到新的規定就往對應章節底下追加，不必一次想窮盡；整個章節也可以是新長出來的（〈Lists〉那一章就是票 `15` 加的）。
 
 **抓取時間：2026-08-24。** 內容取自 developer.apple.com 當時的線上版本，涵蓋 Apple 於 2025-06-09 加入、2025-09-09 更新的 Liquid Glass 指引。Apple 會改文件，日後對不上時以線上版為準，並回來更新這份表。
 
@@ -91,6 +91,26 @@
 | N-18 | 搜尋欄取得焦點時，要隨鍵盤一起上滑 | Adopting Liquid Glass §Search | 點搜尋欄，看它有沒有跟著鍵盤動；跟系統 app 比對動作是否一致 |
 | N-19 | 導覽層與內容層要明確分開 | Adopting Liquid Glass §Navigation | 截圖後指著每個元件問「這屬於導覽還是內容」。分不清就沒過 |
 | N-20 | 搜尋範圍要當場看得出來（用提示文字、scope bar 或標題） | Searching §Best practices | 進入搜尋畫面，看得出正在搜哪個範圍才算過 |
+| N-21 | 打字就開始搜，不要等使用者按送出 | Search fields §Best practices | 打一個字就看結果。要按 return 才動 → 沒過 |
+| N-22 | 一支 app 的內容盡量集中在一個搜尋入口；區塊分明時才另給只搜當前畫面的第二個 | Searching §Best practices | 數 app 裡的搜尋欄。超過一個時，要說得出每一個各搜什麼範圍才算過 |
+| N-23 | iOS 上搜尋的入口三選一：tab bar 上的 tab、toolbar 裡的欄位、與內容並排的 inline 欄位 | Search fields §iOS | 指出這一頁的搜尋屬於哪一種。三種都不是（例如自己畫一個輸入框）→ 沒過 |
+| N-24 | inline 的搜尋欄要放在它所搜的那份清單上方，捲動時釘在頂端 | Search fields §Search as an inline field | 捲動清單，看搜尋欄的位置與它所搜的內容有沒有脫節 |
+| N-25 | 顯示搜尋歷史要顧慮隱私，而且要給得出清除的方法 | Searching §Best practices | 有顯示歷史卻沒有清除入口 → 沒過。不顯示歷史則不適用 |
+
+## Lists（清單）
+
+清單列怎麼排、選了要有什麼回饋、列尾那些控制項各自代表什麼。**這一章是票 `15` 做卡片列表時長出來的。**
+
+| 編號 | 條目 | 出處 | 怎麼驗 |
+| --- | --- | --- | --- |
+| LT-01 | 清單優先放文字；項目尺寸差異大或圖片很多時改用 collection | Lists and tables §Best practices | 看列裡裝的是什麼。整列都是大圖卻用清單 → 沒過 |
+| LT-02 | 選一列要有回饋，而且兩種回饋不能混用：往下一層走的持續高亮，選項式的短暫高亮再加一個打勾之類的符號 | Lists and tables §Best practices | 點一列。導覽用的列若只閃一下就恢復 → 沒過；選項式的列若沒有留下符號 → 沒過 |
+| LT-03 | 列上的文字要精簡；文字量大時只列標題，內容放到下一層 | Lists and tables §Content | 看有沒有列被撐成好幾行。撐大的列要說得出「這幾行都是必要的」才算過 |
+| LT-04 | 單欄清單沒有欄標題時，要用標籤或區塊標頭把脈絡講清楚 | Lists and tables §Content | 遮住畫面其餘部分只看一列，答得出「這是什麼的清單」才算過 |
+| LT-05 | 分組的清單用標頭、頁尾與額外留白把每一組分開 | Lists and tables §Style | 兩組之間看不出界線 → 沒過 |
+| LT-06 | 列的樣式要配合要顯示的資訊，不是每一列都套同一個版型 | Lists and tables §Style | 問「這一列為什麼長這樣」。答得出哪一段對應哪個欄位才算過 |
+| LT-07 | info 鈕只用來顯示那一列的細節；要往下一層走用 disclosure indicator（`›`） | Lists and tables §iOS, iPadOS, visionOS | 按列尾那個符號。會推出下一頁卻畫成 info 鈕 → 沒過；只彈出細節卻畫成 `›` → 沒過 |
+| LT-08 | 列尾已經有 disclosure indicator 之類的控制項時，不要再加右側索引 | Lists and tables §iOS, iPadOS, visionOS | 看清單右緣有沒有兩層東西疊著。有 → 沒過 |
 
 ## Buttons（按鈕）
 
@@ -146,6 +166,7 @@
 | Tab bars | https://developer.apple.com/design/human-interface-guidelines/tab-bars |
 | Toolbars | https://developer.apple.com/design/human-interface-guidelines/toolbars |
 | Search fields | https://developer.apple.com/design/human-interface-guidelines/search-fields |
+| Lists and tables | https://developer.apple.com/design/human-interface-guidelines/lists-and-tables |
 | Searching | https://developer.apple.com/design/human-interface-guidelines/searching |
 | Buttons | https://developer.apple.com/design/human-interface-guidelines/buttons |
 | Typography | https://developer.apple.com/design/human-interface-guidelines/typography |
@@ -168,3 +189,4 @@
 | 日期 | 變更 |
 | --- | --- |
 | 2026-08-24 | 建立。五個章節共 78 條，取自 developer.apple.com 線上版（票 `01`） |
+| 2026-08-31 | 卡片列表動工，加 13 條：搜尋 5 條（`N-21`–`N-25`）與新的〈Lists〉一章 8 條（`LT-01`–`LT-08`）。取自 Search fields、Searching、Lists and tables 三頁的線上版；前兩頁在 2026-06-08 更新過，iOS 的搜尋入口從兩種變成三種（票 `15`） |

@@ -298,6 +298,102 @@ describe('整份資料被換掉', () => {
   });
 });
 
+/**
+ * 卡片列表頁改單字本用的那道接縫（票 `15`）。網頁版對應的是 `src/app.ts` 的 `applyData()`。
+ *
+ * **它存在的理由是「一份資料只能有一個主人」。** 這台機器手上握著 `data`，畫面若自己
+ * 去 `store.save()`，這台機器手上那份就過時了——在複習頁評幾張再切去卡片頁建一本，
+ * 存下去的是舊快照，中間評的分整批被蓋掉。探針畫面踩過同一個坑（見 `../ui/probe-screen.tsx`）。
+ */
+describe('改資料（單字本管理走這條）', () => {
+  it('新的那份存回儲存，下次讀得回來', () => {
+    const it_ = session();
+    const next = { ...it_.snapshot().data, books: [{ id: 'A', name: '改過名的甲本' }, { id: 'B', name: '乙本' }] };
+    it_.applyData(next);
+    expect(it_.snapshot().data.books[0]!.name).toBe('改過名的甲本');
+  });
+
+  it('推上雲端——少了這一步，手機上的改動會被別台裝置蓋掉', () => {
+    const pushed: AppData[] = [];
+    const it_ = session({ onPersisted: (data) => pushed.push(data) });
+    it_.applyData({ ...it_.snapshot().data, books: [] });
+    expect(pushed).toHaveLength(1);
+  });
+
+  it('通知畫面重畫', () => {
+    let changes = 0;
+    const it_ = session({ onChange: () => (changes += 1) });
+    it_.applyData({ ...it_.snapshot().data, books: [] });
+    expect(changes).toBe(1);
+  });
+
+  it('複習範圍裡的卡變了就重建佇列——刪掉一本，它的卡跟著離開佇列', () => {
+    const it_ = session();
+    const data = it_.snapshot().data;
+    it_.applyData({
+      ...data,
+      books: data.books.filter((book) => book.id !== 'B'),
+      cards: data.cards.filter((card) => card.bookId !== 'B'),
+      scopes: { review: ['A'], list: ['A'], stats: ['A'] },
+    });
+    expect(it_.snapshot().queue.map((entry) => entry.id)).toEqual(['a1', 'a2']);
+  });
+
+  /** 與 `setReviewScope()` 同一道閘門：比的是**卡**，不是「資料物件換了沒」。 */
+  it('只是加了一本空的單字本就不重建，「再次」排回去的那幾張留著', () => {
+    const it_ = session();
+    it_.rate('again');
+    const before = it_.snapshot().queue.map((entry) => entry.id);
+
+    const data = it_.snapshot().data;
+    it_.applyData({ ...data, books: [...data.books, { id: 'C', name: '空本' }] });
+
+    expect(it_.snapshot().queue.map((entry) => entry.id)).toEqual(before);
+  });
+});
+
+describe('匯入單字', () => {
+  /** 一份最小的備份檔，兩張卡進甲本。`a1` 那個詞已經有卡了，應該被跳過。 */
+  const incoming = JSON.stringify({
+    version: 3,
+    books: [{ id: 'X', name: '來源' }],
+    cards: [
+      { id: 'x1', bookId: 'X', text: '新詞', meaning: '新的', interval: null, ease: DEFAULT_EASE, due: null },
+      { id: 'x2', bookId: 'X', text: 'a1', meaning: '撞名', interval: null, ease: DEFAULT_EASE, due: null },
+    ],
+    scopes: { review: ['X'], list: ['X'], stats: ['X'] },
+    updatedAt: 0,
+  });
+
+  it('卡加進指定的那一本，撞到的詞跳過並說得出是哪一個', () => {
+    const it_ = session();
+    const result = it_.importWords(incoming, 'A');
+    expect(result.imported).toBe(1);
+    expect(result.skipped.map((skip) => skip.term)).toEqual(['a1']);
+    expect(it_.snapshot().data.cards.filter((card) => card.text === '新詞')).toHaveLength(1);
+  });
+
+  it('新卡進得了今天的佇列——匯完不必重開 app 才看得到', () => {
+    const it_ = session();
+    it_.importWords(incoming, 'A');
+    expect(it_.snapshot().queue.map((entry) => entry.text)).toContain('新詞');
+  });
+
+  it('推上雲端', () => {
+    const pushed: AppData[] = [];
+    const it_ = session({ onPersisted: (data) => pushed.push(data) });
+    it_.importWords(incoming, 'A');
+    expect(pushed).toHaveLength(1);
+  });
+
+  it('那一本已經不在時丟例外，本機資料一個字沒變', () => {
+    const it_ = session();
+    const before = it_.snapshot().data.cards.length;
+    expect(() => it_.importWords(incoming, '不存在的本')).toThrow();
+    expect(it_.snapshot().data.cards).toHaveLength(before);
+  });
+});
+
 describe('零本', () => {
   it('一本都沒有時佇列是空的，而且不會誤判成今日份完成', () => {
     const storage = fakeStorage();

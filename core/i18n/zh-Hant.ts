@@ -30,6 +30,9 @@ export default {
   'books.empty': '還沒有單字本。',
   'books.cardCount': '{count} 張',
   'books.scopeCheckLabel': '複習「{name}」',
+  // 同一顆勾在卡片列表上管的是**列表範圍**，不是複習範圍，因此另有一句。
+  // 兩句不能共用：三組範圍各自獨立（見 CONTEXT.md），唸錯就是講反了那顆勾在做什麼。
+  'books.listScopeCheckLabel': '在卡片列表顯示「{name}」',
   'books.rename': '改名',
   // 「匯入」是 CONTEXT.md 這一則的 _Avoid_ 項（會與備份的匯入混淆），改用詞彙表的正名。
   'books.importWords': '匯入單字',
@@ -43,6 +46,9 @@ export default {
   'books.namePlaceholder': '例如：工作用日文',
   'books.confirmAdd': '新增',
   'books.cancel': '取消',
+  'books.done': '完成',
+  // 手機的卡片列表把「選哪幾本」與「管理哪幾本」放進同一張 sheet，這一句說明左邊那個勾管什麼。
+  'books.sheetHint': '打勾的才會出現在卡片列表',
   'books.nameBlank': '單字本的名字不能是空白',
   'books.nameTaken': '已經有一本叫「{name}」了',
   'books.scopeEmpty': '至少要選一本單字本',
@@ -82,6 +88,8 @@ export default {
   'review.queueEmpty': '複習佇列已清空，沒有可評分的卡片',
 
   // ── 卡片列表 ────────────────────────────────────────────────
+  // 手機的卡片列表零本時是一整塊空狀態（標題＋說明＋一顆鈕），因此比網頁版多一行標題。
+  'list.noBooksTitle': '還沒有單字本',
   'list.noBooks': '還沒有任何單字本。卡片要先有一本才放得進去。',
   'list.searchPlaceholder': '搜尋詞條、讀音或釋義',
   'list.countMatched': '符合 {matched} 張，共 {total} 張',

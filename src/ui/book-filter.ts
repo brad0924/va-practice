@@ -1,4 +1,5 @@
 import { t } from '@core/i18n';
+import { scopeLabel } from '@core/lib/book-scope';
 import type { Book } from '@core/lib/types';
 import { el, button } from './dom';
 
@@ -24,15 +25,6 @@ export interface BookFilterOptions {
   onChange(bookIds: string[]): void;
   /** 選單開了或關了。給需要在展開期間讓路的呼叫端用（複習畫面的快捷鍵）。 */
   onOpenChange?(open: boolean): void;
-}
-
-/** 收合後鈕上的那行字：全勾是「全部」，只勾一本是那本的名字，其餘報本數。 */
-export function scopeLabel(books: readonly Book[], selected: readonly string[]): string {
-  if (selected.length === books.length) return t('filter.all');
-  if (selected.length === 1) {
-    return books.find((book) => book.id === selected[0])?.name ?? t('filter.bookCount', { count: 1 });
-  }
-  return t('filter.bookCount', { count: selected.length });
 }
 
 export function bookFilter({
