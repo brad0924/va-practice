@@ -17,9 +17,10 @@ iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rew
 > 票 `15` 整塊拆了：單字本現在在卡片列表那一頁建，探針上再留一個會建資料的後門，
 > 只是多一條會把使用者資料弄髒的路。
 
-**「卡片」是真的那一頁了**（`ui/cards-screen.tsx`，票 `15`）：系統的大標題與搜尋列、一條
-工具列、六個時間桶。單字本的新增、改名、刪除與匯入單字也在這一頁，收在那顆「全部 ▾」
-點開的 sheet 裡。**「統計」仍是一頁「還沒做」的說明**（`ui/placeholder-screen.tsx`）。
+**「卡片」是真的那一頁了**（`ui/cards-screen.tsx`，票 `15`）：置中的標題、系統的搜尋列、
+一條工具列、六個時間桶。點一列推出編輯畫面（`app/cards/[id].tsx`，票 `16` 之前是佔位頁）。
+單字本的新增、改名、刪除與匯入單字也在這一頁，收在那顆「全部 ▾」點開的 sheet 裡。
+**「統計」仍是一頁「還沒做」的說明**（`ui/placeholder-screen.tsx`）。
 tab 不因為內容是空的就停用或隱藏（HIG `N-05`）——那樣按下去沒反應，人會以為 app 壞了。
 
 > **雲端那塊按不動，要等標答比對跑完。** 兩件事都會抽 12 個位元組當初始向量，而比對期間
@@ -68,11 +69,14 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 「我跑在哪台手機上」，vitest 那台答不出來，當場就爆。兩台機器各跑各的，沒有取代關係——
 網頁版仍然跑 repo 根的 `npm test`。
 
-現在收進來的是八支。`mobile/` 自己五支：`lib/storage-mmkv.test.ts`、`lib/review-session.test.ts`、
-`lib/term-layout.test.ts`、`lib/japanese-voice.test.ts`，加上第一支畫面測試
-`ui/review-screen.test.tsx`。`core/lib/` 三支：`storage.test.ts`、`safety-copy.test.ts` 與
-`cloud-crypto-vectors.test.ts`。**`core/` 那三支一行未改**，仍寫著 `from 'vitest'`——
-改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
+現在收進來的是 13 支。`mobile/` 自己九支，含兩支畫面測試（`ui/review-screen.test.tsx`、
+`ui/cards-screen.test.tsx`）與兩支相依守門（`test/import-scan.test.ts`、
+`test/dependency-guard.test.ts`）。`core/lib/` 四支：`storage.test.ts`、`card-list.test.ts`、
+`book-scope.test.ts` 與 `cloud-crypto-vectors.test.ts`。**`core/` 那幾支一行未改**，
+仍寫著 `from 'vitest'`——改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
+
+> `safety-copy.test.ts` 曾經在這張表上，票 `07` 拿掉了：保險副本在 React Native 這一側不接，
+> 讓它在這台跑等於暗示 `mobile/` 用得到它。那 14 條沒有損失，repo 根的 vitest 照跑。
 
 畫面測試用 `@testing-library/react-native`（票 `06` 加的，`ADR-0014` 那批 jsdom 畫面測試
 在 React Native 上作廢）。**它的 `render`、`rerender` 與 `fireEvent` 都是非同步的**，
@@ -116,7 +120,7 @@ Metro 那邊刻意**不用** `resolver.extraNodeModules`：那張表是照套件
 | 檔 | 管什麼 |
 | --- | --- |
 | `index.ts` | 進入點。**先補齊 `crypto`，再交給 `expo-router/entry`**——順序錯了載入當場炸 |
-| `app/_layout.tsx` | 導覽列本體。四個 `NativeTabs.Trigger`，各帶一個詞的標籤與一個 SF Symbol |
+| `app/_layout.tsx` | 導覽列本體（四個 `NativeTabs.Trigger`），外加**整支 app 的導覽主題**——見底下那段 |
 | `app/index.tsx` | 「複習」，預設那一頁 |
 | `app/cards/_layout.tsx` | 「卡片」底下的推入導覽。**系統的搜尋列只長在原生導覽列上**，因此這個 tab 比其他三個多一層 `Stack` |
 | `app/cards/index.tsx` | 卡片列表 |
@@ -129,6 +133,17 @@ Metro 那邊刻意**不用** `resolver.extraNodeModules`：那張表是照套件
 要推上去），任何一頁自己再建一份就是兩套實作在寫同一批資料——`spec.md`〈程式碼怎麼擺〉
 把「邏輯層分岔」列為這條路上最不能踩的線。它同時管標答比對：**那一段掛在開 app 的時候跑，
 不是進「資料」tab 才跑**，因為 `mobile-crypto.yml` 只是把 app 開起來然後等結論寫成檔案。
+
+**導覽列的顏色要自己講，`app.json` 講不到。** 那裡的 `userInterfaceStyle: "dark"` 管的是 UIKit 元件與
+`PlatformColor` 語意色；`Stack` 那條列的顏色由 React Navigation 自己那份主題決定，預設是**淺色**。
+因此 `app/_layout.tsx` 包了一層 `ThemeProvider value={DarkTheme}`——少了它，導覽列是白底黑字。
+
+> 這個洞躲了六張票：它要「畫面上有 `Stack`」才看得見，而票 `15` 之前只有 `NativeTabs`，
+> 那底下是 `UITabBarController`、長相由系統給、不吃這份主題。
+
+**光是深色還不夠，那條列會變成不透明的實色。** React Navigation 只在三種情況讓它透明——
+有自訂 header、開了 `headerTransparent`、或 iOS 上開著大標題；其餘一律塞主題的 `colors.card`，
+那會蓋掉 Liquid Glass（HIG `M-08`）。`app/cards/_layout.tsx` 因此明講 `headerTransparent`。
 
 **導覽列不是自己畫的。** `NativeTabs` 底下就是 `UITabBarController`，浮著的膠囊形狀、
 底下內容透出來（HIG `N-01`）、`minimizeBehavior="onScrollDown"` 那個捲動縮小，全部是系統行為。
