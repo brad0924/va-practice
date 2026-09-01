@@ -78,6 +78,14 @@ export interface ProbeScreenProps {
   onStatus(message: string): void;
   /** 這支畫面改過本機資料了，外面要重讀。 */
   onDataChanged(): void;
+  /**
+   * 逐段跑一次讀音預填，每一段各自回報發生了什麼（票 `16`）。
+   *
+   * 由外面遞進來而不是這裡自己 import，理由與 `cloud` 同一條：那支底下是原生模組。
+   * 一句話說明它為什麼存在——**上線那條路故意把三種失敗都收斂成靜默**，於是
+   * 「壞了」跟「它根本沒試」在畫面上長得一模一樣，維護者自己也分不出來。
+   */
+  probeReading(term: string): Promise<string[]>;
 }
 
 /**
@@ -95,7 +103,21 @@ function open(store: Store): { data: AppData | null; failure: string | null } {
   }
 }
 
-export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged }: ProbeScreenProps) {
+/**
+ * 試問的那個詞。**寫死一個含漢字的短詞**：這支探針要驗的是接得通不通，不是模型答得對不對，
+ * 讓人自己打字只會多一種「打錯字所以沒反應」的可能。挑 `焦がす` 是因為 repo 各處的例子
+ * 都用它（翻譯檔的提示文字也是），一眼認得出。
+ */
+const PROBE_TERM = '焦がす';
+
+export function ProbeScreen({
+  store,
+  cloud,
+  cloudStatus,
+  onStatus,
+  onDataChanged,
+  probeReading,
+}: ProbeScreenProps) {
   const [opened, setOpened] = useState(() => open(store));
   const { data, failure } = opened;
   const setData = (next: AppData) => setOpened({ data: next, failure: null });
@@ -123,6 +145,32 @@ export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [cloudBusy, setCloudBusy] = useState(false);
+
+  /** 上一次試問讀音的逐段結果。空陣列代表還沒按過。 */
+  const [readingLines, setReadingLines] = useState<string[]>([]);
+  const [readingBusy, setReadingBusy] = useState(false);
+
+  /**
+   * 試問一次讀音，把每一段的結果攤在畫面上。
+   *
+   * **這一支自己不判斷成敗**，`probeReading()` 回什麼就印什麼——判斷是人的事，
+   * 而人要看的正是那幾句原文（哪一段斷的、Google 回的狀態碼是幾號）。
+   *
+   * 外面那層 `catch` 是防呆：`probeReading()` 自己已經把三段各自包起來了，
+   * 走到這裡代表它自己爆了，那句話一樣要出得來——不然按下去畫面一動也不動，
+   * 又回到「分不出壞了還是沒試」那個坑。
+   */
+  async function tryReading(): Promise<void> {
+    setReadingBusy(true);
+    setReadingLines([]);
+    try {
+      setReadingLines(await probeReading(PROBE_TERM));
+    } catch (error) {
+      setReadingLines([`探針自己爆了：${toMessage(error)}`]);
+    } finally {
+      setReadingBusy(false);
+    }
+  }
 
   /**
    * 登入一次。**同一顆按鈕走得到兩個方向**——`signIn()` 先看雲端那份新不新：
@@ -253,6 +301,25 @@ export function ProbeScreen({ store, cloud, cloudStatus, onStatus, onDataChanged
               <Text style={styles.buttonText}>{cloudBusy ? '進行中⋯' : '登入並跑一次雲端備份'}</Text>
             </Pressable>
             {cloudStatus !== '' && <Text style={styles.statusText}>{cloudStatus}</Text>}
+          </View>
+
+          {/* 讀音預填的探針（票 `16`）。**它問的是真的那條線**，不是另接一份——
+              另接一份的話這裡綠了也不代表編輯畫面會動。 */}
+          <View style={styles.statusPill}>
+            <Text style={styles.statusText}>{`讀音預填：試問「${PROBE_TERM}」`}</Text>
+            <Pressable
+              style={[styles.button, readingBusy ? styles.buttonOff : null]}
+              disabled={readingBusy}
+              onPress={() => void tryReading()}
+            >
+              <Text style={styles.buttonText}>{readingBusy ? '問進行中⋯' : '試問一次讀音'}</Text>
+            </Pressable>
+            {readingLines.map((line) => (
+              // 每一段一行。內容是逐段的原文（含 Google 回的狀態碼），不做任何歸納。
+              <Text key={line} style={styles.statusText}>
+                {line}
+              </Text>
+            ))}
           </View>
         </ScrollView>
       </ScrollViewMarker>

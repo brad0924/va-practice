@@ -9,6 +9,7 @@
  */
 import { ProbeScreen } from '../ui/probe-screen';
 import { useApp } from '../lib/app-context';
+import { probeReading } from '../lib/gemini-reading-native';
 
 export default function DataRoute() {
   const { store, cloud, session, cloudStatus, setCloudStatus } = useApp();
@@ -19,6 +20,9 @@ export default function DataRoute() {
       cloudStatus={cloudStatus}
       onStatus={setCloudStatus}
       onDataChanged={() => session.reload()}
+      // 讀音預填的診斷（票 `16`）。原生模組由路由這一層 import，畫面那一支因此仍然
+      // 在 Node 底下載得進來——與編輯畫面收 `ask` 的規矩一致。
+      probeReading={probeReading}
     />
   );
 }
