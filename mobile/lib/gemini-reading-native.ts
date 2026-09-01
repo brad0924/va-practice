@@ -104,22 +104,56 @@ interface Wiring {
 }
 
 /**
- * 接線：指定 App Attest、把 App Check 掛到 AI 上、把 Remote Config 掛好。
+ * `initializeAppCheck()` 回的那個實例，加上它身上那支**等得到的**初始化。
  *
- * 這一段完全不上網，離線也接得起來——憑證是稍後真的要送請求時才去拿的，
- * 而 Remote Config 在這裡只是掛上去，真的去抓是 `refresh()` 的事。
+ * **非要這一格不可的理由，寫在套件自己的原始碼裡。** 模組層那支 `initializeAppCheck()`
+ * 的註解第一句是「Returns synchronously for firebase-js-sdk parity; native provider setup
+ * continues in the background」，而最後一行是 `void (appCheck).initializeAppCheck(options)`
+ * ——**它把那個 promise 丟掉了**。實例身上那一支才回得出來：它先
+ * `configureProvider('appAttest')`（往原生層的橋接呼叫），完成之後才開自動更新，
+ * 套件在那一段也留了註解說明順序不能顛倒。
+ *
+ * 不等的話，接完線馬上去要權杖，原生層手上還是**出廠預設的 DeviceCheck**，
+ * 而主控台註冊的是 App Attest，換回來的是 `App not registered`（2026-09-01 真機踩到，
+ * 網址結尾 `exchangeDeviceCheckToken` 就是證據）。Capacitor 版當年踩的是同一個坑的
+ * 另一半，見 `.scratch/fixed-gemini-key/issues/01`。
+ *
+ * 型別自己寫一份而不是 import：那支住在套件的 `lib/types/internal.ts`，
+ * 沒有從公開入口匯出，而 `package.json` 的 `exports` 也擋住了深層路徑。
+ * 只列用得到的那一支方法，形狀對得上就夠。
  */
-function wire(): Wiring {
+type AwaitableAppCheck = AppCheck & {
+  initializeAppCheck(options: {
+    provider: ReactNativeFirebaseAppCheckProvider;
+    isTokenAutoRefreshEnabled: boolean;
+  }): Promise<void>;
+};
+
+/**
+ * 接線：指定 App Attest、**等原生那一端真的換完**、把 App Check 掛到 AI 上、
+ * 把 Remote Config 掛好。
+ *
+ * 這一段唯一會等的是「換 provider」那一下橋接呼叫，**不上網**，離線也接得起來——
+ * 憑證是稍後真的要送請求時才去拿的，而 Remote Config 在這裡只是掛上去，
+ * 真的去抓是 `refresh()` 的事。
+ */
+async function wire(): Promise<Wiring> {
   const app = getApp();
 
-  // **這三行是這條路能不能走通的關鍵。** 套件在 iOS 上的出廠預設 provider 是 DeviceCheck，
+  // **這幾行是這條路能不能走通的關鍵。** 套件在 iOS 上的出廠預設 provider 是 DeviceCheck，
   // 而主控台註冊的是 App Attest，兩邊對不上時 Google 回的是 `App not registered`。
   const provider = new ReactNativeFirebaseAppCheckProvider();
   // `appAttest` 而不是 `appAttestWithDeviceCheckFallback`：後者在 iOS 13 以下退回
   // DeviceCheck，而這支 app 的下限是 16.4（見 `.scratch/rn-rewrite/spec.md`），
   // 那條退路一台機器都用不到，留著只會讓「走的到底是哪一套」變得說不準。
   provider.configure({ apple: { provider: 'appAttest' } });
-  const appCheck = initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true });
+  const options = { provider, isTokenAutoRefreshEnabled: true };
+
+  const appCheck = initializeAppCheck(app, options);
+  // **這一行不能省，理由見 `AwaitableAppCheck` 那一段。** 上面那支是同步回來的，
+  // 原生那一端還在背景把 provider 換掉；不等它，第一次要權杖就會走成 DeviceCheck。
+  // 同一組設定叫第二次是安全的：原生那一支只是在共用的 factory 上記下「這個 app 用哪一個」。
+  await (appCheck as AwaitableAppCheck).initializeAppCheck(options);
 
   // 後端明寫出來讓決定看得見：`getAI()` 的預設本來就是 Gemini Developer API，不是 Vertex。
   const ai = getAI(app, { backend: new GoogleAIBackend(), appCheck });
@@ -177,9 +211,12 @@ function refresh(config: RemoteConfig | null): void {
  * 重試是安全的：`initializeAppCheck()` 與 `getRemoteConfig()` 同一個 app 都回既有那一個，
  * `getAI()` 只是組個物件、不上網。三者都不會丟重複初始化的錯。
  */
-let wired: Wiring | null = null;
-function ensure(): Wiring {
-  wired ??= wire();
+let wired: Promise<Wiring> | null = null;
+function ensure(): Promise<Wiring> {
+  wired ??= wire().catch((error: unknown) => {
+    wired = null;
+    throw error;
+  });
   return wired;
 }
 
@@ -202,14 +239,14 @@ async function token(appCheck: AppCheck): Promise<void> {
  * 一次，而這支每開一次編輯畫面就叫一次——更新設定要跟得上使用者的動作，不是跟著開機。
  */
 export function prepare(): void {
-  try {
-    const wiring = ensure();
-    refresh(wiring.config);
-    void token(wiring.appCheck).catch(() => {});
-  } catch {
-    // 接線壞了。這裡沒有任何話要說，下一次 `askReadingNative()` 會自己再試一次。
-    wired = null;
-  }
+  // 一個字都不 await：這裡沒有任何話要說，也不該擋住使用者打字。
+  // 接線失敗時 `ensure()` 自己會把那份忘掉，下一次 `askReadingNative()` 再試一次。
+  void ensure()
+    .then((wiring) => {
+      refresh(wiring.config);
+      return token(wiring.appCheck);
+    })
+    .catch(() => {});
 }
 
 /**
@@ -226,13 +263,9 @@ export async function askReadingNative(
   onAttempt?: (attempt: number) => void,
 ): Promise<unknown> {
   // 接線失敗（套件沒進去、plist 沒被打包）使用者一點辦法都沒有，一個字都不必說。
-  let wiring: Wiring;
-  try {
-    wiring = ensure();
-  } catch {
-    wired = null;
+  const wiring = await ensure().catch(() => {
     throw new SilentError();
-  }
+  });
 
   // 憑證自己一份預算，與問模型那一份分開。要不到、或要太久，一律靜默。
   // 這一段在重試的碼表**之外**：總預算從憑證拿到之後才開始算（票 `09` 決定二）。
@@ -332,15 +365,15 @@ export async function probeReading(term: string): Promise<string[]> {
 
   let wiring: Wiring;
   try {
-    wiring = ensure();
+    wiring = await ensure();
     const options = wiring.ai.app.options;
     // 專案編號與 app 編號印出來，是為了證明 `GoogleService-Info.plist` 真的進了這個包。
     // 兩格空的話問題在打包，不在憑證。
     lines.push(`1. 接線 OK · project=${options.projectId} · appId=${options.appId}`);
     lines.push(`   Remote Config：${wiring.config === null ? '掛不起來（用程式碼裡的後備值）' : 'OK'}`);
   } catch (error) {
-    // 記住一顆壞掉的接線會讓這次開 app 期間都問不成，忘掉它。
-    wired = null;
+    // 這裡不必自己把那份忘掉——`ensure()` 已經在接線失敗時清掉了，
+    // 所以這顆按鈕可以一直按，每一下都是真的重試一次。
     lines.push(`1. 接線失敗：${describe(error)}`);
     // 接不起來就沒有東西可以往下走了。
     return lines;

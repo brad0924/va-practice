@@ -432,3 +432,55 @@ spec 決定十一拍板「App Check 過不了就一個字都不出」，理由�
 編輯畫面會動——那才是這支探針唯一的價值。
 
 > 資料頁那張票做好時，`probeReading()` 要跟探針畫面一起消失。
+
+### 2026-09-01 — 探針一次問出病因：走的是 DeviceCheck，不是 App Attest
+
+三行結果：
+
+```
+1. 接線 OK · project=va-practice · appId=1:868881672534:ios:0101e57fef7da60adccef7
+   Remote Config：OK
+2. App Check 要不到權杖：code=appCheck/token-error
+   URL: .../apps/1:868881672534:ios:...:exchangeDeviceCheckToken
+   HTTP 400 · "App not registered: 1:868881672534:ios:..." · FAILED_PRECONDITION
+3. 問模型失敗：status=401 · Firebase App Check token is invalid
+```
+
+第 1 行證明 `GoogleService-Info.plist` 進了包、原生模組接得起來——**打包沒問題**。
+病灶在第 2 行那個網址結尾：**`exchangeDeviceCheckToken`**。它走的是 DeviceCheck，
+而主控台註冊的是 App Attest，所以 Google 說「這支 app 沒登記」。第 3 行的 401 只是下游。
+
+**這與 Capacitor 版當年那個卡點是同一個症狀**（`.scratch/fixed-gemini-key/issues/01`
+的〈卡點：走的是 DeviceCheck，不是 App Attest〉），但**成因不同**：那邊是外掛根本沒提供
+選 provider 的開關，這裡有指定，只是沒等它生效。
+
+#### 成因：`initializeAppCheck()` 是「同步回來、背景繼續做」
+
+套件自己的原始碼寫得很清楚。模組層那支的註解第一句：
+
+> Returns synchronously for firebase-js-sdk parity;
+> **native provider setup continues in the background.**
+
+最後一行是 `void (appCheck).initializeAppCheck(options)`——**promise 被丟掉了**。
+實例身上那一支才回得出來：它先 `configureProvider('appAttest')`（往原生層的橋接呼叫），
+完成之後才開自動更新，而套件在那一段留的註解正是在講順序不能顛倒：
+
+> AppCheck-AD-4: attach the real provider before enabling auto-refresh so early
+> refresh does not run while the native facade is still pending.
+
+我們接完線就馬上去要權杖，那一刻原生層手上還是**出廠預設的 DeviceCheck**。
+
+#### 修法：等它換完
+
+`wire()` 改成非同步，`await` 那支等得到的初始化；`ensure()` 跟著改成記一個 promise，
+而且**失敗的那一次不記住**（與 Capacitor 版同一個形狀）。同一組設定叫第二次是安全的——
+原生那一支（`RNFBAppCheckModule.mm` 的 `configureProvider`）只是在共用的 factory 上
+記下「這個 app 用哪一個 provider」。
+
+型別自己寫一份 `AwaitableAppCheck`：那支方法住在套件的 `lib/types/internal.ts`，
+沒有從公開入口匯出，`package.json` 的 `exports` 也擋住深層路徑。
+
+#### 驗的時候要整支關掉重開，不能只重載 JavaScript
+
+錯誤訊息裡那句 `Too many attempts` 是 App Check 客戶端自己的退避——連續失敗之後它會
+停一段時間不再試。重載 JavaScript 不會重啟原生那一半，那個退避狀態會留著。
