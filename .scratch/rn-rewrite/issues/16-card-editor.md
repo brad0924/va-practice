@@ -484,3 +484,59 @@ spec 決定十一拍板「App Check 過不了就一個字都不出」，理由�
 
 錯誤訊息裡那句 `Too many attempts` 是 App Check 客戶端自己的退避——連續失敗之後它會
 停一段時間不再試。重載 JavaScript 不會重啟原生那一半，那個退避狀態會留著。
+
+### 2026-09-01 — 等它換完沒有用：factory 根本沒掛上去
+
+修了「等原生換完 provider」之後**症狀一模一樣**，網址還是 `exchangeDeviceCheckToken`。
+那代表問題比上一輪判斷的更早：**Firebase 從頭到尾沒拿到我們那個 factory。**
+
+原生那一端讀完就清楚了：
+
+- `RNFBAppCheckProviderFactory.m` 的註解寫著「Firebase may call this during
+  `FirebaseApp.configure()` before JS runs configureProvider. Install a pending facade only」
+  ——它**設計上就預期自己在 configure 的那一刻已經在場**。
+- 但 `[FIRAppCheck setAppCheckProviderFactory:]` 只在 `RNFBAppCheckModule` 的
+  `+sharedInstance` 裡（`dispatch_once`），而那支只有 JavaScript 叫得動它。
+- `@react-native-firebase/app` 的 Expo 外掛把 `FirebaseApp.configure()` 插進 `AppDelegate`，
+  **沒有人在那之前叫 `sharedInstance`**。
+
+於是啟動順序是：configure（`FIRAppCheck` 拿著內建的 DeviceCheck 誕生）→ 很久以後
+JavaScript 才去掛 factory。太晚了。
+
+官方文件（rnfirebase.io/app-check/usage）對 React Native 0.79 以上明講要自己補兩件事，
+而這裡是 0.86：
+
+```swift
+RNFBAppCheckModule.sharedInstance()   // 先掛 factory
+FirebaseApp.configure()
+```
+
+加上 bridging header 那一行 `#import "RNFBAppCheckModule.h"`（文件也明講**不要**在 Swift 裡
+`import RNFBAppCheck`，那個 pod 是純 Objective-C）。
+
+> **Capacitor 版當年是同一個順序問題**（`.scratch/fixed-gemini-key/issues/01` 的〈卡點〉），
+> 那邊手寫十行 Swift 就結案，因為它的 `ios/` 進版控。這裡每次 `expo prebuild` 都重新產生，
+> 所以得寫成外掛：`mobile/plugins/with-app-check-first.js`。
+
+#### 這支外掛刻意會當場失敗
+
+找不到 `FirebaseApp.configure()` 那個錨點時**直接丟例外讓 prebuild 紅**，不安靜地跳過。
+安靜跳過的下場就是再出一次「看起來好了、其實走 DeviceCheck」的包，而那種包要靠探針
+才驗得出來——這一輪已經為它燒掉兩趟真機了。
+
+它排在 `@react-native-firebase/app` **後面**：錨點是那支插進去的。
+
+#### Windows 上驗到哪
+
+拿 Expo 57 真的 `AppDelegate.swift` 範本，先跑 RNFirebase 那支外掛真的會做的改動，
+再跑這一支：`RNFBAppCheckModule.sharedInstance()` 落在 `FirebaseApp.configure()` **上一行**，
+重跑一次不會重複插。bridging header 那一半用範本真的那一份驗，同樣冪等。
+
+#### 順手修好相依守門的一個誤報
+
+`import-scan.ts` 那個小掃描器把外掛裡的字串 `#import "RNFBAppCheckModule.h"` 當成了
+JavaScript 的 import，報「少宣告一個叫 `RNFBAppCheckModule.h` 的套件」。
+`#import` 是 Objective-C，永遠不會是 JavaScript 的 import——修掃描器，不加例外。
+它的檔頭本來就承認自己「只是個小掃描器，不是剖析器」而且會多報，這是第一次真的多報。
+
+`@expo/config-plugins` 補進 `package.json`：那支外掛直接 import 它，守門抓得對。

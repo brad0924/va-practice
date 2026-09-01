@@ -97,10 +97,16 @@ export function stripComments(code: string): string {
  * - `require('…')`（設定檔用的是這種——`metro.config.js` 那行 `require('expo/metro-config')`
  *   只有這條認得出來）
  * - `import('…')`（動態載入）
+ *
+ * **`#import "…"` 不算。** 那是 Objective-C，永遠不會是 JavaScript 的 import。
+ * 這個 repo 真的有一支檔在字串裡放著那種寫法——`plugins/with-app-check-first.js`
+ * 要往 bridging header 寫 `#import "RNFBAppCheckModule.h"`（票 `16`）。
+ * 少了那個 `#` 的排除，它會被報成「import 了一個叫 `RNFBAppCheckModule.h` 的套件」。
  */
 const SOURCE_PATTERNS = [
   /\bfrom\s*['"]([^'"]+)['"]/g,
-  /\bimport\s+['"]([^'"]+)['"]/g,
+  // 前面那一格排除 `#`：`\b` 認得 `#` 與 `i` 之間有分界，光靠它擋不掉 `#import`。
+  /(?<!#)\bimport\s+['"]([^'"]+)['"]/g,
   /\b(?:require|import)\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
 ];
 

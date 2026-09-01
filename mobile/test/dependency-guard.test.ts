@@ -124,4 +124,11 @@ describe('相依守門', () => {
   it('註解裡的 vitest 沒有被當成真的 import', () => {
     expect(scanEverything().filter((site) => site.packageName === 'vitest')).toEqual([]);
   });
+
+  it('Objective-C 的 #import 沒有被當成套件', () => {
+    // `plugins/with-app-check-first.js` 要往 bridging header 寫一行
+    // `#import "RNFBAppCheckModule.h"`，那是原生的寫法，不是 JavaScript 的 import。
+    // 少了排除的話它會被報成「少宣告了一個叫 RNFBAppCheckModule.h 的套件」（票 `16` 踩到）。
+    expect(scanEverything().filter((site) => site.source.endsWith('.h'))).toEqual([]);
+  });
 });

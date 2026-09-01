@@ -10,6 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@expo/config-plugins": "~57.0.9",
     "@react-native-firebase/ai": "^26.3.2",
     "@react-native-firebase/app": "^26.3.2",
     "@react-native-firebase/app-check": "^26.3.2",
