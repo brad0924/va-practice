@@ -1,5 +1,6 @@
 /**
- * iOS 那條路的重試迴圈：純邏輯，**一行執行期的 firebase 都不 import**。
+ * Firebase AI Logic 那條路上的兩支碼表：重試迴圈與憑證的預算。純邏輯，
+ * **一行執行期的 firebase 都不 import**。
  *
  * 單獨一支檔案而不是併進 `gemini-reading-native.ts`，理由與 `ai-logic-error.ts` 相同：
  * 那支 import 了 Capacitor 外掛與 firebase 執行期程式碼，在 node 底下載不起來、測不到。
@@ -9,7 +10,7 @@
  * （網頁版一顆 `AbortController` 包住整支，iOS 是每次把剩餘毫秒交給 SDK），硬併會把一個
  * 能動的東西拆開重接。
  */
-import { AppError } from './app-error';
+import { AppError, SilentError } from './app-error';
 import { TIMEOUT_MS, TRANSIENT } from './gemini-reading';
 
 /**
@@ -74,4 +75,29 @@ export async function withRetry(
       lastTransient = error;
     }
   }
+}
+
+/**
+ * 給 App Check 憑證那一段自己的碼表。逾時就丟 `SilentError`，畫面上一個字都不出。
+ *
+ * **非做不可的理由寫在 SDK 的原始碼裡**：它是**先按下碼表、再去要 App Check 權杖**
+ * （組 headers 那一行才去要）。也就是說要憑證與問模型共吃同一份 `TIMEOUT_MS`。
+ * 憑證慢一點，使用者就會看到「等超過 10 秒沒有回覆」——而那句話是講給「模型太慢」聽的，
+ * 不是講給 App Check 聽的。App Check 的麻煩使用者一點辦法都沒有，該做的是閉嘴
+ * （spec 決定十一）。呼叫端先把憑證要到手，SDK 稍後在自己的窗口裡再要一次時就是從
+ * 快取拿，不再吃掉模型的預算。
+ *
+ * **逾時不取消底下那件事**——原生層那一趟繼續跑完，順便把快取暖起來，下一張卡就快了。
+ * 秒數沿用同一個常數：現在還沒有真機量到的數字，等探針回報再決定要不要分開。
+ *
+ * 住在這裡而不是各自留一份（票 `16`）：兩條 Firebase 路徑（Capacitor 版 iOS 與
+ * React Native 版）需要一模一樣的這一段，而它一行 SDK 都不碰，是純邏輯——與上面那個
+ * 重試迴圈同一個理由，搬進來連帶就測得到。
+ */
+export function budgeted<T>(work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const expiry = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SilentError()), TIMEOUT_MS);
+  });
+  return Promise.race([work, expiry]).finally(() => clearTimeout(timer));
 }

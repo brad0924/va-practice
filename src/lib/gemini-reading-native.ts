@@ -30,54 +30,39 @@ import { activate, fetchAndActivate, getRemoteConfig, getString, type RemoteConf
 import { AppError, SilentError } from '@core/lib/app-error';
 import { toReadingError } from '@core/lib/ai-logic-error';
 import {
-  INSTRUCTIONS,
-  MODEL,
+  CONFIG_MAX_AGE_MS,
+  REMOTE_FALLBACK,
+  REMOTE_INSTRUCTIONS_KEY,
+  REMOTE_MODEL_KEY,
   RESPONSE_SCHEMA,
-  TIMEOUT_MS,
   parseReply,
   promptFor,
   remoteOrDefault,
 } from '@core/lib/gemini-reading';
-import { withRetry } from '@core/lib/reading-retry';
+import { budgeted, withRetry } from '@core/lib/reading-retry';
 
 /**
- * Remote Config 上那兩個參數的名字，與各自在程式碼裡的後備值。主控台上叫什麼，這裡就是什麼。
+ * Remote Config 那兩個參數的名字、後備表與過期時間**住在 `core/lib/gemini-reading.ts`**
+ * （票 `16` 搬過去的）。
  *
- * 名字與後備值綁在同一張表，不散在兩處：`defaultConfig` 交給 SDK 的那一份、和讀不到時
- * 自己退回的那一份，永遠是同一個值，不會各自漂移。
+ * 兩條 Firebase 路徑（這一支與 React Native 版的 `mobile/lib/gemini-reading-native.ts`）
+ * 背後是同一個 Firebase 專案的同兩個參數。各抄一份的話，改到一半漏掉一邊時沒有任何
+ * 測試會紅，而症狀是「那支 app 安靜地一直用程式碼裡的舊值」——沒有人看得出來。
  *
  * 為什麼要有這條路（issue 03）：固定金鑰把「模型被下架」的修復成本從幾分鐘拉到幾天。
  * 自備金鑰時那是零星使用者踩到、改個字串 push 上去；固定金鑰加 iOS 是所有人同時停擺，
  * 而使用者沒有自救途徑，維護者要重新打包送審、等一到兩天，還可能被退件。`ADR-0005`
  * 記過一次真實事故（`gemini-2.5-flash` 對新金鑰回 404），判準那一段也實際改過兩次。
+ *
+ * > `fetchTimeoutMillis` 刻意留 SDK 預設的 60 秒：這一趟沒有人在等它（見 `refresh()`），
+ * > 縮短只會在網路不穩時白白丟掉一次救援機會。
  */
-const MODEL_KEY = 'gemini_model';
-const INSTRUCTIONS_KEY = 'gemini_instructions';
-const FALLBACK = { [MODEL_KEY]: MODEL, [INSTRUCTIONS_KEY]: INSTRUCTIONS };
-
-/**
- * 抓回來的設定放這麼久就算過期，下一次會重新去抓。**明確設定，不吃 SDK 預設的 12 小時。**
- *
- * 一小時的理由：這條路存在的全部目的是「出事時快點救得回來」，12 小時等於出事當天多數
- * 人整天都救不回來。往下不再壓，是因為救援之外的每一次抓取都只是白跑一趟網路——出事是
- * 罕見事件，把常態成本壓在每小時一次就夠了。一小時也正是 Capacitor 版 Remote Config
- * 外掛的預設值，不是憑空挑的數字。
- *
- * **這不是「立刻生效」。** 每開一次編輯畫面會請 SDK 抓一次，但這個間隔沒過的話它直接
- * 從快取回答、不上網。所以主控台改完之後，最快是「距上次抓取滿一小時後的下一次開編輯
- * 畫面」才拿得到新值；抓得比使用者打字快的話同一張卡就用得上，慢了就下一張。
- * 實務上仍是「幾小時」對上「送審一到兩天」。
- *
- * `fetchTimeoutMillis` 刻意留 SDK 預設的 60 秒：這一趟沒有人在等它（見 `refresh()`），
- * 縮短只會在網路不穩時白白丟掉一次救援機會。
- */
-const CONFIG_MAX_AGE_MS = 60 * 60 * 1000;
 
 /**
  * 這次要用的那個值。Remote Config 整個掛掉（`config` 是 null）也照樣答得出來。
  */
-function setting(config: RemoteConfig | null, key: keyof typeof FALLBACK): string {
-  const fallback = FALLBACK[key];
+function setting(config: RemoteConfig | null, key: keyof typeof REMOTE_FALLBACK): string {
+  const fallback = REMOTE_FALLBACK[key];
   return config === null ? fallback : remoteOrDefault(getString(config, key), fallback);
 }
 
@@ -148,7 +133,7 @@ async function wire(): Promise<Wiring> {
 function mount(app: FirebaseApp): RemoteConfig | null {
   try {
     const config = getRemoteConfig(app);
-    config.defaultConfig = FALLBACK;
+    config.defaultConfig = REMOTE_FALLBACK;
     config.settings.minimumFetchIntervalMillis = CONFIG_MAX_AGE_MS;
     return config;
   } catch {
@@ -255,7 +240,7 @@ export async function askReadingNative(
     const model = getGenerativeModel(
       wiring.ai,
       {
-        model: setting(wiring.config, MODEL_KEY),
+        model: setting(wiring.config, REMOTE_MODEL_KEY),
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: RESPONSE_SCHEMA,
@@ -267,7 +252,7 @@ export async function askReadingNative(
     let text: string;
     try {
       const result = await model.generateContent(
-        promptFor(term, setting(wiring.config, INSTRUCTIONS_KEY)),
+        promptFor(term, setting(wiring.config, REMOTE_INSTRUCTIONS_KEY)),
       );
       text = result.response.text();
     } catch (error) {
@@ -284,26 +269,4 @@ export async function askReadingNative(
 
     return parseReply(text);
   }, onAttempt);
-}
-
-/**
- * 給憑證那一段自己的碼表。
- *
- * 非做不可的理由寫在 SDK 的原始碼裡：`makeRequest()` 是**先按下碼表、再去要 App Check
- * 權杖**（`headers: await getHeaders(url)` 那一行才去要）。也就是說要憑證與問模型共吃
- * 同一份 10 秒。憑證慢一點，使用者就會看到「等超過 10 秒沒有回覆」——而那句話是講給
- * 「模型太慢」聽的，不是講給 App Check 聽的。App Check 的麻煩使用者一點辦法都沒有，
- * 該做的是閉嘴（spec 決定十一）。
- *
- * 這裡先把憑證要到手，SDK 稍後在自己的窗口裡再要一次時就是從快取拿，不再吃掉模型的預算。
- *
- * 逾時不取消底下那件事——原生層那一趟繼續跑完，順便把快取暖起來，下一張卡就快了。
- * 秒數沿用同一個常數：現在還沒有真機量到的數字，等探針回報再決定要不要分開。
- */
-function budgeted<T>(work: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const expiry = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new SilentError()), TIMEOUT_MS);
-  });
-  return Promise.race([work, expiry]).finally(() => clearTimeout(timer));
 }

@@ -10,9 +10,39 @@
  * 那部分有 `gemini-reading.test.ts` 守著。真正的文字要到畫面顯示的當下才查表。
  */
 
-import type { SchemaRequest } from 'firebase/ai';
-
 import { AppError } from './app-error';
+
+/**
+ * OpenAPI 的資料型別。六個值抄 Firebase 的 `SchemaType`（`@firebase/ai` 的
+ * `ai-public.d.ts`），與 Google 那端收的是同一組字串。
+ */
+type SchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
+
+/**
+ * 結構化輸出那份形狀的型別。
+ *
+ * **寫成 `type` 而不是 `interface` 是必要的**：兩條 Firebase 路徑收的
+ * `SchemaRequest` 帶著 `[key: string]: unknown` 這個索引簽章，而 TypeScript 只肯替
+ * `type` 別名自動補上索引簽章，`interface` 不補——寫成 interface 的話兩邊都會編不過。
+ *
+ * > **這裡原本直接 `import type { SchemaRequest } from 'firebase/ai'`**，理由是「那一側的
+ * > 要求比 REST 嚴，過得了它就一定過得了 REST」。票 `16` 拿掉了：React Native 版也要共用
+ * > 這一份，而 `mobile/` 裡裝的是 `@react-native-firebase/ai`，沒有 `firebase` 這個套件。
+ * > CI 上手機那個工作只在 `mobile/` 裡裝套件，`tsc --noEmit` 因此找不到那支型別檔。
+ * >
+ * > 換來的另一個好處是 `core/` 不再依賴任何外部套件的型別——它是兩個平台共用的那一層，
+ * > 一個只有其中一邊裝得到的 import 本來就不該住在這裡。
+ * >
+ * > 代價是嚴格度改由這裡自己守：欄位打錯字時不再有 Firebase 那份型別擋著。
+ * > 底下 `RESPONSE_SCHEMA` 仍然要通過兩邊 SDK 的型別檢查，那是最後一道。
+ */
+export type ResponseSchema = {
+  type: SchemaType;
+  properties?: { [key: string]: ResponseSchema };
+  items?: ResponseSchema;
+  required?: string[];
+  propertyOrdering?: string[];
+};
 
 /**
  * 端點與模型固定。日文能力是選這一家唯一的理由（見 issue 02 決定 7）。
@@ -69,10 +99,10 @@ export const TIMEOUT_MS = 10_000;
  * SDK 只認小寫，寫大寫連編譯都過不了；而這一份原本的大寫走的是 REST 端點。Google 兩份
  * 文件各給一種寫法、都沒有明講另一種收不收，最後是維護者拍板改小寫、自己在網頁版實測。
  *
- * 型別借 Firebase 的 `SchemaRequest`——那一側的要求比 REST 嚴，過得了它就一定過得了
- * REST。這是 `import type`，打包時整行消失，網頁版產物裡不會有 firebase。
+ * 型別是 `ResponseSchema`，見上面那一段——它原本借的是 Firebase 的 `SchemaRequest`，
+ * 票 `16` 改成 `core/` 自己的一份。
  */
-export const RESPONSE_SCHEMA: SchemaRequest = {
+export const RESPONSE_SCHEMA: ResponseSchema = {
   type: 'object',
   properties: {
     termKana: { type: 'string' },
@@ -154,6 +184,40 @@ export function remoteOrDefault(remote: string, fallback: string): string {
   const value = remote.trim();
   return value === '' ? fallback : value;
 }
+
+/**
+ * Firebase Remote Config 上那兩個參數的名字，與各自在程式碼裡的後備值。
+ * **主控台上叫什麼，這裡就是什麼。**
+ *
+ * **兩條 Firebase 路徑（Capacitor 版 iOS 與 React Native 版）共用這一份。**
+ * 背後是同一個 Firebase 專案的同兩個參數——維護者改一次主控台，兩支 app 一起跟上；
+ * 各自抄一份的話，改到一半漏掉一邊時沒有任何測試會紅，而症狀是「那支 app 安靜地
+ * 一直用程式碼裡的舊值」，沒有人看得出來。
+ *
+ * 放在這個模組而不是另開一支：後備值（`MODEL`、`INSTRUCTIONS`）本來就住在這裡，
+ * 名字與它要救的那個值擺在一起才不會各自漂移。
+ */
+export const REMOTE_MODEL_KEY = 'gemini_model';
+export const REMOTE_INSTRUCTIONS_KEY = 'gemini_instructions';
+export const REMOTE_FALLBACK = {
+  [REMOTE_MODEL_KEY]: MODEL,
+  [REMOTE_INSTRUCTIONS_KEY]: INSTRUCTIONS,
+};
+
+/**
+ * 抓回來的設定放這麼久就算過期，下一次會重新去抓。**明確設定，不吃 SDK 預設的 12 小時。**
+ *
+ * 一小時的理由：這條路存在的全部目的是「出事時快點救得回來」，12 小時等於出事當天
+ * 多數人整天都救不回來。往下不再壓，是因為救援之外的每一次抓取都只是白跑一趟網路——
+ * 出事是罕見事件，把常態成本壓在每小時一次就夠了。一小時也正是 Capacitor 版
+ * Remote Config 外掛的預設值，不是憑空挑的數字。
+ *
+ * **這不是「立刻生效」。** 每開一次編輯畫面會請 SDK 抓一次，但這個間隔沒過的話它直接
+ * 從快取回答、不上網。實務上仍是「幾小時」對上「送審一到兩天」。
+ *
+ * 與上面那兩個參數名同一個理由住在這裡：兩條 Firebase 路徑共用，各存一份會漂。
+ */
+export const CONFIG_MAX_AGE_MS = 60 * 60 * 1000;
 
 /**
  * 模型塞在回覆裡的那份 JSON 字串解析成值。回的是 `unknown`——形狀由 schema 保證，

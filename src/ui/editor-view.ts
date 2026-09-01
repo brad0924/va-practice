@@ -6,7 +6,7 @@ import { assertTermAvailable } from '@core/lib/storage';
 import type { Card } from '@core/lib/types';
 import { toMarkup, toPlainText, type KanjiRun, type ReadingCell } from '@core/lib/reading';
 import { askReading } from '@core/lib/gemini-reading';
-import { createReadingEditor, type Ask, type Change, type Note } from './reading-editor';
+import { createReadingEditor, type Ask, type Change, type Note } from '@core/lib/reading-editor';
 import { createRequiredFields, type FieldRef } from '@core/lib/required-fields';
 import { el, button } from './dom';
 import { createToast } from './toast';

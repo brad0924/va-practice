@@ -2,15 +2,19 @@
  * 讀音編輯器：編輯畫面上讀音格的協調邏輯，完全不碰 DOM。
  *
  * `reading.ts` 那七支純函式各自知道怎麼算，但「什麼時候該呼叫哪一支」原本埋在
- * `editor-view.ts` 裡跟畫面綁死，測不到。這裡把那些判斷收進來：搶答檢查、要不要
+ * `src/ui/editor-view.ts` 裡跟畫面綁死，測不到。這裡把那些判斷收進來：搶答檢查、要不要
  * 重畫、提示字的生死、預填的五條守門，以及讀音格與「問過哪一串」的記錄。
  *
  * 對外只用「變更單」溝通——每支指令回一個小物件，說明畫面各處要不要動；內容則從
  * 唯讀的 `term`、`runs`、`note` 取。中文文案與樣式一律留在畫面那一側，這裡只吐狀態代號。
+ *
+ * **它住在 `core/` 是因為兩個平台共用一份**（票 `16`）。原本在 `src/ui/` 底下，
+ * 但檔頭第一行寫的就是「完全不碰 DOM」——那一整段判斷在 React Native 上照樣成立，
+ * 各寫一份的下場是兩邊的預填守門慢慢漂移。連同那 516 行測試一起搬過來，兩台機器都跑。
  */
 
-import { t } from '@core/i18n';
-import { AppError, SilentError, toMessage } from '@core/lib/app-error';
+import { t } from '../i18n';
+import { AppError, SilentError, toMessage } from './app-error';
 import {
   parseReading,
   toDraft,
@@ -22,7 +26,7 @@ import {
   acceptPrefill,
   type KanjiRun,
   type ReadingDraft,
-} from '@core/lib/reading';
+} from './reading';
 
 /** 一支指令做完之後，畫面各處要不要動。 */
 export interface Change {
@@ -38,11 +42,13 @@ export interface Change {
  * 去問 AI（Artificial Intelligence，人工智慧）讀音的那支函式。回的是還沒被信任的原始
  * 回覆——收不收由 `acceptPrefill`（`reading.ts`）決定，這裡只負責把它拿回來。
  *
- * 誰去問由 `editor-view.ts` 的 `createAsk()` 決定：網頁版是使用者自備金鑰打 Gemini，
- * iOS 是固定金鑰走 Firebase AI Logic。這一層兩條都不認識。
+ * 誰去問由畫面那一側決定，這一層三條都不認識：網頁版是使用者自備金鑰打 Gemini
+ * （`src/ui/editor-view.ts` 的 `createAsk()`），Capacitor 版 iOS 與 React Native 版都是
+ * 固定金鑰走 Firebase AI Logic（`src/lib/gemini-reading-native.ts`、
+ * `mobile/lib/gemini-reading-native.ts`）。
  *
  * `onAttempt` 是問的那一方回報「開始第 N 次嘗試」的管道，N 從 2 起算——伺服器那端出事時
- * 網頁版會自動再問（`gemini-reading.ts`）。iOS 那條路還沒有重試，不接這個參數也合法。
+ * 會自動再問（迴圈在 `reading-retry.ts`）。不接這個參數也合法。
  */
 export type Ask = (term: string, onAttempt?: (attempt: number) => void) => Promise<unknown>;
 

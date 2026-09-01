@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { withRetry } from './reading-retry';
+import { budgeted, withRetry } from './reading-retry';
 import { TIMEOUT_MS } from './gemini-reading';
 import { AppError, SilentError } from './app-error';
 import type { Key } from '../i18n';
@@ -188,6 +188,46 @@ describe('一份預算從頭吃到尾', () => {
         failure('gemini.httpError', { status: 503, reason: HIGH_DEMAND }),
       );
       expect(calls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/**
+ * 憑證那一段自己的碼表（票 `16` 從兩支平台檔搬進來的）。
+ *
+ * 它在上線的路上守的是一句措辭：憑證慢了不能講成「模型太慢」。那件事只有在
+ * 「逾時丟的是 `SilentError` 而不是 `gemini.timeout`」時才成立。
+ */
+describe('憑證那一段的預算', () => {
+  it('在預算內回來就照樣交出結果', async () => {
+    await expect(budgeted(Promise.resolve(PARSED))).resolves.toEqual(PARSED);
+  });
+
+  it('底下那件事自己失敗時，原樣往外丟——碼表不插手', async () => {
+    const own = new AppError('gemini.offline');
+    await expect(budgeted(Promise.reject(own))).rejects.toBe(own);
+  });
+
+  it('超過預算就丟 SilentError：畫面上一個字都不出', async () => {
+    vi.useFakeTimers();
+    try {
+      // 永遠不回來的那一種。真正在跑的是原生層跟 Apple 要憑證那一趟。
+      const waiting = budgeted(new Promise<never>(() => {}));
+      const landed = expect(waiting).rejects.toBeInstanceOf(SilentError);
+      vi.advanceTimersByTime(TIMEOUT_MS);
+      await landed;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('碼表沒到期就先回來的話，計時器會被收掉——不會留一顆在背景跑', async () => {
+    vi.useFakeTimers();
+    try {
+      await budgeted(Promise.resolve(PARSED));
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
     }
