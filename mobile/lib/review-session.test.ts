@@ -404,3 +404,102 @@ describe('零本', () => {
     expect(snapshot.queue).toHaveLength(0);
   });
 });
+
+/**
+ * 新增／編輯／刪除單張卡（票 `16`）。
+ *
+ * **這一組刻意不走 `applyData()`。** 那一支的閘門是「複習範圍內的卡是不是同一批」，
+ * 比的是 id 集合——改一張卡的內容集合沒變，佇列因此不重建，手上那張會停在舊的字；
+ * 而新增一張卡集合變了，整個佇列會重洗一次，評成「再次」排回去的那幾張一起消失。
+ * 兩種都不是使用者要的，所以照網頁版 `src/app.ts` 的 `upsert()`／`remove()` 各給一支。
+ */
+describe('新增與編輯單張卡', () => {
+  const 新卡 = (id: string, bookId: string) => card(id, bookId, null);
+
+  it('新增一張複習範圍內的卡：接在佇列尾端，前面的順序不動', () => {
+    const it_ = session();
+    it_.upsertCard(新卡('a9', 'A'));
+    expect(it_.snapshot().queue.map((entry) => entry.id)).toEqual(['a1', 'a2', 'b1', 'a9']);
+  });
+
+  it('新增的那一本不在複習範圍內：卡進得了資料，進不了佇列', () => {
+    const it_ = session();
+    it_.setReviewScope(['A']);
+    it_.upsertCard(新卡('b9', 'B'));
+    expect(it_.snapshot().data.cards.map((entry) => entry.id)).toContain('b9');
+    expect(it_.snapshot().queue.map((entry) => entry.id)).not.toContain('b9');
+  });
+
+  it('改既有那張的內容：佇列上那一張跟著換成新的字', () => {
+    const it_ = session();
+    it_.upsertCard({ ...card('a1', 'A', null), text: '改過的' });
+    expect(it_.snapshot().queue[0]?.text).toBe('改過的');
+  });
+
+  it('改單字本等於搬家：排程那三格一個都不動', () => {
+    const it_ = session();
+    const before = it_.snapshot().data.cards.find((entry) => entry.id === 'a2')!;
+    it_.upsertCard({ ...before, bookId: 'B' });
+    const after = it_.snapshot().data.cards.find((entry) => entry.id === 'a2')!;
+    expect(after.bookId).toBe('B');
+    expect({ interval: after.interval, ease: after.ease, due: after.due }).toEqual({
+      interval: before.interval,
+      ease: before.ease,
+      due: before.due,
+    });
+  });
+
+  it('搬到複習範圍外的本：那張卡離開佇列', () => {
+    const it_ = session();
+    it_.setReviewScope(['A']);
+    const a2 = it_.snapshot().data.cards.find((entry) => entry.id === 'a2')!;
+    it_.upsertCard({ ...a2, bookId: 'B' });
+    expect(it_.snapshot().queue.map((entry) => entry.id)).not.toContain('a2');
+  });
+
+  it('搬走的若是手上這張，答案蓋回去——遞補上來的是別人', () => {
+    const it_ = session();
+    it_.setReviewScope(['A']);
+    it_.reveal();
+    const a1 = it_.snapshot().data.cards.find((entry) => entry.id === 'a1')!;
+    it_.upsertCard({ ...a1, bookId: 'B' });
+    expect(it_.snapshot().revealed).toBe(false);
+  });
+
+  it('存完就推上雲端', () => {
+    const pushed: AppData[] = [];
+    const it_ = session({ onPersisted: (data) => pushed.push(data) });
+    it_.upsertCard(新卡('a9', 'A'));
+    expect(pushed).toHaveLength(1);
+  });
+
+  it('畫面收得到通知', () => {
+    const changes = jest.fn();
+    const it_ = session({ onChange: changes });
+    it_.upsertCard(新卡('a9', 'A'));
+    expect(changes).toHaveBeenCalled();
+  });
+});
+
+describe('刪除單張卡', () => {
+  it('資料與佇列一起消失', () => {
+    const it_ = session();
+    it_.removeCard('a1');
+    expect(it_.snapshot().data.cards.map((entry) => entry.id)).not.toContain('a1');
+    expect(it_.snapshot().queue.map((entry) => entry.id)).not.toContain('a1');
+  });
+
+  it('刪掉的若是手上這張，答案蓋回去', () => {
+    const it_ = session();
+    it_.reveal();
+    it_.removeCard('a1');
+    expect(it_.snapshot().revealed).toBe(false);
+  });
+
+  it('存完就推上雲端', () => {
+    const pushed: AppData[] = [];
+    const it_ = session({ onPersisted: (data) => pushed.push(data) });
+    it_.removeCard('a1');
+    expect(pushed).toHaveLength(1);
+  });
+});

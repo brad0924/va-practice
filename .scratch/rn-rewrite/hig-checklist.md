@@ -133,6 +133,29 @@
 | B-13 | 玻璃效果的形狀：小元件用膠囊或圓形，大元件改用圓角矩形 | Applying Liquid Glass to custom views | 大面積元件套成膠囊、形狀看起來怪 → 沒過 |
 | B-14 | 圖示按鈕優先用 SF Symbols 裡代表該動作的標準符號 | Buttons §Content | 對照 Standard icons 一覽。自己畫了一個系統已有的符號 → 沒過 |
 
+## Forms & text input（表單與輸入）
+
+輸入框怎麼排、鍵盤怎麼配、什麼時候驗證、什麼時候該讓人用選的。**這一章是票 `16` 做編輯畫面時長出來的。**
+
+| 編號 | 條目 | 出處 | 怎麼驗 |
+| --- | --- | --- | --- |
+| F-01 | 一個輸入框只裝一小段資訊；要打長篇文字改用 text view | Text fields §Best practices | 看每一格裝的是什麼。整段文章塞進單行輸入框 → 沒過 |
+| F-02 | 輸入框要有提示文字講清楚它要什麼，而且另外還要一行標籤 | Text fields §Best practices | 打了字之後提示文字會消失，那時仍看得出這一格是什麼才算過 |
+| F-03 | 輸入框的大小要對得上預期的字量 | Text fields §Best practices | 量輸入框寬度與該欄典型內容的長度。差一個數量級 → 沒過 |
+| F-04 | 多個輸入框之間留夠間距，直向堆疊、同類同寬 | Text fields §Best practices | 指著任一行標籤問「它配的是上面還是下面那一格」，答得出來才算過 |
+| F-05 | 換欄的順序要合乎預期 | Text fields §Best practices | 從第一格開始一路按換欄鍵，落點順序講得出道理才算過 |
+| F-06 | 該驗證的時候驗證，時機依內容而定 | Text fields §Best practices | 填一個不合法的值，說得出「為什麼是在這一刻被指出來」才算過 |
+| F-07 | 鍵盤型別要配合那一格的內容 | Text fields §iOS, iPadOS、Virtual keyboards §Best practices | 逐格點開，看跳出來的鍵盤是不是那一格該有的 |
+| F-08 | return 鍵的字樣可以換成符合當下任務的那一種 | Virtual keyboards §Best practices | 看 return 鍵上寫的字與按下去實際發生的事對不對得上 |
+| F-09 | 輸入框尾端給一顆清除鈕，不必一直按刪除鍵 | Text fields §iOS, iPadOS | 打幾個字，看尾端有沒有清除鈕 |
+| F-10 | 鍵盤升起來時，介面重要的部分不能被蓋住 | Virtual keyboards §iOS, iPadOS | 逐格點開，看正在打的那一格與它的錯誤訊息有沒有被鍵盤蓋掉 |
+| F-11 | 鍵盤上方那條自訂控制列要跟著用 Liquid Glass | Virtual keyboards §iOS, iPadOS | 有那條的話看它的材質。沒有那條 → 不適用 |
+| F-12 | 系統拿得到的資訊不要叫人自己打 | Entering data §Best practices | 逐格問「這一格的值有沒有別的來源」 |
+| F-13 | 值域有限的東西讓人用選的，不要用打的 | Entering data §Best practices | 找出值域有限的欄位，看它是不是一個自由輸入框 |
+| F-14 | 邊填邊驗，不要等到最後才一次退回 | Entering data §Best practices | 填錯一格，看回饋出現的時機 |
+| F-15 | 必填的東西要讓人知道非填不可 | Entering data §Best practices | 少填一格按下一步，看有沒有講清楚 |
+| F-16 | 讓人用貼上的方式提供資料 | Entering data §Best practices | 貼一段文字進去，看收不收 |
+
 ## Typography（文字）
 
 動態字級、字重、系統字體的用法。
@@ -169,6 +192,9 @@
 | Lists and tables | https://developer.apple.com/design/human-interface-guidelines/lists-and-tables |
 | Searching | https://developer.apple.com/design/human-interface-guidelines/searching |
 | Buttons | https://developer.apple.com/design/human-interface-guidelines/buttons |
+| Text fields | https://developer.apple.com/design/human-interface-guidelines/text-fields |
+| Virtual keyboards | https://developer.apple.com/design/human-interface-guidelines/virtual-keyboards |
+| Entering data | https://developer.apple.com/design/human-interface-guidelines/entering-data |
 | Typography | https://developer.apple.com/design/human-interface-guidelines/typography |
 | Color | https://developer.apple.com/design/human-interface-guidelines/color |
 | Accessibility | https://developer.apple.com/design/human-interface-guidelines/accessibility |
@@ -190,3 +216,4 @@
 | --- | --- |
 | 2026-08-24 | 建立。五個章節共 78 條，取自 developer.apple.com 線上版（票 `01`） |
 | 2026-08-31 | 卡片列表動工，加 13 條：搜尋 5 條（`N-21`–`N-25`）與新的〈Lists〉一章 8 條（`LT-01`–`LT-08`）。取自 Search fields、Searching、Lists and tables 三頁的線上版；前兩頁在 2026-06-08 更新過，iOS 的搜尋入口從兩種變成三種（票 `15`） |
+| 2026-08-31 | 編輯畫面動工，加新的〈Forms & text input〉一章 16 條（`F-01`–`F-16`）。取自 Text fields、Virtual keyboards、Entering data 三頁的線上版（票 `16`） |

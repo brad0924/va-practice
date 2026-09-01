@@ -16,6 +16,10 @@
       "deploymentTarget": "16.4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "com.apple.developer.devicecheck.appattest-environment": "production"
       }
     },
     "plugins": [
@@ -30,7 +34,8 @@
       ],
       "react-native-quick-crypto",
       "expo-localization",
-      "expo-router"
+      "expo-router",
+      "@react-native-firebase/app"
     ],
     "extra": {
       "eas": {

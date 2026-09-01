@@ -26,6 +26,7 @@
  */
 import { File } from 'expo-file-system';
 import { Stack } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { ScrollViewMarker } from 'react-native-screens/experimental';
@@ -49,9 +50,11 @@ export interface CardsScreenProps {
   now(): Date;
   /** 點了一列。目的地是編輯畫面（票 `16`），這一頁只負責把卡片交出去。 */
   onOpenCard(card: Card): void;
+  /** 按了導覽列右上那顆 ＋。目的地是同一頁編輯畫面的新增模式（票 `16`）。 */
+  onAddCard(): void;
 }
 
-export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
+export function CardsScreen({ session, now, onOpenCard, onAddCard }: CardsScreenProps) {
   const { data } = session.snapshot();
 
   const [query, setQuery] = useState('');
@@ -157,7 +160,8 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
     return (
       <View style={styles.root}>
         {/* 零本時沒有搜尋框，導覽列上就只有標題那一列。建了第一本之後底下會多一條搜尋框，
-            標題那一列不動——兩個狀態因此長得一樣，不會在建完本的那一瞬間跳一下。 */}
+            標題那一列不動——兩個狀態因此長得一樣，不會在建完本的那一瞬間跳一下。
+            也沒有那顆 ＋（不傳 `onAdd`）：那時候按了沒有本可放，該做的是先建一本。 */}
         <Stack.Screen options={cardsHeader()} />
         <View style={styles.empty}>
           <Notice mark="📚" title={t('list.noBooksTitle')} note={t('list.noBooks')} />
@@ -201,7 +205,7 @@ export function CardsScreen({ session, now, onOpenCard }: CardsScreenProps) {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={cardsHeader()} />
+      <Stack.Screen options={cardsHeader(onAddCard)} />
       {/**
        * 系統的搜尋列。
        *
@@ -336,12 +340,54 @@ const ALL_BUCKETS: readonly BucketKey[] = BUCKETS.map((bucket) => bucket.key);
  * 那兩處的解法是「存 key 不存字」；這裡存不了 key（要交出去的是一整組設定），
  * 因此改成延後到畫的那一刻才算。
  */
-const cardsHeader = () =>
+const cardsHeader = (onAdd?: () => void) =>
   ({
     headerLargeTitle: false,
     title: t('nav.cards'),
     headerTitleAlign: 'center',
+    /**
+     * 新增卡片的入口（票 `16`）。**放在導覽列的 trailing 側**，與「設定」「提醒事項」
+     * 那類 Apple 自家 app 同一個位置——那是這一頁的主要動作該待的地方（HIG `N-13`）。
+     *
+     * 沒有擺進底下那條自己畫的工具列，是因為那條列已經是票 `15` 的〈已知風險〉：
+     * 加上 tab bar，這一頁一次三層 chrome，再多一顆只會讓並排目測更難過。
+     *
+     * 符號用系統的 `plus`，而且**不加外框**（`N-16`、`B-14`）。零本時不長出來——
+     * 那時候按了也沒有本可放，該做的是先建一本。
+     */
+    headerRight: onAdd === undefined ? undefined : () => <AddCardButton onPress={onAdd} />,
   }) as const;
+
+/**
+ * 導覽列右上那顆 ＋。
+ *
+ * 符號維持系統尺寸，觸控區靠 `hitSlop` 往外撐到 44（HIG `B-01`）。
+ * **這裡用 `hitSlop` 而不是真的畫一個 44 見方的塊**，與編輯畫面那些接縫的做法相反：
+ * 那邊兩顆縫緊挨著，撐開的觸控區會互相重疊、按下去分不出是哪一顆；這一顆旁邊沒有鄰居。
+ */
+function AddCardButton({ onPress }: { onPress(): void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      // 鈕面上沒有字，少了這一句 VoiceOver 只會唸「按鈕」。
+      accessibilityLabel={t('editor.titleNew')}
+      // 算出來的而不是抄一個數字：符號 17 加上兩邊各 13.5 剛好 44。
+      // 哪天符號改大，這一格自己跟著縮，不會安靜地變成 41。
+      hitSlop={(TAP_SIZE - fontSize.body) / 2}
+    >
+      {({ pressed }) => (
+        <SymbolView
+          name="plus"
+          size={fontSize.body}
+          tintColor={color.accent}
+          resizeMode="scaleAspectFit"
+          style={pressed ? styles.headerPressed : undefined}
+        />
+      )}
+    </Pressable>
+  );
+}
 
 /** 第一幀先畫幾格。理由見底下 `initialNumToRender` 那一段——六個桶的標頭不能缺。 */
 const FIRST_RENDER_ROWS = 24;
@@ -625,5 +671,9 @@ const styles = StyleSheet.create({
   /** 按下去的樣子（HIG `B-03`）。清單列變淡就夠，不必像按鈕那樣再縮一下。 */
   rowPressed: {
     opacity: 0.55,
+  },
+  /** 導覽列那顆 ＋ 按下去的樣子（HIG `B-03`）。與 `./glass-pill.tsx` 用同一組數字。 */
+  headerPressed: {
+    opacity: 0.8,
   },
 });

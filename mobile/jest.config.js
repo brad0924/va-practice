@@ -40,6 +40,17 @@ module.exports = {
     // 也載得進來——`card-list.ts` 會 import `../i18n`，那條路在這台機器上要走得通。
     `${coreRoot}/lib/card-list.test.ts`,
     `${coreRoot}/lib/book-scope.test.ts`,
+    // 讀音格的協調邏輯與必填格（票 `16` 從網頁版搬進 `core/` 的那一支，加上原本就在
+    // `core/` 的必填格）。編輯畫面整頁靠它們，而它們要在 React Native 這套工具鏈底下
+    // 也載得進來——`reading-editor.ts` 會 import `../i18n`，那條路在這台機器上要走得通。
+    `${coreRoot}/lib/reading-editor.test.ts`,
+    `${coreRoot}/lib/reading.test.ts`,
+    `${coreRoot}/lib/required-fields.test.ts`,
+    // 讀音預填那條路上的純邏輯。手機版的 `lib/gemini-reading-native.ts` 直接 import
+    // 這兩支，收在這裡的理由與上面同一條——它們要在 React Native 這套工具鏈底下載得進來。
+    // 那支原生模組本身測不到（它 import 原生套件），這兩支就是它唯一測得到的那一半。
+    `${coreRoot}/lib/reading-retry.test.ts`,
+    `${coreRoot}/lib/ai-logic-error.test.ts`,
   ],
   // 跑 core 的測試就要看得到 core 的檔，Jest 預設只看 rootDir 底下。
   roots: ['<rootDir>', coreRoot],
@@ -65,4 +76,15 @@ module.exports = {
   },
   // 介面語言在每支測試開跑前接上繁體中文，與網頁版共用同一支（理由見該檔）。
   setupFilesAfterEnv: [`${coreRoot}/test-setup.ts`],
+  /**
+   * 一條測試最多跑這麼久。**這是提高過的，Jest 預設是 5 秒。**
+   *
+   * 畫面測試那幾支第一次跑的時候要把整棵 React Native 的元件樹轉譯一遍，冷的時候
+   * 光第一條就要一秒多；十九支同時搶 CPU 時偶爾就會撞到 5 秒（票 `16` 加了兩支之後
+   * 在本機撞到一次，同一支單獨跑是三秒跑完 31 條）。
+   *
+   * **CI 上每一趟都是冷的**，快取只幫得上本機，所以這個上限要留給最壞的那一趟。
+   * 15 秒仍然遠低於「卡住了」的量級——真的死結會直接吃滿它然後紅，不會被這一格藏起來。
+   */
+  testTimeout: 15_000,
 };

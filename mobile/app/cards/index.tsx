@@ -19,8 +19,10 @@ export default function CardsRoute() {
       // `../../lib/app-context.tsx` 遞給複習流程的那一行是同一件事。
       now={() => new Date()}
       // 只遞編號過去。整張卡塞進網址會把使用者的資料寫進導覽狀態裡，而目的地
-      // 本來就拿得到同一份資料——票 `16` 會在那一頁用這個編號去查。
+      // 本來就拿得到同一份資料——那一頁用這個編號去查（票 `16`）。
       onOpenCard={(card) => router.push(`/cards/${card.id}`)}
+      // 新增走同一支路由，編號給字面上的 `new`——理由見 `./[id].tsx` 的檔頭。
+      onAddCard={() => router.push('/cards/new')}
     />
   );
 }

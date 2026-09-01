@@ -10,9 +10,12 @@ import { findMissingDependencies, type ImportSite, type SourceFile } from './imp
  * 查不到就當場紅燈。病灶與擋不住的那一半寫在 `import-scan.ts` 的檔頭。
  *
  * **只掃 `mobile/`，不掃 `core/`。** `core/` 那批測試整批寫著 `from 'vitest'`，而 `vitest`
- * 沒有裝在 `mobile/` 裡；還有一支 `gemini-reading.ts` 要 `firebase/ai`，那支根本不在
- * mobile 這條路上——沒有任何 mobile 的檔 import 得到它。掃進來就是一整批誤報。
+ * 沒有裝在 `mobile/` 裡，掃進來就是一整批誤報。
  * 實際數了幾條、另外兩個方案各自的代價，見票 `12`。
+ *
+ * > 這裡原本還列了第二條理由：`gemini-reading.ts` 要 `firebase/ai`，而那支不在 mobile
+ * > 這條路上。**兩半都不成立了**（票 `16`）：手機版的讀音預填共用了那支檔，而它為了
+ * > 這件事把那個型別 import 拿掉了，`core/` 現在一個外部套件都不 import。
  *
  * **比對的是 `package.json`，不是 `node_modules`。** 每一個被 import 的套件都要自己列出來，
  * 靠別人順便帶進來的不算數——那種相依在別人升版的當下就會無聲消失。

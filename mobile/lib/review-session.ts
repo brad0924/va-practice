@@ -69,6 +69,19 @@ export interface ReviewSession {
    */
   applyData(next: AppData): void;
   /**
+   * 新增或改掉一張卡：寫回本機、推上雲端，並把佇列上那一張同步過去。
+   *
+   * **刻意不走 `applyData()`。** 那一支的閘門比的是「複習範圍內的卡是不是同一批」，
+   * 而這裡兩種情況都會被它判錯：改內容時 id 集合沒變，佇列因此不重建，手上那張會停在
+   * 舊的字；新增一張時集合變了，整個佇列重洗一次，評成「再次」排回去的那幾張一起消失。
+   * 網頁版 `src/app.ts` 的 `upsert()` 是同一支，這裡照著它做針對性的增補。
+   *
+   * 編輯畫面存卡走的就是這一條（票 `16`）。
+   */
+  upsertCard(card: Card): void;
+  /** 刪掉一張卡：資料與佇列一起拿掉，答案蓋回去。網頁版 `src/app.ts` 的 `remove()`。 */
+  removeCard(id: string): void;
+  /**
    * 把一份備份檔的卡加進某一本：寫回本機、重讀、推上雲端，並交回這次匯入的結果。
    *
    * 與 `applyData()` 分成兩支是因為寫檔那一步在 `store` 裡面（它要驗格式並判斷哪些詞
@@ -196,6 +209,40 @@ export function createReviewSession(hooks: ReviewSessionHooks): ReviewSession {
 
     applyData(next) {
       swap(next);
+      onChange();
+    },
+
+    upsertCard(card) {
+      const index = data.cards.findIndex((existing) => existing.id === card.id);
+      const inReviewScope = data.scopes.review.includes(card.bookId);
+      if (index === -1) {
+        data = { ...data, cards: [...data.cards, card] };
+        // 加進複習範圍外的本時不進佇列，否則今天就會被問到一張「不在練的那本」的字。
+        if (inReviewScope) queue = [...queue, card];
+      } else {
+        data = { ...data, cards: data.cards.map((existing) => (existing.id === card.id ? card : existing)) };
+        if (inReviewScope) {
+          // 同一張換上新內容。順序不動——改個釋義不該讓今天的複習重排。
+          queue = queue.map((queued) => (queued.id === card.id ? card : queued));
+        } else {
+          // 搬家搬出複習範圍時要離開佇列，理由與上面新增那條一樣。
+          // 反向搬進範圍內則不補回去：那張卡未必今天到期，補進來等於憑空多出一張。
+          const kept = queue.filter((queued) => queued.id !== card.id);
+          // 搬走的若是手上這張，下一張會遞補上來，不能沿用已掀開的狀態——與 removeCard() 同一個理由。
+          if (kept.length !== queue.length) revealed = false;
+          queue = kept;
+        }
+      }
+      persist();
+      onChange();
+    },
+
+    removeCard(id) {
+      data = { ...data, cards: data.cards.filter((card) => card.id !== id) };
+      queue = queue.filter((card) => card.id !== id);
+      // 刪掉的若是手上這張，下一張會遞補上來，不能沿用已掀開的狀態。
+      revealed = false;
+      persist();
       onChange();
     },
 

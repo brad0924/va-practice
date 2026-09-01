@@ -132,11 +132,16 @@ export default {
   'editor.labelBook': '單字本',
   'editor.labelTerm': '詞條',
   'editor.labelReading': '讀音',
+  // 一格讀音輸入框唸出來的那句話。整區只唸「讀音」的話，五格聽起來一模一樣。
+  'editor.readingOf': '{kanji}的讀音',
   'editor.labelPreview': '預覽',
   'editor.labelMeaning': '釋義',
   'editor.termPlaceholder': '焦がす',
   'editor.meaningPlaceholder': '燒焦',
   'editor.noKanji': '這個詞沒有漢字',
+  // 要編的那張卡已經不在了（在別處被刪掉、或直接開了一個舊網址）。只有手機版走得到。
+  'editor.cardGoneTitle': '找不到這張卡',
+  'editor.cardGone': '它可能已經被刪掉了。',
   'editor.mergeLabel': '把{left}和{right}合併',
   'editor.splitLabel': '把{left}和{right}拆開',
   'editor.blankFields': '詞條、讀音與釋義都要填。',

@@ -122,7 +122,11 @@ function build(data: AppData): ReviewSession {
 async function show(session: ReviewSession) {
   const opened: Card[] = [];
   // 每次都造一個新的 element：同一個物件遞第二次的話 React 會直接跳過重畫。
-  const tree = () => <CardsScreen session={session} now={() => NOW} onOpenCard={(card) => opened.push(card)} />;
+  // 導覽列上那顆 ＋ 在這台機器上畫不出來（上面把 Stack.Screen 換成了一個空殼），
+  // 所以這一支給一個什麼都不做的。新增那條路由編輯畫面自己的測試守。
+  const tree = () => (
+    <CardsScreen session={session} now={() => NOW} onOpenCard={(card) => opened.push(card)} onAddCard={() => {}} />
+  );
   const rendered = await render(tree());
   return Object.assign(rendered, { redraw: () => rendered.rerender(tree()), opened });
 }

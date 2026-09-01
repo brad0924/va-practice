@@ -10,6 +10,10 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-firebase/ai": "^26.3.2",
+    "@react-native-firebase/app": "^26.3.2",
+    "@react-native-firebase/app-check": "^26.3.2",
+    "@react-native-firebase/remote-config": "^26.3.2",
     "expo": "~57.0.16",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.14",
