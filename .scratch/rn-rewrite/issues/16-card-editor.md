@@ -296,3 +296,47 @@ spec 的〈程式碼怎麼擺〉把讀音預填點名為共用邏輯，而「邏
 理由是組字期間那顆鍵被 UIKit 的輸入法收走、`onSubmitEditing` 根本不會發。
 **這是推論不是實測**，已寫進程式碼註解並列入真機驗收：日文九宮格打到一半按 return
 若真的跳了欄，就是這個推論不成立。
+
+### 2026-09-01 — CI 第一趟就紅：Firebase 走 SPM 撞上靜態連結
+
+推上去之後 `mobile-crypto.yml` 停在「建包」，訊息是「prebuild 沒產出 .xcworkspace」。
+**那是症狀。** 病因印在上一步的 log 裡，而那一步是綠的：
+
+```
+[!] [react-native-firebase] SPM + static linkage is not supported (target(s): Pods-JPVocab).
+firebase-ios-sdk 的 Swift Package products 是 automatic libraries（不是 type: .dynamic），
+所以每個 react-native-firebase pod 都會夾帶一份自己的 SDK。配上靜態連結，那幾份在
+連結時撞成重複符號。
+```
+
+`@react-native-firebase` 26 預設用 Swift Package Manager 去拿 firebase-ios-sdk，而這個
+專案走的是 React Native 的預設連結方式（靜態程式庫——log 上那句 `Framework build type is
+static library`）。**沒有人設過 `use_frameworks!`**，這件事是套件的預設值撞上框架的預設值。
+
+套件自己印出兩條解法，選了第二條：
+
+| 走法 | 影響範圍 | 選它嗎 |
+| --- | --- | --- |
+| `use_frameworks! :linkage => :dynamic` | **整包每一個原生套件**的連結方式都變。這包裡有 `react-native-quick-crypto`（它會下載一份靜態的 OpenSSL）、MMKV 那組 nitro modules、`expo-glass-effect` | 否 |
+| `$RNFirebaseDisableSPM = true` | 只改 Firebase 自己怎麼拿相依（改回 CocoaPods），其餘一個都不碰 | **是** |
+
+做法是 `app.json` 那個外掛加一個參數，不必自己去改 Podfile：
+
+```json
+["@react-native-firebase/app", { "ios": { "disableSPM": true } }]
+```
+
+**在 Windows 上驗得到的那一半已經驗過**：`expo prebuild` 在這台機器上產不出 iOS 專案，
+但那支外掛的插旗函式（`plugin/build/ios/podfile.js`）可以單獨餵 Expo 57 的 Podfile 範本跑一次。
+結果是旗標落在 `prepare_react_native_project!` 之後、第一個 `target` 之前——正是外掛註解
+要求的位置（旗標必須在任何 target 之前，`firebase_spm.rb` 才看得到它）。
+**pod 真的裝不裝得起來只有 CI 答得出來。**
+
+#### 順手改掉「紅燈亮錯地方」
+
+`expo prebuild` 的 `pod install` 失敗時**它自己照樣 exit 0**，所以那一步是綠的。
+下一步的防呆檢查抓到了「沒有 workspace」並且紅燈——那個檢查有做事，但它講得出的
+只有症狀，而原因躺在一支綠燈步驟的 log 裡，沒有人會去翻。
+
+檢查搬進 prebuild 那一步：認 `.xcworkspace` 在不在（那份 workspace 正是 `pod install`
+的產出）。下次同一類事情紅燈會亮在印著錯誤的那一步上。

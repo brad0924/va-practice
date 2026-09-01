@@ -35,7 +35,14 @@
       "react-native-quick-crypto",
       "expo-localization",
       "expo-router",
-      "@react-native-firebase/app"
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "disableSPM": true
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

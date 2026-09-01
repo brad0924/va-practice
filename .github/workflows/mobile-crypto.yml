@@ -57,9 +57,23 @@ jobs:
 
       # Expo 專案平常沒有 ios/ 目錄，出包時才長出來（EAS Build 在雲端做同一件事）。
       # --clean 是為了讓每一趟都從同樣的起點開始，不吃到上一趟留下的東西。
+      #
+      # **`expo prebuild` 的 `pod install` 失敗時它自己照樣回報成功**：錯誤印出來，
+      # 然後 exit 0。底下那一行是為了讓紅燈亮在**印著錯誤的這一步**——沒有它的話，
+      # 這一步是綠的，紅燈亮在下一步的「沒產出 .xcworkspace」，而那句話只講得出症狀。
+      # 2026-09-01 為此查了一輪：真正的原因（Firebase 走 SPM 撞上靜態連結）從頭到尾
+      # 都印在這一步的 log 裡，只是沒有人會去翻一支綠燈步驟的 log。
+      #
+      # 認 `.xcworkspace` 而不是認退出碼：那份 workspace 正是 `pod install` 的產出，
+      # 它在就代表那一步真的做完了。
       - name: 產出 iOS 原生專案
         working-directory: mobile
-        run: npx expo prebuild --platform ios --clean
+        run: |
+          npx expo prebuild --platform ios --clean
+          test -n "$(ls -d ios/*.xcworkspace 2>/dev/null)" || {
+            echo "::error::pod install 沒有做完（沒有產出 .xcworkspace）。原因在上面這一步的 log 裡。"
+            exit 1
+          }
 
       # 挑一台模擬器並開機。不寫死機型名稱——runner 上裝了哪幾台隨 Xcode 版本變，
       # 寫死的那天它換版本就找不到機器了。
