@@ -340,3 +340,50 @@ static library`）。**沒有人設過 `use_frameworks!`**，這件事是套件�
 
 檢查搬進 prebuild 那一步：認 `.xcworkspace` 在不在（那份 workspace 正是 `pod install`
 的產出）。下次同一類事情紅燈會亮在印著錯誤的那一步上。
+
+### 2026-09-01 — CI 第二趟：SPM 過了，卡在下一層的 module map
+
+關掉 SPM 之後 Firebase 改由 CocoaPods 拿（log 上看得到 `AppCheckCore`、`nanopb`、
+`RecaptchaInterop` 都裝進來了），然後撞上 Firebase 裝進 iOS 專案的**經典第二關**：
+
+```
+The following Swift pods cannot yet be integrated as static libraries:
+The Swift pod `AppCheckCore` depends upon `GoogleUtilities` and `RecaptchaInterop`,
+which do not define modules.
+The Swift pod `FirebaseCoreInternal` depends upon `GoogleUtilities`...
+The Swift pod `FirebaseRemoteConfig` depends upon `FirebaseABTesting` and `GoogleUtilities`...
+```
+
+Swift 寫的 pod 要 import 別人時，對方得產出 module map；而 `GoogleUtilities` 這幾個是
+Objective-C 的老套件，預設不產。
+
+**這一次不必猜是哪幾個**——CocoaPods 自己把三個 Swift pod 與它們缺的三個相依都列出來了，
+而且它是**整張相依圖驗完才報告**，不像編譯錯誤那樣修一個冒一個。
+
+兩條解法，維護者選了影響面小的那條：
+
+| 走法 | 影響範圍 | 選它嗎 |
+| --- | --- | --- |
+| 整包改用 static framework（`useFrameworks`） | React Native Firebase 官方對 Expo 寫的做法，路很多人走過。但**這包裡每一個原生套件的連結方式都跟著變**——含會下載靜態 OpenSSL 的 quick-crypto 與 MMKV 底下那組 nitro modules。`expo-build-properties` 另外附了一個 `forceStaticLinking` 專門用來救「改成 framework 之後裝不起來的 pod」，那說明踩雷是常態 | 否 |
+| 只給那三個 pod 開 module map | 連結方式一個字不改。點名 `GoogleUtilities`、`RecaptchaInterop`、`FirebaseABTesting` 三個，其餘一個都沒碰到 | **是** |
+
+做法是裝 `expo-build-properties`，在 `app.json` 用它的 `extraPods`：
+
+```json
+["expo-build-properties", { "ios": { "extraPods": [
+  { "name": "GoogleUtilities", "modular_headers": true },
+  { "name": "RecaptchaInterop", "modular_headers": true },
+  { "name": "FirebaseABTesting", "modular_headers": true }
+] } }]
+```
+
+**整條鏈在 Windows 上驗過了**（真的裝不裝得起來仍然只有 CI 答得出來）：
+
+1. `expo config --type introspect` 顯示這三筆被序列化進 `Podfile.properties.json`
+   的 `apple.extraPods`。
+2. `expo-modules-autolinking/build/platforms/apple/apple.js` 讀那一格並 `JSON.parse`。
+3. `expo-modules-autolinking/scripts/ios/autolinking_manager.rb` 把每一筆翻成
+   `@podfile.pod(name, { modular_headers: true })`，而那段跑在 `use_expo_modules!` 裡面，
+   也就是 **target 區塊之內**——正是 CocoaPods 那句建議要求的位置。
+
+`$RNFirebaseDisableSPM = true` 仍然要留著：拿掉就會退回第一趟那個 SPM 的錯。
