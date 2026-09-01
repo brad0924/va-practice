@@ -662,11 +662,16 @@ interface SeamProps {
 /**
  * 格與格、字與字之間那個接縫。
  *
- * **觸控目標 44 點見方，符號維持小顆**（票 `16` 定死：照網頁版的做法，把觸控區撐到
- * HIG `B-01` 的下限）。這裡是真的佔掉 44 點寬，不是用 `hitSlop` 偷偷擴大——
- * 兩顆相鄰的接縫用 `hitSlop` 會互相重疊，按下去分不出是哪一顆。
+ * **觸控目標 44 點見方**（票 `16` 定死：照網頁版的做法，把觸控區撐到 HIG `B-01` 的下限）。
+ * 這裡是真的佔掉 44 點寬，不是用 `hitSlop` 偷偷擴大——兩顆相鄰的接縫用 `hitSlop`
+ * 會互相重疊，按下去分不出是哪一顆。
  *
  * 代價寫在票的〈已知風險〉裡：長詞會被撐得很開。維護者已知並選擇先做出來。
+ *
+ * > 票面原本還寫著「視覺上的符號維持小顆」。**2026-09-01 真機看過之後改掉了**：
+ * > 灰色的小符號在螢幕上看不清楚，維護者指定上藍色、字級對齊網頁版。
+ * > 44 那一格沒有跟著動——那是觸控區的下限，與符號多大是兩件事。
+ * > 顏色與字級的細節見底下 `styles.seamMark`。
  */
 function Seam({ mark, label, onPress }: SeamProps) {
   return (
@@ -868,15 +873,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** 符號維持小顆——撐大的是觸控區，不是看得到的東西（票 `16` 定死）。 */
+  /**
+   * 那個符號。**上藍色，而且與網頁版同一個字級**（2026-09-01 維護者在真機上看過灰色的
+   * 小符號之後指定改的：不夠清楚）。
+   *
+   * 字級對照網頁版 `src/styles.css` 的 `.reading-seam`（`1.1rem`，也就是 17.6）。
+   * 這裡取 `fontSize.headline`（17）——差的那 0.6 看不出來，而走字級表這件事讓它
+   * 跟著 Dynamic Type 一起長（`T-02`、`T-06`）。原本是 `footnote`（13）。
+   *
+   * **顏色走 `systemBlue` 而不是網頁版那個 `#6ea8ff`**（2026-09-01 拍板）。理由是這一顆
+   * **按得下去**，而 `color.accent` 在這個 codebase 裡管的就是那件事——`./term.tsx` 的
+   * 振假名刻意不用它，正是因為振假名按不下去。網頁版兩者同色，手機上刻意分開。
+   * 附帶好處是「提高對比」打開時它跟著調（`T-11`），寫死的色碼做不到。
+   *
+   * > **撐大的仍然只有符號，觸控區沒動**：那一格是 44 見方（見底下 `seam`），
+   * > 票 `16` 定死的那個下限一個點都沒少。
+   */
   seamMark: {
-    color: color.tertiaryLabel,
-    fontSize: fontSize.footnote,
+    color: color.accent,
+    fontSize: fontSize.headline,
   },
-  /** 按下去的樣子（HIG `B-03`）。接縫太小，縮放看不出來，改成整個亮起來。 */
+  /**
+   * 按下去的樣子（HIG `B-03`）。接縫太小，縮放看不出來，改成整個亮起來。
+   *
+   * 圓角抄網頁版 `.reading-seam` 的 `0.5rem`（8）——那邊是圓角方塊不是圓形。
+   * 原本這裡取 `TAP_SIZE / 2` 畫成正圓，換過來讓兩邊按起來長得一樣。
+   */
   seamPressed: {
     backgroundColor: color.fill,
-    borderRadius: TAP_SIZE / 2,
+    borderRadius: 8,
   },
   preview: {
     alignItems: 'flex-start',
