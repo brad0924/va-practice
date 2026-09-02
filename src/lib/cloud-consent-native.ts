@@ -3,6 +3,8 @@
  * `cloud-consent.ts` 因此維持可以在 vitest 裡測的純度，立場與 `daily-reminder-native.ts` 相同。
  *
  * 這一支沒有原生插件——問的方式就是 `confirm()`，WKWebView 會把它畫成一個系統對話框。
+ * 它是同步的，答案當場就有，包一層 `Promise.resolve()` 交出去即可——非同步是為了
+ * React Native 那一端（`Alert.alert` 是 callback），這裡沒有真的等待發生。
  * 用它而不是自己做一個畫面內的對話框：問的時機在畫面建立之前（見 `app.ts`），
  * 那一刻還沒有任何地方掛得上一個自製的對話框。「停止同步」的確認用的也是同一支。
  *
@@ -24,6 +26,6 @@ export function createNativeCloudConsent(storage: StorageLike): CloudConsent | n
   return createCloudConsent({
     storage,
     // 查表擺在函式裡面，問的那一刻才算——這支模組被載入時 i18n 還沒接上。
-    ask: (nickname) => confirm(t('cloud.pullConfirm', { nickname })),
+    ask: (nickname) => Promise.resolve(confirm(t('cloud.pullConfirm', { nickname }))),
   });
 }

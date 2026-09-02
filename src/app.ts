@@ -375,17 +375,31 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
   //
   // `updatedAt` 是伺服器蓋的時間戳，非 0 代表這份資料曾經與雲端往返過（見 types.ts）——
   // 那台裝置早就在同步了，不必問，理由見 cloud-consent.ts 的 wantsPull()。
-  const pull = cloudConsent === null || cloudConsent.wantsPull(cloud.nickname(), data.updatedAt > 0);
+  //
+  // `wantsPull()` 從票 `17` 起回的是 Promise——那是為了 React Native 那一端
+  // （`Alert.alert` 是 callback），不是為了這裡。開機的最後三步因此收進一支函式，
+  // 彼此的先後完全照舊。
+  //
+  // **網頁版整條路一個 Promise 都不碰**：底下那個 if 直接同步叫它。這支刻意不寫成
+  // `async`——寫成 async 的話，`showReview()` 丟出來的例外會變成一個沒人接的
+  // rejected promise，開機失敗從此靜悄悄，而它現在照舊從 `start()` 同步冒出去。
+  function finishBoot(pull: boolean): void {
+    app.showReview();
 
-  app.showReview();
+    // 畫面先出來，雲端在背後追。沒登入的話這一步什麼都不做。
+    // 這台裝置拒絕過的話連叫都不叫，一個網路請求都不發。
+    if (pull) cloud.begin(data);
 
-  // 畫面先出來，雲端在背後追。沒登入的話這一步什麼都不做。
-  // 這台裝置拒絕過的話連叫都不叫，一個網路請求都不發。
-  if (pull) cloud.begin(data);
+    // 排的是未來 7 天，因此每開一次 app 就把窗口往前推一次——只靠資料變動觸發的話，
+    // 一個「開了 app 卻沒複習」的人會在第 8 天之後完全收不到提醒。沒開提醒時不做事。
+    reminder?.refresh();
+  }
 
-  // 排的是未來 7 天，因此每開一次 app 就把窗口往前推一次——只靠資料變動觸發的話，
-  // 一個「開了 app 卻沒複習」的人會在第 8 天之後完全收不到提醒。沒開提醒時不做事。
-  reminder?.refresh();
+  // 網頁版沒有這條支線，一步都不繞。Capacitor 版問完才走，而它的 `confirm()` 仍然是
+  // 當場作答的——差別只有一個 microtask，落在 `start()` 回傳之後（`main.ts` 那邊沒有
+  // 接著要做的事）。
+  if (cloudConsent === null) finishBoot(true);
+  else void cloudConsent.wantsPull(cloud.nickname(), data.updatedAt > 0).then(finishBoot);
 }
 
 /** 兩份卡片是不是同一批。順序不算：洗牌與勾選的先後都不是內容的改變。 */

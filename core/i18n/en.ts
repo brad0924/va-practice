@@ -202,6 +202,11 @@ const en: typeof zhHant = {
     'This device remembers the nickname {nickname} from your cloud backup.\n\n' +
     'Pick up the cards and review progress from the cloud on this device now?\n' +
     'Choose Cancel and this device starts out empty. The copy in the cloud is left alone, and you can pick it up later on the Data screen.',
+  // The line above is the body of an `Alert.alert` on React Native, and that API wants its
+  // own title and button labels (the web `confirm()` supplies OK/Cancel itself).
+  'cloud.pullTitle': 'Cloud backup',
+  'cloud.pullAccept': 'Pick it up',
+  'cloud.pullDecline': 'Cancel',
   'cloud.wrongPassword': 'Wrong nickname or password',
   'cloud.tooLarge':
     'The number of cards is over the limit for cloud backup, so nothing was uploaded this time. Please export a file from Manual backup on the Data screen and keep it. The cards and progress on this device are completely unaffected.',

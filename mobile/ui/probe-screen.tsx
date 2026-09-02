@@ -6,6 +6,7 @@ import { ScrollViewMarker } from 'react-native-screens/experimental';
 import { toMessage } from '@core/lib/app-error';
 import type { Store } from '@core/lib/storage';
 import type { CloudBackup } from '@core/lib/cloud-backup';
+import type { CloudConsent } from '@core/lib/cloud-consent';
 import type { AppData } from '@core/lib/types';
 
 /**
@@ -14,6 +15,10 @@ import type { AppData } from '@core/lib/types';
  * 它現在回答三件事：EAS Build 出來的包裝得進真機嗎、`GlassView` 在這台機器上真的長出玻璃嗎、
  * **手機上加出來的備份電腦解不解得開**。最後一項要靠人輸入暱稱密碼真的推拉一次，
  * 自動測試碰不到那條路。
+ *
+ * > 票 `17` 在雲端那一區多加了一顆「停止同步」。它驗的是**密碼搬進 Keychain 之後
+ * > 那顆鈕仍然清得掉那一筆**——那是隱私權政策對使用者的承諾。
+ * > 資料頁那顆正式的鈕屬於票 `18`，這一顆與這整支檔一起被取代。
  *
  * > 本來還有第四件：`createStore()` 吃不吃得下 MMKV。票 `15` 拆掉那一塊之後改由卡片列表驗——
  * > 建一本、加幾張卡、關掉 app 再開，走的是使用者真的會走的那一條（見底下那段墓誌銘）。
@@ -73,6 +78,11 @@ export interface ProbeScreenProps {
   store: Store;
   /** 雲端備份。與複習畫面共用同一個——兩套實作在寫同一批資料是這條路上最不能踩的線。 */
   cloud: CloudBackup;
+  /**
+   * 這台裝置要不要接雲端。這裡只用它記下「親手登入成功也算同意」那一句
+   * （見底下的 `signIn()`）；開機那一問住在 `../lib/app-context.tsx`。
+   */
+  cloudConsent: CloudConsent;
   cloudStatus: string;
   /** 換掉那一行狀態字。與 `cloud` 那一端寫的是同一行。 */
   onStatus(message: string): void;
@@ -113,6 +123,7 @@ const PROBE_TERM = '焦がす';
 export function ProbeScreen({
   store,
   cloud,
+  cloudConsent,
   cloudStatus,
   onStatus,
   onDataChanged,
@@ -176,6 +187,10 @@ export function ProbeScreen({
    * 登入一次。**同一顆按鈕走得到兩個方向**——`signIn()` 先看雲端那份新不新：
    * 雲端新就拉下來（電腦存、手機拉），本機新就推上去（手機存、電腦拉）。
    * 兩個方向都要驗的話，就是在網頁版與手機上輪流動一動、輪流按它。
+   *
+   * **登入成功就算同意**（票 `17`，接法與網頁版 `src/ui/data-view.ts` 相同）：
+   * 使用者剛剛才在這台打完密碼，下次開 app 再問一次是在羞辱他。少了這一句，
+   * 「開機那一問按了取消、之後又自己登入」的裝置會卡在拒絕那格，從此不接。
    */
   async function signIn(): Promise<void> {
     if (data === null) return;
@@ -183,6 +198,7 @@ export function ProbeScreen({
     onStatus('派生金鑰中⋯（PBKDF2 刻意跑得慢，要等一下）');
     try {
       await cloud.signIn(nickname, password, data);
+      cloudConsent.grant();
       setData(store.load());
       onDataChanged();
     } catch (error) {
@@ -193,6 +209,21 @@ export function ProbeScreen({
     } finally {
       setCloudBusy(false);
     }
+  }
+
+  /**
+   * 停止同步（票 `17`）。走的是**與網頁版同一支** `signOut()`——密碼搬進 Keychain 之後
+   * 它清掉的是 Keychain 那一筆，而那一筆標記為可同步，`SecItemDelete` 會把刪除帶到
+   * 使用者所有的裝置。**那正是隱私權政策寫的行為**（`public/privacy.html`：
+   * 「按下『停止同步』才會⋯⋯若你開啟了 iCloud 鑰匙圈，那一份也會同時從鑰匙圈移除」）。
+   *
+   * 這裡不問「你確定嗎」。正式的確認文字屬於資料頁那張票（票 `18`），
+   * 而探針上按錯的代價是重打一次暱稱密碼。
+   */
+  function stopSync(): void {
+    cloud.signOut();
+    // 密碼沒了，`nickname()` 就答不出來——這一行是這顆鈕的驗收：它必須變成「（沒有）」。
+    onStatus(`已停止同步。記著的暱稱：${cloud.nickname() ?? '（沒有）'}`);
   }
 
   /**
@@ -299,6 +330,13 @@ export function ProbeScreen({
               onPress={() => void signIn()}
             >
               <Text style={styles.buttonText}>{cloudBusy ? '進行中⋯' : '登入並跑一次雲端備份'}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.button, cloudBusy ? styles.buttonOff : null]}
+              disabled={cloudBusy}
+              onPress={stopSync}
+            >
+              <Text style={styles.buttonText}>停止同步</Text>
             </Pressable>
             {cloudStatus !== '' && <Text style={styles.statusText}>{cloudStatus}</Text>}
           </View>

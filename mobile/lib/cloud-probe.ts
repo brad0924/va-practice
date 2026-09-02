@@ -11,15 +11,16 @@
  *
  * **`cloud-backup.ts` 一個字沒改**，遞進去的東西與網頁版 `src/app.ts` 對應的那一段一樣。
  *
- * > **暱稱與密碼會存在 MMKV，不是 Keychain。** 網頁版存 `localStorage`，這裡照搬。
- * > 隱私權政策寫的「iOS 版存在系統的 Keychain 裡」講的是 Capacitor 版；React Native 版
- * > 的金鑰搬遷是另一張票（票 `05` 明寫「不做金鑰搬遷」）。**這一版不要送到任何人手上。**
+ * > 這裡本來有一段警語：暱稱與密碼存在 MMKV 不是 Keychain，那一版不要送到任何人手上。
+ * > 票 `17` 把那一筆搬進了 Keychain，警語跟著撤掉——`storage` 現在由
+ * > `app-context.tsx` 遞 `keychain-native.ts` 交出來的那一個（見 `ADR-0019`）。
  */
 import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import type { StorageLike, Store } from '@core/lib/storage';
 import type { AppData } from '@core/lib/types';
 
 export interface CloudProbeHooks {
+  /** 暱稱與密碼那一格。**這一格是 Keychain，不是 MMKV**（票 `17`）。 */
   storage: StorageLike;
   store: Store;
   /** 雲端那份比較新，整份換掉了。呼叫端要重讀。 */

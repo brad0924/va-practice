@@ -12,11 +12,12 @@ import { useApp } from '../lib/app-context';
 import { probeReading } from '../lib/gemini-reading-native';
 
 export default function DataRoute() {
-  const { store, cloud, session, cloudStatus, setCloudStatus } = useApp();
+  const { store, cloud, cloudConsent, session, cloudStatus, setCloudStatus } = useApp();
   return (
     <ProbeScreen
       store={store}
       cloud={cloud}
+      cloudConsent={cloudConsent}
       cloudStatus={cloudStatus}
       onStatus={setCloudStatus}
       onDataChanged={() => session.reload()}

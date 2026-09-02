@@ -34,7 +34,7 @@ function device(answer = true) {
         storage,
         ask: (nickname) => {
           asked.push(nickname);
-          return this.answer;
+          return Promise.resolve(this.answer);
         },
       });
     },
@@ -43,138 +43,138 @@ function device(answer = true) {
      *
      * `synced` 預設 false ＝ 全新安裝、本機那份從沒與雲端往返過，正是這張票要防的那條路。
      */
-    open(nickname: string | null = 'brad', synced = false): boolean {
+    open(nickname: string | null = 'brad', synced = false): Promise<boolean> {
       return this.boot().wantsPull(nickname, synced);
     },
   };
 }
 
 describe('第一次接雲端之前先問一句', () => {
-  it('記著暱稱又還沒答過，就問，答「要」就接', () => {
+  it('記著暱稱又還沒答過，就問，答「要」就接', async () => {
     const iphone = device(true);
 
-    expect(iphone.open()).toBe(true);
+    expect(await iphone.open()).toBe(true);
     expect(iphone.asked).toEqual(['brad']);
   });
 
-  it('答「不要」就不接', () => {
+  it('答「不要」就不接', async () => {
     const iphone = device(false);
 
-    expect(iphone.open()).toBe(false);
+    expect(await iphone.open()).toBe(false);
   });
 
-  it('沒記著暱稱的裝置不問——根本沒有東西可接', () => {
+  it('沒記著暱稱的裝置不問——根本沒有東西可接', async () => {
     const iphone = device();
 
-    expect(iphone.open(null)).toBe(false);
+    expect(await iphone.open(null)).toBe(false);
     expect(iphone.asked).toEqual([]);
   });
 
-  it('沒記著暱稱那一次不留下任何答案，之後密碼真的到了才輪到問', () => {
+  it('沒記著暱稱那一次不留下任何答案，之後密碼真的到了才輪到問', async () => {
     const iphone = device(true);
 
-    iphone.open(null);
+    await iphone.open(null);
 
-    expect(iphone.open()).toBe(true);
+    expect(await iphone.open()).toBe(true);
     expect(iphone.asked).toEqual(['brad']);
   });
 });
 
 describe('答過就不再問', () => {
-  it('同意過的裝置再開 app 直接接，不問第二次', () => {
+  it('同意過的裝置再開 app 直接接，不問第二次', async () => {
     const iphone = device(true);
-    iphone.open();
+    await iphone.open();
 
-    expect(iphone.open()).toBe(true);
+    expect(await iphone.open()).toBe(true);
     expect(iphone.asked).toEqual(['brad']);
   });
 
-  it('拒絕過的裝置再開 app 仍然不接，也不再問——共用的 iPad 不會被問到天荒地老', () => {
+  it('拒絕過的裝置再開 app 仍然不接，也不再問——共用的 iPad 不會被問到天荒地老', async () => {
     const iphone = device(false);
-    iphone.open();
+    await iphone.open();
 
-    expect(iphone.open()).toBe(false);
+    expect(await iphone.open()).toBe(false);
     expect(iphone.asked).toEqual(['brad']);
   });
 
-  it('在這台親手登入成功也算同意，下次開 app 不會被問', () => {
+  it('在這台親手登入成功也算同意，下次開 app 不會被問', async () => {
     const iphone = device(true);
 
     iphone.boot().grant();
 
-    expect(iphone.open()).toBe(true);
+    expect(await iphone.open()).toBe(true);
     expect(iphone.asked).toEqual([]);
   });
 });
 
 describe('升級前就已經在同步的裝置', () => {
-  it('本機這份與雲端往返過就不問——它的同意早就表示過了', () => {
+  it('本機這份與雲端往返過就不問——它的同意早就表示過了', async () => {
     const iphone = device(false);
 
-    expect(iphone.open('brad', true)).toBe(true);
+    expect(await iphone.open('brad', true)).toBe(true);
     expect(iphone.asked).toEqual([]);
   });
 
-  it('答案記下來，之後匯進一份沒與雲端往返過的舊備份也不會突然被問', () => {
+  it('答案記下來，之後匯進一份沒與雲端往返過的舊備份也不會突然被問', async () => {
     const iphone = device(false);
-    iphone.open('brad', true);
+    await iphone.open('brad', true);
 
-    expect(iphone.open('brad', false)).toBe(true);
+    expect(await iphone.open('brad', false)).toBe(true);
     expect(iphone.asked).toEqual([]);
   });
 
-  it('已經拒絕過的裝置不受影響，仍然不接', () => {
+  it('已經拒絕過的裝置不受影響，仍然不接', async () => {
     const iphone = device(false);
-    iphone.open();
+    await iphone.open();
 
-    expect(iphone.open('brad', true)).toBe(false);
+    expect(await iphone.open('brad', true)).toBe(false);
   });
 });
 
 describe('拒絕之後那條反悔的路', () => {
-  it('拒絕過才認得出來', () => {
+  it('拒絕過才認得出來', async () => {
     const iphone = device(false);
     expect(iphone.boot().declined()).toBe(false);
 
-    iphone.open();
+    await iphone.open();
 
     expect(iphone.boot().declined()).toBe(true);
   });
 
-  it('同意過的裝置不算拒絕過，那條路不長出來', () => {
+  it('同意過的裝置不算拒絕過，那條路不長出來', async () => {
     const iphone = device(true);
-    iphone.open();
+    await iphone.open();
 
     expect(iphone.boot().declined()).toBe(false);
   });
 
-  it('按下反悔那顆鈕之後就接，而且不再被問', () => {
+  it('按下反悔那顆鈕之後就接，而且不再被問', async () => {
     const iphone = device(false);
-    iphone.open();
+    await iphone.open();
 
     iphone.boot().grant();
 
     const next = iphone.boot();
     expect(next.declined()).toBe(false);
-    expect(next.wantsPull('brad', false)).toBe(true);
+    expect(await next.wantsPull('brad', false)).toBe(true);
     expect(iphone.asked).toEqual(['brad']);
   });
 });
 
 describe('答案記在哪一格', () => {
-  it('自己占一格，不碰暱稱密碼那一格', () => {
+  it('自己占一格，不碰暱稱密碼那一格', async () => {
     const iphone = device(true);
 
-    iphone.open();
+    await iphone.open();
 
     expect([...iphone.cells.keys()]).toEqual(['va-practice:cloud-consent']);
   });
 
-  it('那一格被塞了認不得的值時當作沒答過，重新問一次', () => {
+  it('那一格被塞了認不得的值時當作沒答過，重新問一次', async () => {
     const iphone = device(true);
     iphone.cells.set('va-practice:cloud-consent', 'maybe');
 
-    expect(iphone.open()).toBe(true);
+    expect(await iphone.open()).toBe(true);
     expect(iphone.asked).toEqual(['brad']);
   });
 });

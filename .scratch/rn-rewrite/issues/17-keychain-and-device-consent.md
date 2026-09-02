@@ -73,36 +73,35 @@ Blocked by: 16
 
 問的方式用 `Alert.alert` 兩顆鈕，文字查 `cloud.pullConfirm`（三份翻譯檔本來就有）。
 
-### 四、「停止同步」改成只停這台
+### 四、「停止同步」照舊清掉那一筆
 
-**這是這張票裡唯一的行為改變，2026-09-01 維護者拍板。**
+> **這一節在 2026-09-02 被推翻重寫。** 原本寫的是相反的東西——「只停這台、不刪 Keychain」，
+> 並為此在 `cloud-backup.ts` 加一支 `stopHere()`、在 `cloud-consent.ts` 加一支公開的
+> `decline()`。兩支都做出來了，然後整批拆掉。經過見底下 Comments 的〈為什麼翻掉〉。
 
-`cloud-backup.ts` 的 `signOut()` 現在一次做兩件事：停掉這台的推送（`account = null`，
-`push()` 第一行就 `if (account === null) return`）、以及刪掉暱稱密碼那一格。
+`cloud-backup.ts` 的 `signOut()` 一次做兩件事：停掉這台的推送（`account = null`，
+`push()` 第一行就 `if (account === null) return`）、以及刪掉暱稱密碼那一格。**兩件都留著。**
 
-開了 `cloudSync` 之後第二件事會出事：`SecItemDelete` 會把刪除**同步到使用者所有的裝置**。
-也就是說在手機上按「停止同步」，電腦上的密碼也會一起消失，而那句確認文字只講了這一台。
+密碼搬進 Keychain 之後那第二件事的射程變大了：`SecItemDelete` 會把刪除**同步到使用者
+所有的裝置**。**這正是隱私權政策已經寫給使用者的行為**（`public/privacy.html`）：
 
-`cloud-backup.ts` 因此多一支「只停這台」的方法：做 `signOut()` 的前三行（`account`、`pending`、
-`blocked` 歸零），**不碰 `CREDENTIALS_KEY`**。`signOut()` 本身原封不動，網頁版繼續用它。
+> iOS 版的暱稱與密碼存在系統的 Keychain 裡，是唯一的例外：移除 app 不會把它清掉，
+> 按下「停止同步」才會。若你開啟了 iCloud 鑰匙圈，那一份也會同時從鑰匙圈移除。
 
-`cloud-consent.ts` 跟著多一支公開的 `decline()`——現在 `DECLINED` 只從 `wantsPull()` 內部寫得進去。
+所以 `cloud-backup.ts` **一行不改**，手機版與網頁版走同一支 `signOut()`。
+要補的是**那句確認文字要講清楚它會清到所有裝置**，而那條新字串屬於票 `18`。
 
-停完之後 `nickname()` 仍答得出暱稱，因為它本來就有後路：
-
-```js
-nickname() { return account?.nickname ?? recall()?.nickname ?? null; }
-```
-
-**下次開機不會再問**：`wantsPull()` 讀到 `DECLINED` 就 `return false`。這是對的，人剛剛才親手停掉。
+**「拒絕接回」是另一件事，不受影響。** 開機那一問按「取消」時 `DECLINED` 由 `wantsPull()`
+自己在函式裡寫進去，**Keychain 那一筆不刪**（理由見 `cloud-consent.ts` 檔頭）。
+反悔那條路也早就在：`declined()` 判斷要不要長出那顆鈕，按下去叫 `grant()`，
+網頁版 `src/ui/data-view.ts` 接的就是這兩支。手機版那顆鈕屬於票 `18`。
 
 畫面那一半屬於票 `18`。
 
 ## 這張票不做的事
 
 - **不碰任何畫面。** 資料頁是票 `18`。這一輪仍靠 `probe-screen.tsx` 驗。
-- **網頁版與 Capacitor 版的「停止同步」一行不改。** 兩邊情況真的不同：網頁版的密碼只存在那台
-  瀏覽器裡，刪掉就是只刪那一台，「停止同步」四個字沒講錯。跟進的話要為網頁版另接一整套同意機制。
+- **`cloud-backup.ts` 的「停止同步」一行不改。** 三個版本走同一支 `signOut()`。
 - **不改 `data.stopConfirm` 那句話。** 手機版要用的是另一條新字串，那條屬於票 `18`。
 - **不動 `cloud-backup.ts` 的加解密。** 標答表（票 `05`）守著那一塊，這張票一個位元都不該讓它變。
 
@@ -127,8 +126,105 @@ Apple ID 的 iPhone。沒有。**這一條掛著，不阻擋收票**——做法
 - [ ] 那一問按「取消」→ 這次不接、資料不被蓋掉；**再開一次 app 不會再問**
 - [ ] 那一問按「接回來」→ 拉下雲端那份；再開一次 app 不會再問，直接接
 - [ ] 探針上按「停止同步」→ 推送停了（在網頁版動一動，手機這邊不會被蓋掉）
-- [ ] 停止同步之後 `cloud.nickname()` **仍答得出暱稱**（Keychain 那筆沒被刪）
+- [ ] 停止同步之後 `cloud.nickname()` **答不出暱稱了**（Keychain 那筆真的被清掉，
+      與隱私權政策的承諾一致），重打一次暱稱密碼接得回來
+- [ ] 那一問按「取消」之後 `cloud.nickname()` **仍答得出暱稱**——拒絕不刪 Keychain，
+      這一條與上一條是兩件不同的事
 - [ ] 網頁版按「停止同步」→ 行為與現在完全一樣，密碼被刪、要重打
 - [ ] `npm test` 與 `tsc --noEmit` 兩邊都綠（含改成非同步之後的 `cloud-consent.test.ts`）
 - [ ] 加解密標答仍 `PASS 6/6`
 - [ ] **掛著**：密碼跟著 iCloud 鑰匙圈走到第二台 iPhone（沒有第二台裝置，驗不了）
+
+## Comments
+
+### 2026-09-01 — 動工前四個問題，維護者當場拍板
+
+票面沒涵蓋、而且不同答案會做出不同東西的四件事：
+
+| 題目 | 定案 | 理由 |
+| --- | --- | --- |
+| 驗收第 6、7 條要按的那顆「停止同步」不存在 | **加在探針上** | 〈不做的事〉那句「不碰任何畫面」講的是正式畫面（資料頁＝票 `18`）。探針的檔頭本來就寫著「它不是任何一頁正式介面」，而且票 `18` 動工時整支被取代。不加的話那兩條只能跟著掛 |
+| `Alert.alert` 要的標題與兩顆鈕的字沒有出處 | **三份翻譯檔各補三條** `cloud.pullTitle`／`pullAccept`／`pullDecline` | 網頁版的 `confirm()` 由系統配 OK／取消，這三條是 React Native 才需要的。掛在 `cloud.*` 底下與 `cloud.pullConfirm` 同一組，日後一起改。被放棄的是「借單字本那條『取消』」（少改六行，但這一問的字從此散在三個功能區底下） |
+| ~~「只停這台」那支方法的名字~~ | ~~`stopHere()`~~ | **這一列作廢**：那支方法在同一天被整支拆掉，見底下〈為什麼翻掉〉 |
+| Keychain 是非同步讀的，那幾毫秒畫面怎麼辦 | **讀完之前 `AppProvider` 什麼都不畫** | 雲端備份問「登入了沒」的方式是同步的，早一步建起來它就認定這台沒登入，`push()` 第一行返回，這台從此一次都推不上去。改動集中在 `app-context.tsx` 一支檔，四個畫面一行不動 |
+
+### 2026-09-01 — 程式碼這一半做完了，真機那一半沒有
+
+`npm test`（root 643 條、mobile 482 條）與兩邊的 `tsc --noEmit` 都綠，六筆加解密標答仍 `PASS 6/6`。
+`core/lib/keychain.ts` 與 `cloud-backup.ts` 的加解密一個位元都沒動。
+
+**驗收那十一條一條都還沒打勾**——它們整批要真機、iOS 26、一趟 EAS Build。
+第 11 條（密碼跟著 iCloud 走到第二台 iPhone）沒有第二台裝置，維持〈已知風險〉寫的「掛著，不阻擋收票」；
+其餘十條出包之後就驗得到。`kSecAttrSynchronizable` 要不要 entitlement 也在那一趟確認。
+
+新增與改動的檔：
+
+| 檔 | 做了什麼 |
+| --- | --- |
+| `mobile/lib/keychain-native.ts`（新） | 把 `react-native-keychain` v10 的三支方法接成 `KeychainLike`，三支都帶 `cloudSync: true`；順手清掉 MMKV 那筆舊的明文 |
+| `mobile/lib/cloud-consent-native.ts`（新） | `ask()` 包成 `Alert.alert` 兩顆鈕的 Promise |
+| `core/lib/cloud-consent.ts` | `ask`／`wantsPull` 改回 Promise |
+| `core/lib/cloud-backup.ts` | **一行沒改** |
+| `mobile/lib/app-context.tsx` | 開機先讀 Keychain 再建共用那一份；接著先問 `wantsPull()`，答「要」才 `begin()` |
+| `mobile/ui/probe-screen.tsx` | 多一顆「停止同步」，走 `signOut()`；登入成功時 `grant()`，接法與網頁版 `data-view.ts` 相同 |
+| `src/app.ts`、`src/lib/cloud-consent-native.ts` | 跟著改成非同步。**網頁版一個 await 都不會走到**：`cloudConsent` 是 null，`||` 當場短路 |
+
+### 2026-09-01 — 三件票面沒交代、但做了的事
+
+審查抓出來的，各記一筆，維護者要退掉隨時退得掉。
+
+**一、探針登入成功時多叫一句 `cloudConsent.grant()`。**
+`grant()` 的介面說明本來就寫著「在這台裝置上親手登入成功也算」，網頁版 `src/ui/data-view.ts`
+接的是同一句。少了它會漏掉一條真的會發生的路：**開機那一問按了「取消」、之後又自己去探針登入**——
+那台裝置的答案停在 `DECLINED`，`wantsPull()` 從此 `return false`，驗收第 2 條當場不過。
+
+**二、`keychain-native.ts` 刪掉 MMKV 裡那筆舊的明文密碼。**
+票只寫「不搬」，沒寫刪。做法與 Capacitor 版那支一字不差（`src/lib/keychain-native.ts`）：
+那一筆從此不再被讀到，留著只是白白多一個讀得到密碼的地方，而且「停止同步」也清不到它。
+
+~~**三、`stopHere()` 除了那三行，還收掉那行狀態字。**~~ 那支方法已經整支拆掉，這一條作廢。
+
+### 2026-09-01 — 驗收第 3、4、5 條要怎麼製造出那個狀態
+
+那三條要的是「有密碼、但這台從沒答過、本機也沒與雲端往返過」。單純登入一次做不出來：
+登入會把 `updatedAt` 推上去，`wantsPull()` 走 `syncedBefore` 那條，不問。
+
+做法是**把 app 刪掉重裝**：MMKV 整格跟著消失（同意那格、`updatedAt` 一起歸零），
+而 Keychain 那一筆活著。重裝後第一次開機就是那一問該跳出來的時刻。
+
+### 2026-09-01 — `/code-review` 抓到三條，都修了
+
+~~**一、`signOut()` 的執行順序被我動到了。**~~ 那支共用的 `stopPushing()` 已經整支拆掉，
+`cloud-backup.ts` 現在與 `HEAD` 逐字相同，這一條作廢。
+
+**二、開機那一趟爆掉會變成一片不說話的白畫面。** 這一段以前住在 `useState(() => …)` 裡，
+丟例外就是一片紅畫面；搬進 Promise 之後同一個例外會被默默丟掉，而 `wiring` 永遠是 null，
+`AppProvider` 永遠什麼都不畫。補了 `.catch`，接住之後在畫面那一輪重新丟出去，
+另加一條測試釘住它。
+
+**三、`src/app.ts` 的 `void finishBoot()` 把例外吞了。** `showReview()` 丟例外以前會從
+`start()` 同步冒出去，包成 async 之後變成一個沒人接的 rejected promise。改成
+`finishBoot(pull)` 收一個布林值、不寫 `async`；網頁版那條路由 `if` 直接同步叫它，
+**整條路一個 Promise 都不碰**。
+
+另外把三條新翻譯搬到 `cloud.pullConfirm` 正下方——原本插在 `cloud.wrongPassword`
+與它的說明中間，兩邊的註解都對不上了。
+
+### 2026-09-02 — 為什麼把第四節整個翻掉
+
+commit 前的隱私權守門攔下來，指著 `public/privacy.html` 那一段：
+
+> iOS 版的暱稱與密碼存在系統的 Keychain 裡，是唯一的例外：移除 app 不會把它清掉，
+> 按下「停止同步」才會。若你開啟了 iCloud 鑰匙圈，那一份也會同時從鑰匙圈移除。
+
+**那句話已經把「會清到所有裝置」講給使用者聽了。** 第四節當初的顧慮是「按下去電腦上的密碼
+也會消失，而確認文字只講了這一台」——問題出在**確認文字**，不在行為本身。
+
+維護者拍板：不要為了遷就一句話而讓兩支 app 的同一顆鈕做不同的事，改成程式跟著政策走。
+於是 `stopHere()` 與公開的 `decline()` 兩支連同測試整批拆掉，`cloud-backup.ts` 回到一行沒改。
+要補的那句確認文字（講明它會清到所有裝置）屬於票 `18`。
+
+**「拒絕接回」與「停止同步」是兩件事，拆掉之後兩條都還在。** 開機那一問按「取消」時，
+`DECLINED` 由 `wantsPull()` 自己在函式裡寫進去——**它從來就不需要外面有一支公開方法**，
+新加的 `decline()` 唯一的客戶就是「停止同步」。反悔那顆鈕靠的是 `declined()` 與 `grant()`，
+兩支都是這張票之前就有的，一個字沒動（手機版那顆鈕屬於票 `18`）。

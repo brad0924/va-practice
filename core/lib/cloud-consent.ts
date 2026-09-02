@@ -14,6 +14,12 @@
  * 使用者所有的裝置——拿「這台不要接」當理由去刪一筆全域的密碼，代價完全不成比例。
  * 因此拒絕只做兩件事：這次不 `begin()`、在本機記下來不再問。
  *
+ * **問的方式一律是非同步的。** 網頁版那條支線用 `confirm()`，它在 WKWebView 裡會擋住
+ * 整條執行緒，答案當場就有；React Native 上沒有這種對話框，`Alert.alert` 是 callback。
+ * 遷就比較慢的那一邊：`ask()` 與 `wantsPull()` 都回 `Promise`，`confirm()` 那端包一層
+ * `Promise.resolve()` 就接得上（票 `17`）。反過來在手機那端自己組一套 callback 的話，
+ * 「該不該問」的判斷會被重寫第二份，兩份日後各自漂走。
+ *
  * 本模組不碰畫面：怎麼問由呼叫端遞進來，與 `safety-copy.ts`、`keychain.ts` 同一個立場。
  * 接上實際那個對話框的接線在 `cloud-consent-native.ts`。網頁版完全沒有這條支線——
  * 那裡沒有 Keychain，密碼不會憑空出現在一台新裝置上。
@@ -53,7 +59,7 @@ export interface CloudConsent {
    *   升級到本版本之前就已經登入著的裝置——它們本機不是空的，問了反而危險，
    *   一按取消就從此靜默停止備份，而票 14「沒有資料會因此毀掉」講的是全新安裝那條路。
    */
-  wantsPull(nickname: string | null, syncedBefore: boolean): boolean;
+  wantsPull(nickname: string | null, syncedBefore: boolean): Promise<boolean>;
 }
 
 export interface CloudConsentHooks {
@@ -62,7 +68,7 @@ export interface CloudConsentHooks {
    * 問使用者這一句，回答「要接」為 true。只有「還沒答過、而且真的記著一組暱稱」
    * 這一種情況會叫到它，因此暱稱一定有值，講得出是哪一個帳號。
    */
-  ask(nickname: string): boolean;
+  ask(nickname: string): Promise<boolean>;
 }
 
 export function createCloudConsent(hooks: CloudConsentHooks): CloudConsent {
@@ -79,7 +85,7 @@ export function createCloudConsent(hooks: CloudConsentHooks): CloudConsent {
       remember(GRANTED);
     },
 
-    wantsPull(nickname, syncedBefore) {
+    async wantsPull(nickname, syncedBefore) {
       // 沒記著暱稱就是這台沒登入過，沒有東西可接。不問，也刻意不記下任何答案：
       // 密碼日後才從鑰匙圈同步過來的話，那時才輪得到問；使用者自己親手登入的話，
       // 那一次登入就算同意（接線在 `data-view.ts`）。
@@ -98,7 +104,7 @@ export function createCloudConsent(hooks: CloudConsentHooks): CloudConsent {
 
       // 認不得的值（例如被別的東西寫壞了）與「沒有這一格」同路：重新問一次。
       // 誤問一次的代價是一句話，猜錯的代價是又一次沒被問過就同步。
-      const wanted = hooks.ask(nickname);
+      const wanted = await hooks.ask(nickname);
       remember(wanted ? GRANTED : DECLINED);
       return wanted;
     },

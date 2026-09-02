@@ -6,7 +6,8 @@ import { currentCard, DEFAULT_EASE } from '@core/lib/review';
 import type { AppData } from '@core/lib/types';
 
 /**
- * 開機那一段的接線：標答比對（票 `13`）、評分推上雲端（票 `06`）、接回雲端登入狀態（票 `10`）。
+ * 開機那一段的接線：標答比對（票 `13`）、評分推上雲端（票 `06`）、接回雲端登入狀態（票 `10`）、
+ * 以及「這台裝置要不要接」那一問（票 `17`）。
  *
  * 票 `13` 那部分守的是這張票最重要的那條分界：**標答比對只在 CI 塞了觸發檔的時候才跑。**
  * 使用者手上沒有那個檔，冷啟動一列標答都不該碰。
@@ -58,6 +59,57 @@ jest.mock('@core/lib/cloud-crypto-vectors', () => ({
  * 要跟著重建」，而那條接線就住在這支檔裡（`onPulled` → `session.reload()`）——
  * 手上有那組回呼，才驗得到它真的接上了，不必去碰真正的雲端備份。
  */
+/**
+ * 假的 Keychain。真的那一支底下是原生模組，Node 裡沒有那一半。
+ *
+ * 它交出來的那格儲存**必須與 MMKV 那一格是不同的東西**：暱稱密碼進 Keychain（跟著
+ * iCloud 走），這台裝置的同意答案留在 MMKV（不跟著走），兩者分開正是票 `17` 的重點。
+ * 這裡刻意記下遞進去的 MMKV，才驗得到那筆舊的明文有沒有被清掉。
+ */
+const mockKeychainCells = new Map<string, string>();
+let mockMmkvHandedToKeychain: StorageLike | null = null;
+let mockReleaseKeychain: (() => void) | null = null;
+/** 讓那一趟爆掉。設了值就不放行，直接讓 Promise 被拒絕。 */
+let mockKeychainFailure: Error | null = null;
+
+jest.mock('./keychain-native', () => ({
+  loadNativeCloudStorage: (mmkv: StorageLike) => {
+    mockMmkvHandedToKeychain = mmkv;
+    if (mockKeychainFailure !== null) return Promise.reject(mockKeychainFailure);
+    const storage: StorageLike = {
+      getItem: (key) => mockKeychainCells.get(key) ?? null,
+      setItem: (key, value) => {
+        mockKeychainCells.set(key, value);
+      },
+      removeItem: (key) => {
+        mockKeychainCells.delete(key);
+      },
+    };
+    // 讀 Keychain 是非同步的。留一個開關在外面，才驗得到「讀完之前畫面上什麼都沒有」。
+    return new Promise<StorageLike>((resolve) => {
+      mockReleaseKeychain = () => resolve(storage);
+    });
+  },
+}));
+
+/**
+ * 假的那一問。`Alert.alert` 在 Node 底下是假的，這裡連它都不碰——要看的是
+ * **有沒有先問再接**，不是那個警示窗長什麼樣。
+ */
+let mockAnswer = true;
+const mockAsked: (string | null)[] = [];
+
+jest.mock('./cloud-consent-native', () => ({
+  createNativeCloudConsent: () => ({
+    declined: () => false,
+    grant: () => {},
+    wantsPull: (nickname: string | null) => {
+      mockAsked.push(nickname);
+      return Promise.resolve(mockAnswer);
+    },
+  }),
+}));
+
 const mockPush = jest.fn();
 const mockBegin = jest.fn();
 let mockProbeHooks: CloudProbeHooks | null = null;
@@ -80,6 +132,7 @@ jest.mock('./cloud-probe', () => ({
 // 這兩行排在 jest.mock 底下：app-context 一被 import 就會去開那格儲存、接介面字串表、
 // 建雲端那一端，假貨要先就位。（babel 會把 jest.mock 提到最前面，順序是寫給人看的。）
 import { AppProvider, useApp, type AppShared } from './app-context';
+import type { StorageLike } from '@core/lib/storage';
 import type { CloudProbeHooks } from './cloud-probe';
 import { MARKER, TRIGGER_FILE, RESULT_FILE } from './crypto-self-check';
 
@@ -130,6 +183,12 @@ async function mount(): Promise<AppShared> {
       </AppProvider>,
     );
   });
+  // 放行 Keychain 得另起一個 `act()`：開機那個 `useEffect` 要等前一個 `act()` 收尾
+  // 才會跑，而 `mockReleaseKeychain` 是它跑到才拿得到的東西。
+  // Keychain 讀完之前 `AppProvider` 什麼都不畫，不放行的話底下永遠拿不到那一份。
+  await act(async () => {
+    mockReleaseKeychain?.();
+  });
   if (shared === null) throw new Error('AppProvider 沒有把共用的那一份交出來');
   return shared;
 }
@@ -138,6 +197,12 @@ beforeEach(() => {
   mockDisk.clear();
   mockPush.mockClear();
   mockBegin.mockClear();
+  mockKeychainCells.clear();
+  mockMmkvHandedToKeychain = null;
+  mockReleaseKeychain = null;
+  mockAsked.length = 0;
+  mockAnswer = true;
+  mockKeychainFailure = null;
 });
 
 describe('開機時的標答比對', () => {
@@ -169,6 +234,66 @@ describe('雲端推送', () => {
   });
 });
 
+describe('暱稱與密碼那一格', () => {
+  it('Keychain 讀完之前什麼都不畫——沒讀完就建雲端那一端的話，它會以為這台沒登入', async () => {
+    let mounted = false;
+    function Probe() {
+      mounted = true;
+      useApp();
+      return <Text>掛好了</Text>;
+    }
+
+    await act(async () => {
+      render(
+        <AppProvider>
+          <Probe />
+        </AppProvider>,
+      );
+    });
+
+    expect(mounted).toBe(false);
+    expect(mockAsked).toEqual([]);
+    expect(mockBegin).not.toHaveBeenCalled();
+
+    await act(async () => {
+      mockReleaseKeychain?.();
+    });
+
+    expect(mounted).toBe(true);
+  });
+
+  it('那一趟爆掉就當場丟出去，不留一片不說話的白畫面', async () => {
+    // 這一段以前住在 `useState(() => …)` 裡，爆掉就是一片紅畫面。搬進 Promise 之後
+    // 少了那個 `.catch`，同一個例外會被默默丟掉，而畫面永遠停在什麼都不畫——
+    // **開機白畫面，一句話都不說**。這條測試釘的就是那個 `.catch`。
+    mockKeychainFailure = new Error('鑰匙圈壞了');
+
+    // 自己接：那個例外從畫面那一輪冒出來，同步或非同步都算數，兩種都要接得到。
+    let thrown: unknown = null;
+    try {
+      await act(async () => {
+        render(
+          <AppProvider>
+            <Text>掛好了</Text>
+          </AppProvider>,
+        );
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(mockKeychainFailure);
+  });
+
+  it('遞給 Keychain 那一端的是 MMKV 那格，讓它把舊的明文清掉', async () => {
+    await mount();
+
+    // 舊的那筆暱稱密碼留在 MMKV 是明文，而且「停止同步」清不到它（票 `17`）。
+    // 清掉的動作在 `keychain-native.ts`，這裡只驗它真的拿得到那格。
+    expect(mockMmkvHandedToKeychain).not.toBeNull();
+  });
+});
+
 describe('開機時接回雲端登入狀態', () => {
   it('冷啟動就把本機那份遞進 begin()，不必先進任何畫面', async () => {
     const shared = await mount();
@@ -192,6 +317,22 @@ describe('開機時接回雲端登入狀態', () => {
     });
 
     expect(mockBegin).toHaveBeenCalledTimes(1);
+  });
+
+  it('先問這台要不要接，答「要」才 begin()——順序反過來就是先拉再問', async () => {
+    await mount();
+
+    expect(mockAsked).toHaveLength(1);
+    expect(mockBegin).toHaveBeenCalledTimes(1);
+  });
+
+  it('答「不要」就一個網路請求都不發', async () => {
+    mockAnswer = false;
+
+    await mount();
+
+    expect(mockAsked).toHaveLength(1);
+    expect(mockBegin).not.toHaveBeenCalled();
   });
 
   it('雲端拉下來一份新的，複習佇列跟著重建', async () => {

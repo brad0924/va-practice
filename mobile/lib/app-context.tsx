@@ -12,11 +12,14 @@ import { getLocales } from 'expo-localization';
 import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { initI18n } from '@core/i18n';
-import { createStore, type Store } from '@core/lib/storage';
+import { createStore, type StorageLike, type Store } from '@core/lib/storage';
 import type { CloudBackup } from '@core/lib/cloud-backup';
+import type { CloudConsent } from '@core/lib/cloud-consent';
 import { createCloudProbe } from './cloud-probe';
+import { createNativeCloudConsent } from './cloud-consent-native';
 import { isSelfCheckRequested, reportCryptoSelfCheck } from './crypto-self-check';
 import { rateHaptic } from './haptics';
+import { loadNativeCloudStorage } from './keychain-native';
 import { createReviewSession, type ReviewSession } from './review-session';
 import { createMmkvStorage } from './storage-mmkv';
 
@@ -33,6 +36,13 @@ initI18n(storage, getLocales()[0]?.languageTag ?? 'en');
 const store = createStore(storage);
 
 /**
+ * 這台裝置對「要不要接回雲端」的答案。**記在 MMKV，不是 Keychain**——
+ * 密碼跟著 iCloud 鑰匙圈走，同意不跟著走，兩件事分開正是 `cloud-consent.ts` 的重點。
+ * 與提醒開關、Gemini 金鑰同一類：只管這一台裝置，不進 `AppData`，不上雲也不進匯出檔。
+ */
+const cloudConsent = createNativeCloudConsent(storage);
+
+/**
  * 雲端備份與複習流程接起來。
  *
  * 兩個方向都要接，因此在同一個閉包裡建：雲端拉下一份新資料時複習佇列要重建
@@ -44,10 +54,16 @@ const store = createStore(storage);
  * 電腦那邊一推，手機這幾天的複習就整批被蓋掉。網頁版 `src/app.ts` 的 `persist()`
  * 把推送接在同一個位置。
  */
-function createWiring(onChange: () => void, onStatus: (message: string) => void) {
+function createWiring(
+  cloudStorage: StorageLike,
+  onChange: () => void,
+  onStatus: (message: string) => void,
+) {
   let session: ReviewSession;
   const cloud = createCloudProbe({
-    storage,
+    // **暱稱與密碼那一格是 Keychain，不是 MMKV**（票 `17`）：那一筆標記為可同步，
+    // 換新 iPhone 時跟著 iCloud 鑰匙圈走（見 `./keychain-native.ts` 與 `ADR-0019`）。
+    storage: cloudStorage,
     store,
     // 兩條刻意分開：拉下來是「整份資料被換掉了」，要重讀；推上去只是伺服器蓋了新的
     // 時間戳，資料一個字沒變，動不得——理由見 `./review-session.ts` 的 `noteCloudTimestamp`。
@@ -78,6 +94,8 @@ function createWiring(onChange: () => void, onStatus: (message: string) => void)
 export interface AppShared {
   store: Store;
   cloud: CloudBackup;
+  /** 這台裝置要不要接雲端。畫面那一端用它記下「親手登入成功也算同意」。 */
+  cloudConsent: CloudConsent;
   session: ReviewSession;
   cloudStatus: string;
   setCloudStatus(message: string): void;
@@ -103,7 +121,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
    */
   const [, redraw] = useReducer((count: number) => count + 1, 0);
   const [cloudStatus, setCloudStatus] = useState('');
-  const [wiring] = useState(() => createWiring(redraw, setCloudStatus));
+  /**
+   * **Keychain 讀完之前這裡是 null，底下什麼都不畫。**
+   *
+   * 暱稱與密碼住在 Keychain，而讀它是非同步的（`core/lib/keychain.ts` 的中間人先把那一筆
+   * 讀進記憶體，此後才同步作答）。雲端備份問「登入了沒」的方式是同步的，因此它非得等到
+   * 那一筆到手才建得起來——早一步建的話，它會認定這台沒登入，`push()` 第一行就返回，
+   * 這台裝置從此一次都推不上去。
+   *
+   * 代價是啟動畫面多留幾毫秒。四個畫面一行都不必改：它們拿到 `useApp()` 的時候，
+   * 手上那一份已經是完整的。
+   */
+  const [wiring, setWiring] = useState<ReturnType<typeof createWiring> | null>(null);
+
+  /**
+   * 開機那一趟爆掉時接住的東西。**包在一層物件裡**：`setState` 看到函式會當成
+   * 「用舊值算新值」的更新器，而例外可以是任何東西。
+   */
+  const [failure, setFailure] = useState<{ error: unknown } | null>(null);
+
+  /**
+   * 開機第一步：把 Keychain 那一筆讀出來，再拿它建整份共用的東西。
+   *
+   * 只跑一次。空的相依陣列是刻意的——這是冷啟動的動作。
+   *
+   * **那個 `.catch` 不能省。** 這一段以前住在 `useState(() => …)` 裡，爆掉就當場是一片
+   * 紅畫面，看得見；搬進 Promise 之後同一個例外會被默默丟掉，而 `wiring` 永遠是 null，
+   * 畫面永遠什麼都不畫——**開機白畫面，一句話都不說**。接住之後在下面重新丟出去，
+   * 讓它回到 React 那條看得見的路上。
+   */
+  useEffect(() => {
+    void loadNativeCloudStorage(storage)
+      .then((cloudStorage) => {
+        setWiring(createWiring(cloudStorage, redraw, setCloudStatus));
+      })
+      .catch((error: unknown) => setFailure({ error }));
+  }, []);
 
   /**
    * 開 app 就把雲端登入狀態接回來（票 `10`）。
@@ -128,8 +181,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * 就跟雲端對一次帳。從背景切回前景走的是底下那個 `AppState`，不會再進來這裡。
    */
   useEffect(() => {
-    wiring.cloud.begin(store.load());
-  }, []);
+    if (wiring === null) return;
+    const cloud = wiring.cloud;
+    /**
+     * **先問，答「要」才接**（票 `17`）。順序不能反——反過來就是先拉再問，問了也沒用。
+     *
+     * 問的是這一台，不是這個帳號：密碼跟著 iCloud 鑰匙圈走到新裝置，同意不跟著走
+     * （見 `core/lib/cloud-consent.ts`）。答過一次就不再問，沒登入過的裝置根本不問。
+     *
+     * `updatedAt` 非 0 代表這份資料曾經與雲端往返過——那台裝置早就在同步了，不必問。
+     * 遞給 `begin()` 的那一份在答完之後才重讀：警示窗擋著的期間本機不會變，
+     * 但重讀一次比留著一份跨越等待的舊資料誠實。
+     */
+    void cloudConsent.wantsPull(cloud.nickname(), store.load().updatedAt > 0).then((pull) => {
+      if (pull) cloud.begin(store.load());
+    });
+  }, [wiring]);
 
   /**
    * 標答比對：**只有 CI 塞了觸發檔的時候才跑**，使用者那台問完那一句就走。
@@ -154,17 +221,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * React Native 上 `AppState` 就是那件事。檢查本身是冪等的，多叫幾次不會出事。
    */
   useEffect(() => {
+    if (wiring === null) return;
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') wiring.session.refreshDay();
     });
     return () => subscription.remove();
   }, [wiring]);
 
+  // 這兩行要排在所有 hook 底下：hook 的呼叫順序每一輪都必須一樣。
+  if (failure !== null) throw failure.error;
+  if (wiring === null) return null;
+
   return (
     <AppContext.Provider
       value={{
         store,
         cloud: wiring.cloud,
+        cloudConsent,
         session: wiring.session,
         cloudStatus,
         setCloudStatus,
