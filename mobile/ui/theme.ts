@@ -77,3 +77,17 @@ export const TAP_SIZE = 44;
 
 /** 浮在內容之上的那兩條控制列離螢幕邊緣多遠。整寬按鈕要避開（HIG `L-05`）。 */
 export const SCREEN_INSET = 16;
+
+/**
+ * 捲動區底部要多留這麼一段（票 `18`）。
+ *
+ * **tab bar 是浮在內容之上的**（iOS 26 那條膠囊），捲到底時最後一列會躲在它後面。
+ * 這一段留白把最後一列頂上來（HIG `L-02`）。
+ *
+ * 這是一個目測值，不是量出來的——`react-native-safe-area-context` 的下緣安全區量得到
+ * home indicator，量不到那條浮著的膠囊有多高。真機上若最後一列仍被蓋住，調的是這一格。
+ *
+ * > `card-editor-screen.tsx` 那一頁還寫著自己的 `paddingBottom: 120`，數字一樣。
+ * > 那是票 `16` 留下的，這張票沒有動它——改它要重跑那一頁的驗收，不歸這裡。
+ */
+export const TAB_BAR_CLEARANCE = 120;

@@ -17,11 +17,33 @@ import { DarkTheme, ThemeProvider } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { t } from '@core/i18n';
-import { AppProvider } from '../lib/app-context';
+import { AppProvider, useApp } from '../lib/app-context';
 
 export default function Layout() {
   return (
     <AppProvider>
+      <Shell />
+    </AppProvider>
+  );
+}
+
+/**
+ * 導覽列本體。**它與 `Layout()` 拆成兩層，不是為了整潔，是為了換語言時字會跟著換**（票 `18`）。
+ *
+ * 四個 tab 的字是 `t()` 在畫的那一刻查出來的，因此換完語言要重畫這一段。而重畫的訊號
+ * 來自 `AppProvider`——它是 `Layout()` 的孩子，重畫父層才輪得到它，反過來輪不到。
+ * 更精確地說：`<AppProvider>{children}</AppProvider>` 裡的 `children` 每一輪都是同一個
+ * 元素物件，React 看到同一個就整段跳過不重畫；只有**訂閱了 context 的元件**會跟著更新。
+ * 所以這一段必須是一個叫得到 `useApp()` 的元件，而不是寫在 `Layout()` 身上的 JSX。
+ *
+ * 它現在沒有用到 `useApp()` 交回來的任何一格。**那一行不是死程式碼**，它就是訂閱本身——
+ * 拿掉之後換語言時 tab 上的字會留在舊的那一種，而畫面其餘部分已經換了。
+ */
+function Shell() {
+  useApp();
+
+  return (
+    <>
       {/**
        * **告訴導覽這支 app 是深色的。** 少了這一行，`Stack` 的導覽列會拿
        * `DefaultTheme`（淺色）那一組顏色——底是白的、字是黑的。
@@ -67,6 +89,6 @@ export default function Layout() {
         </NativeTabs>
         <StatusBar style="light" />
       </ThemeProvider>
-    </AppProvider>
+    </>
   );
 }

@@ -90,6 +90,18 @@ export interface ReviewSession {
    */
   importWords(json: string, bookId: string): ImportResult;
   /**
+   * 換上一份備份檔：**整份覆蓋**，寫回本機、重讀、推上雲端。資料頁的「匯入備份」走這條
+   * （票 `18`）。格式不對時 `store` 那一步就丟例外，本機一個字沒變，由畫面接住。
+   *
+   * **與 `importWords()` 是兩件事，`CONTEXT.md` 分得很清楚**：那一支只往某一本裡加卡，
+   * 這一支把整台裝置換成備份檔裡的樣子。共用一支的話「加料」與「覆蓋」會混為一談。
+   *
+   * **也與 `applyData()` 不同**：那一支換的是手上這份資料的下一版，會先問「複習範圍內的卡
+   * 變了沒」再決定重不重建佇列；這裡整份都換了，佇列一定要重來。
+   * 網頁版 `src/app.ts` 的 `importBackup()` 是同一支。
+   */
+  importBackup(json: string): void;
+  /**
    * 跨過午夜就把佇列換成今天這份。回到前景時叫一次，評分之前也會自己叫一次。
    * 日期沒變時一件事都不做。
    */
@@ -260,6 +272,20 @@ export function createReviewSession(hooks: ReviewSessionHooks): ReviewSession {
       onPersisted?.(data);
       onChange();
       return result;
+    },
+
+    importBackup(json) {
+      // `store` 這一步自己會驗格式，並把整份寫回本機。它丟例外時（檔案壞了、版本不認得）
+      // 底下四行都不會發生，本機因此一個字沒變。
+      store.importJson(json);
+      // 整份資料換人了，佇列與掀開狀態一起重來——手上那張卡很可能已經不在這份資料裡。
+      data = store.load();
+      rebuild();
+      revealed = false;
+      // 本機已經被 `store` 寫過了，這裡只補推雲端那一步。**不推的話下次開 app 會被雲端
+      // 那份蓋回去**，等於這次匯入白做。與網頁版 `src/app.ts` 的 `importBackup()` 同一個位置。
+      onPersisted?.(data);
+      onChange();
     },
 
     refreshDay() {

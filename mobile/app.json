@@ -15,7 +15,12 @@
       "supportsTablet": true,
       "deploymentTarget": "16.4",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleLocalizations": [
+          "zh-Hant",
+          "en",
+          "ja"
+        ]
       },
       "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {

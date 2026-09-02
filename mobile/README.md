@@ -8,24 +8,27 @@ iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rew
 全部由系統畫。**預設那一頁是複習**（票 `06`，`ui/review-screen.tsx`），接的是真的 MMKV
 資料與真的排程。
 
-**「資料」那個 tab 裝的是票 `03`–`05` 的探針畫面**（`ui/probe-screen.tsx`）：一塊 `GlassView`
-墊在斜條紋背景上，底下兩塊狀態方塊——玻璃的可用性檢查，以及輸入暱稱密碼真的推拉一次備份。
-**手機上目前只有這裡登得進雲端**，所以留著。
-資料頁那張票一做完，這支檔案連同 `lib/cloud-probe.ts` 就地被取代。
-
-> 這裡本來還有一塊 MMKV 的儀表，附一顆「加 5 張卡」——那顆鈕會建一本單字本。
-> 票 `15` 整塊拆了：單字本現在在卡片列表那一頁建，探針上再留一個會建資料的後門，
-> 只是多一條會把使用者資料弄髒的路。
-
 **「卡片」是真的那一頁了**（`ui/cards-screen.tsx`，票 `15`）：置中的標題、系統的搜尋列、
-一條工具列、六個時間桶。點一列推出編輯畫面（`app/cards/[id].tsx`，票 `16` 之前是佔位頁）。
+一條工具列、六個時間桶。點一列推出編輯畫面（`app/cards/[id].tsx`，票 `16`）。
 單字本的新增、改名、刪除與匯入單字也在這一頁，收在那顆「全部 ▾」點開的 sheet 裡。
+
+**「資料」也是真的那一頁了**（`ui/data-screen.tsx`，票 `18`）：系統風格的分組清單，三區——
+介面語言、雲端備份、手動備份。三層子畫面（語言、登入、換密碼）走推入式導覽，
+匯出與匯入是動作列、點下去直接發生。網頁版那六區在手機上少了三區：單字本票 `15` 搬去卡片
+列表了，Gemini 金鑰在 iOS 上本來就不長（`ADR-0016`），每日提醒排在票 `19`。
+
+> **這一頁在票 `18` 之前裝的是票 `03`–`05` 的探針畫面**（`ui/probe-screen.tsx`，423 行）：
+> 一塊 `GlassView` 墊在斜條紋背景上，加上玻璃可用性、雲端推拉、讀音預填三塊診斷。
+> 那支檔的檔頭一直寫著「資料頁一做好，這整支檔案就地被取代」，票 `18` 執行了那句話——
+> 畫面、`lib/cloud-probe.ts`、`lib/gemini-reading-native.ts` 的 `probeReading()` 一起刪掉，
+> 雲端那段接線搬進 `lib/app-context.tsx`。**資料頁上不留任何診斷。**
+>
+> 代價是讀音預填靜默失敗時，又分不出「壞了」跟「它根本沒試」了——那三條路故意收斂成
+> 靜默（spec 決定十一），而維護者的開發機是 Windows，看不到裝置上的主控台。
+> 要不要留一個只有維護者看得到的出口，是 spec 層的決定。
+
 **「統計」仍是一頁「還沒做」的說明**（`ui/placeholder-screen.tsx`）。
 tab 不因為內容是空的就停用或隱藏（HIG `N-05`）——那樣按下去沒反應，人會以為 app 壞了。
-
-> **雲端那塊按不動，要等標答比對跑完。** 兩件事都會抽 12 個位元組當初始向量，而比對期間
-> 亂數來源被換成表裡那個固定值。重疊的話，推上去那份會用到一個**公開在版控裡**的初始向量——
-> 同一把金鑰配同一個初始向量，AES-GCM 的保護就整個垮了。同理，開 app 時也不自動接回雲端。
 
 ## 這個目錄與 repo 其他部分的關係
 
@@ -69,11 +72,13 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 「我跑在哪台手機上」，vitest 那台答不出來，當場就爆。兩台機器各跑各的，沒有取代關係——
 網頁版仍然跑 repo 根的 `npm test`。
 
-現在收進來的是 13 支。`mobile/` 自己九支，含兩支畫面測試（`ui/review-screen.test.tsx`、
-`ui/cards-screen.test.tsx`）與兩支相依守門（`test/import-scan.test.ts`、
-`test/dependency-guard.test.ts`）。`core/lib/` 四支：`storage.test.ts`、`card-list.test.ts`、
-`book-scope.test.ts` 與 `cloud-crypto-vectors.test.ts`。**`core/` 那幾支一行未改**，
-仍寫著 `from 'vitest'`——改的是「vitest 這個名字指到哪裡」，接線見 `test/vitest-shim.ts`。
+現在收進來的是 20 支。`mobile/` 自己十一支，含四支畫面測試（`ui/review-screen.test.tsx`、
+`ui/cards-screen.test.tsx`、`ui/card-editor-screen.test.tsx`、`ui/data-screen.test.tsx`）
+與兩支相依守門（`test/import-scan.test.ts`、`test/dependency-guard.test.ts`）。
+`core/lib/` 九支，從 `storage.test.ts` 到 `ai-logic-error.test.ts`，清單在
+`jest.config.js` 的 `testMatch` 上，每一條旁邊都寫著為什麼收它。
+**`core/` 那幾支一行未改**，仍寫著 `from 'vitest'`——改的是「vitest 這個名字指到哪裡」，
+接線見 `test/vitest-shim.ts`。
 
 > `safety-copy.test.ts` 曾經在這張表上，票 `07` 拿掉了：保險副本在 React Native 這一側不接，
 > 讓它在這台跑等於暗示 `mobile/` 用得到它。那 14 條沒有損失，repo 根的 vitest 照跑。
@@ -124,9 +129,13 @@ Metro 那邊刻意**不用** `resolver.extraNodeModules`：那張表是照套件
 | `app/index.tsx` | 「複習」，預設那一頁 |
 | `app/cards/_layout.tsx` | 「卡片」底下的推入導覽。**系統的搜尋列只長在原生導覽列上**，因此這個 tab 比其他三個多一層 `Stack` |
 | `app/cards/index.tsx` | 卡片列表 |
-| `app/cards/[id].tsx` | 編輯卡片。現在是一頁「還沒做」，票 `16` 就地換掉 |
+| `app/cards/[id].tsx` | 編輯卡片（票 `16`）。編號是字面上的 `new` 就是新增 |
 | `app/stats.tsx` | 「統計」，一頁「還沒做」的說明 |
-| `app/data.tsx` | 「資料」，現在裝的是探針畫面 |
+| `app/data/_layout.tsx` | 「資料」底下的推入導覽。三個子畫面要系統的返回鈕，因此這個 tab 也多一層 `Stack` |
+| `app/data/index.tsx` | 資料頁本體（票 `18`） |
+| `app/data/language.tsx` | 介面語言，四列打勾 |
+| `app/data/sign-in.tsx` | 登入雲端備份。「改用別的暱稱」走的也是這一頁 |
+| `app/data/password.tsx` | 換密碼 |
 | `lib/app-context.tsx` | 儲存、複習流程、雲端備份，四個畫面共用同一份 |
 
 **共用那一份不是可有可無的講究。** 那三樣彼此接線（雲端拉下來要重建複習佇列、每次評分存完
@@ -207,8 +216,9 @@ JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaS
 
 **`crypto.randomUUID()`、`crypto.subtle`、`btoa()`／`atob()` 都是補上去的。** 瀏覽器裡這些
 是免費附贈的，React Native 一個都沒有。補丁在 `lib/install-crypto.ts`，接在 `index.ts` 第一行，
-三件事的順序不能換（見該檔）。自動測試看不到這件事（Node 自己全都有），所以探針畫面那顆按鈕
-刻意走 `addBook()`——補丁沒生效的話一按就當場丟例外。
+三件事的順序不能換（見該檔）。自動測試看不到這件事（Node 自己全都有），守它的是卡片列表那顆
+「＋ 新增單字本」——它走 `addBook()`，而 `addBook()` 要 `crypto.randomUUID()`，
+補丁沒生效的話一按就當場丟例外。（票 `15` 之前守它的是探針上那顆「加 5 張卡」，同一條路。）
 
 ## 雲端備份怎麼加密
 
@@ -296,6 +306,15 @@ iPhone 7 與更舊的機器。
 會變成淺色玻璃，配深色背景就髒了。
 
 **`platforms: ["ios"]`** — 不做 Android，連帶把 Android 與網頁版的範本素材都刪掉了。
+
+**`ios.infoPlist.CFBundleLocalizations`**（票 `18`）— 列出這支 app 講得出來的三種語言
+（`zh-Hant`、`en`、`ja`）。**iOS「設定 → JP Vocab」裡那個「語言」項目只有列了才長得出來**，
+而那是「跟著系統走」那條路的入口。app 內另有一份選單（資料頁的介面語言），兩條路的優先順序
+是現成的：app 內選「系統預設」時才聽系統的（`core/i18n/index.ts` 的 `t()`）。
+
+**`app.json` 的 `plugins` 沒有列 `expo-sharing`**（票 `18`）— `npx expo install` 會順手加，
+但它管的是**收**別的 app 分享過來的東西，`enabled` 不給就整支不做事。這支 app 只往外送，
+留著會讓人以為它收得到分享。原生模組本身靠 autolinking 接，與那個外掛無關。
 
 **`ITSAppUsesNonExemptEncryption: false`** — 出包時 EAS 問的那一題。
 

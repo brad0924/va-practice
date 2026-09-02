@@ -117,13 +117,13 @@ export function ReviewScreen({ session }: ReviewScreenProps) {
     <View style={styles.root} key={fontScale}>
       {/**
        * **這層 `ScrollViewMarker` 是導覽列會不會捲動縮小的唯一開關**，理由的正本在
-       * `./probe-screen.tsx` 那一顆的說明。它不畫任何東西，只負責告訴原生那一端
+       * `./data-screen.tsx` 那一段。它不畫任何東西，只負責告訴原生那一端
        * 「這一頁要盯的捲動區是這個」——沒有它，`app/_layout.tsx` 那行
        * `minimizeBehavior="onScrollDown"` 在這一頁上永遠不會發生任何事。
        *
        * **這一頁最需要它。** 票 `09` 接受「底部一次兩條 chrome」這個代價時，寫下的減輕因素
        * 就是「iOS 26 的導覽列會在捲動時自己縮小」，而那句話講的正是最大字級下評分鈕堆成
-       * 四行的這一頁。只接探針那一頁的話，那筆帳就沒有兌現。
+       * 四行的這一頁。只接資料頁那一頁的話，那筆帳就沒有兌現。
        *
        * `flex: 1` 要跟著搬上來：它是一個真的 view、沒有預設的伸縮，少了這一行捲動區會被
        * 壓成內容高度，卡片就不再撐滿兩條列之間那一段。

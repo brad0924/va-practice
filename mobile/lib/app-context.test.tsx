@@ -53,13 +53,6 @@ jest.mock('@core/lib/cloud-crypto-vectors', () => ({
 }));
 
 /**
- * 雲端那一端換成假貨：這支測試要看的是**有沒有推、有沒有接回登入**，不是接上之後發生什麼事。
- *
- * 遞進去的那組回呼留一份（`mockProbeHooks`）。票 `10` 驗收有一條是「雲端拉下來時複習佇列
- * 要跟著重建」，而那條接線就住在這支檔裡（`onPulled` → `session.reload()`）——
- * 手上有那組回呼，才驗得到它真的接上了，不必去碰真正的雲端備份。
- */
-/**
  * 假的 Keychain。真的那一支底下是原生模組，Node 裡沒有那一半。
  *
  * 它交出來的那格儲存**必須與 MMKV 那一格是不同的東西**：暱稱密碼進 Keychain（跟著
@@ -110,13 +103,26 @@ jest.mock('./cloud-consent-native', () => ({
   }),
 }));
 
+/**
+ * 雲端那一端換成假貨：這支測試要看的是**有沒有推、有沒有接回登入**，不是接上之後
+ * 發生什麼事（那一層由 `core/lib/cloud-backup.ts` 自己的測試守）。
+ *
+ * 遞進去的那組回呼留一份（`mockCloudHooks`）。票 `10` 驗收有一條是「雲端拉下來時複習佇列
+ * 要跟著重建」，而那條接線就住在這支檔裡（`onPulled` → `session.reload()`）——
+ * 手上有那組回呼，才驗得到它真的接上了，不必真的去打一次網路。
+ *
+ * > 票 `18` 之前假的是 `./cloud-probe.ts`。那支丟棄式的接線隨著探針畫面一起刪掉，
+ * > 這一段的接線搬進了 `app-context.tsx` 自己，因此改成假 `createCloudBackup()`。
+ * > 順帶換了一件事：`onPulled` 現在收的是**未解析的 JSON 原文加時間戳**，
+ * > 不是一份現成的 `AppData`——這支測試因此也走一次真的匯入驗證路徑。
+ */
 const mockPush = jest.fn();
 const mockBegin = jest.fn();
-let mockProbeHooks: CloudProbeHooks | null = null;
+let mockCloudHooks: CloudBackupHooks | null = null;
 
-jest.mock('./cloud-probe', () => ({
-  createCloudProbe: (hooks: CloudProbeHooks) => {
-    mockProbeHooks = hooks;
+jest.mock('@core/lib/cloud-backup', () => ({
+  createCloudBackup: (hooks: CloudBackupHooks) => {
+    mockCloudHooks = hooks;
     return {
       nickname: () => null,
       begin: mockBegin,
@@ -133,7 +139,7 @@ jest.mock('./cloud-probe', () => ({
 // 建雲端那一端，假貨要先就位。（babel 會把 jest.mock 提到最前面，順序是寫給人看的。）
 import { AppProvider, useApp, type AppShared } from './app-context';
 import type { StorageLike } from '@core/lib/storage';
-import type { CloudProbeHooks } from './cloud-probe';
+import type { CloudBackupHooks } from '@core/lib/cloud-backup';
 import { MARKER, TRIGGER_FILE, RESULT_FILE } from './crypto-self-check';
 
 const TRIGGER_PATH = `documents/${TRIGGER_FILE}`;
@@ -339,19 +345,21 @@ describe('開機時接回雲端登入狀態', () => {
     const shared = await mount();
     // 綁成區域常數再用：守衛過了還寫 `?.` 的話，「回呼根本沒接上」會被默默吞掉，
     // 這支測試就變成永遠不會紅。
-    const probe = mockProbeHooks;
-    if (probe === null) throw new Error('雲端那一端沒有拿到接線');
+    const hooks = mockCloudHooks;
+    if (hooks === null) throw new Error('雲端那一端沒有拿到接線');
 
-    // 真的雲端備份會先把拉下來那份寫進儲存，再叫 `onPulled`。這裡照著那個順序演一次。
+    // 真的雲端備份解完密之後遞的是**一段 JSON 原文加伺服器的時間戳**，寫檔那一步由
+    // `onPulled` 自己做。這裡照著那個介面演一次，順便走過真的匯入驗證路徑。
     // 卡片編號刻意換過：只斷言「佇列裡有一張卡」的話，掛載時本來就在的那份也會讓它綠——
     // 要看的是**拉下來的那張**有沒有進到佇列裡。
     const local = seed();
     const pulled: AppData = { ...local, cards: [{ ...local.cards[0], id: 'card-拉下來的' }] };
     await act(async () => {
-      shared.store.save(pulled);
-      probe.onPulled(pulled);
+      hooks.onPulled(JSON.stringify(pulled), 1_700_000_000_000);
     });
 
     expect(currentCard(shared.session.snapshot().queue)?.id).toBe('card-拉下來的');
+    // 伺服器蓋的時間戳要留在本機那份上，下次開 app 才比得出新舊。
+    expect(shared.store.load().updatedAt).toBe(1_700_000_000_000);
   });
 });

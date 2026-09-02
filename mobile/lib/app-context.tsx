@@ -11,11 +11,11 @@
 import { getLocales } from 'expo-localization';
 import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { initI18n } from '@core/i18n';
+import { initI18n, setLang as switchLang, type LangChoice } from '@core/i18n';
 import { createStore, type StorageLike, type Store } from '@core/lib/storage';
-import type { CloudBackup } from '@core/lib/cloud-backup';
+import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import type { CloudConsent } from '@core/lib/cloud-consent';
-import { createCloudProbe } from './cloud-probe';
+import type { AppData } from '@core/lib/types';
 import { createNativeCloudConsent } from './cloud-consent-native';
 import { isSelfCheckRequested, reportCryptoSelfCheck } from './crypto-self-check';
 import { rateHaptic } from './haptics';
@@ -60,15 +60,53 @@ function createWiring(
   onStatus: (message: string) => void,
 ) {
   let session: ReviewSession;
-  const cloud = createCloudProbe({
+  /**
+   * 雲端備份本體。**`cloud-backup.ts` 一個字沒改**，遞進去的東西與網頁版 `src/app.ts`
+   * 對應的那一段一樣。
+   *
+   * > 這一段本來住在 `./cloud-probe.ts`。那支檔是丟棄式的，檔頭寫著「資料頁那張票動工時
+   * > 整支刪掉」——票 `18` 就是那張票，於是它連同探針畫面一起沒了。搬來這裡不是換地方，
+   * > 是回到它本來就該在的位置：這個閉包本來就在建它。
+   */
+  const cloud = createCloudBackup({
     // **暱稱與密碼那一格是 Keychain，不是 MMKV**（票 `17`）：那一筆標記為可同步，
     // 換新 iPhone 時跟著 iCloud 鑰匙圈走（見 `./keychain-native.ts` 與 `ADR-0019`）。
     storage: cloudStorage,
-    store,
-    // 兩條刻意分開：拉下來是「整份資料被換掉了」，要重讀；推上去只是伺服器蓋了新的
-    // 時間戳，資料一個字沒變，動不得——理由見 `./review-session.ts` 的 `noteCloudTimestamp`。
-    onPulled: () => session.reload(),
-    onPushed: (updatedAt) => session.noteCloudTimestamp(updatedAt),
+    // bind 不可省：`fetch` 被拆下來單獨呼叫時會丟 Illegal invocation，
+    // 與網頁版 `src/app.ts` 綁 window 是同一件事。
+    fetch: fetch.bind(globalThis),
+
+    /**
+     * 雲端那份比較新，整份換掉。走一次匯入的驗證路徑，與網頁版同一條——壞掉的雲端資料
+     * 弄不壞本機這份。
+     */
+    onPulled(json, updatedAt) {
+      const pulled: AppData = { ...store.importJson(json), updatedAt };
+      store.save(pulled);
+      // 拉下來是「整份資料被換掉了」，複習佇列要跟著重建。
+      session.reload();
+    },
+
+    /**
+     * 推上去了，伺服器蓋了一個新的時間戳。**資料內容一個字沒變**，只有這一格要記下來。
+     *
+     * 與 `onPulled` 分成兩支，是因為兩邊該做的事相反：那邊要重讀、要重建佇列，
+     * 這邊什麼都不能動——評完一張卡等伺服器回覆的那一瞬間重洗佇列的話，
+     * 使用者會看到手上那張卡憑空換人（理由的正本在 `./review-session.ts`）。
+     */
+    onPushed(updatedAt) {
+      session.noteCloudTimestamp(updatedAt);
+    },
+
+    /**
+     * 那一行狀態字。**這兩支自己一句話都不說**，與網頁版 `src/app.ts` 一致——
+     * 講話的是 `cloud-backup.ts`，而它說的每一句都查表（`cloud.offlineNote`、
+     * `cloud.tooLarge` 那幾條）。
+     *
+     * > 探針時代這裡多接了兩句寫死的中文（「雲端比較新，拉下來了：N 本 · M 張卡」）。
+     * > 那是診斷，不是介面文字，因此沒進翻譯檔；票 `18` 明訂資料頁上不留任何診斷，
+     * > 兩句跟著探針一起走。
+     */
     onStatus,
   });
 
@@ -99,6 +137,15 @@ export interface AppShared {
   session: ReviewSession;
   cloudStatus: string;
   setCloudStatus(message: string): void;
+  /**
+   * 換介面語言，並把整支 app 重畫一次（票 `18`）。網頁版 `src/app.ts` 的 `setLang()`
+   * 是同一支：`switchLang()` 只負責存，重畫那一步一直是接線層的事。
+   *
+   * **重畫非做不可**：`t()` 是在畫的那一刻查表的，不重畫的話換完語言畫面一個字都不會變。
+   * 走這條而不是讓語言子畫面自己叫 `setLang()`，是因為要換的不只那一頁——底下四個 tab
+   * 的字也要跟著換，而那一排住在 `../app/_layout.tsx`（見該檔的 `Shell`）。
+   */
+  setLang(choice: LangChoice): void;
 }
 
 const AppContext = createContext<AppShared | null>(null);
@@ -241,6 +288,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         session: wiring.session,
         cloudStatus,
         setCloudStatus,
+        setLang(choice) {
+          switchLang(choice);
+          redraw();
+        },
       }}
     >
       {children}

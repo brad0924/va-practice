@@ -247,7 +247,7 @@ export function CardsScreen({ session, now, onOpenCard, onAddCard }: CardsScreen
 
       {/**
        * **這層 `ScrollViewMarker` 是 tab bar 會不會捲動縮小的唯一開關**，理由的正本在
-       * `./probe-screen.tsx`。它不畫任何東西，只告訴原生那一端「這一頁要盯的捲動區是這個」。
+       * `./data-screen.tsx`。它不畫任何東西，只告訴原生那一端「這一頁要盯的捲動區是這個」。
        *
        * 兩條規矩不能破：只能有一個孩子（原生那邊有 assert），而且那個孩子要解析得出捲動區。
        * `SectionList` 底下就是一個 `ScrollView`，解析得出。

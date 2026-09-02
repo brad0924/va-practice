@@ -316,100 +316,15 @@ export async function askReadingNative(
   }, onAttempt);
 }
 
-// ── 探針：只給資料頁那支診斷畫面用 ──────────────────────────────────
+/* 這裡以前還有一段探針：`probeReading()` 逐段跑一次讀音預填，把每一段發生了什麼原樣攤出來，
+   加上一支把錯攤成一行字的 `describe()`。資料頁那顆「試問一次讀音」按的就是它（票 `16`）。
 
-/**
- * 把一個錯攤成一行看得懂的字。
- *
- * 挖的四格都是 SDK 公開介面的一部分：`name`、`code`、`customErrorData.status`、`message`。
- * 最後補一份 `String(error)` 當兜底——連 Error 都不是的東西上面四格全是空的。
- */
-function describe(error: unknown): string {
-  if (error instanceof SilentError) return 'SilentError（那條刻意不出聲的路，沒有附原因）';
-  const seen = (typeof error === 'object' && error !== null ? error : {}) as {
-    name?: unknown;
-    code?: unknown;
-    message?: unknown;
-    customErrorData?: { status?: unknown };
-  };
-  const parts = [
-    typeof seen.name === 'string' ? `name=${seen.name}` : null,
-    typeof seen.code === 'string' ? `code=${seen.code}` : null,
-    typeof seen.customErrorData?.status === 'number' ? `status=${seen.customErrorData.status}` : null,
-    typeof seen.message === 'string' ? seen.message : null,
-  ].filter((part) => part !== null);
-  return parts.length > 0 ? parts.join(' · ') : String(error);
-}
+   票 `18` 整段刪掉——資料頁上不留任何診斷。
 
-/**
- * 逐段跑一次讀音預填，每一段各自報告發生了什麼。**只有資料頁那支探針畫面叫它。**
- *
- * ## 為什麼非要有這一支
- *
- * 上線那條路（`askReadingNative`）**故意把三種失敗都收斂成靜默**：接線壞了、憑證要不到、
- * Google 不認這張票，畫面上一個字都不出（spec 決定十一）。那對使用者是對的——他一點辦法
- * 都沒有。但對維護者是災難：**「壞了」跟「它根本沒試」長得一模一樣**，而且維護者的開發機
- * 是 Windows，看不到裝置上的主控台（`.scratch/rn-rewrite/issues/03`）。
- *
- * 2026-09-01 真機第一次裝上帶 Firebase 的包，讀音預填毫無反應，就卡在這件事上。
- *
- * ## 它跑的是真的那條線，不是另接一份
- *
- * 三段都走 `ensure()` 接出來的同一組東西。**另外接一份的話驗過了也不代表編輯畫面會動**——
- * 那才是這支探針唯一的價值。差別只有一個：這裡不把錯翻成 `SilentError`，原樣攤開。
- *
- * > **資料頁那張票做好時，這一支要跟探針畫面一起消失。**
- */
-export async function probeReading(term: string): Promise<string[]> {
-  const lines: string[] = [];
+   **代價寫在這裡**：上線那條路（上面的 `askReadingNative`）故意把三種失敗都收斂成靜默
+   （接線壞了、憑證要不到、Google 不認這張票），畫面上一個字都不出。那對使用者是對的，
+   他一點辦法都沒有；但對維護者是災難——**「壞了」跟「它根本沒試」長得一模一樣**，
+   而且維護者的開發機是 Windows，看不到裝置上的主控台。2026-09-01 真機第一次裝上帶
+   Firebase 的包，讀音預填毫無反應，就卡在這件事上，為此燒掉兩趟真機。
 
-  let wiring: Wiring;
-  try {
-    wiring = await ensure();
-    const options = wiring.ai.app.options;
-    // 專案編號與 app 編號印出來，是為了證明 `GoogleService-Info.plist` 真的進了這個包。
-    // 兩格空的話問題在打包，不在憑證。
-    lines.push(`1. 接線 OK · project=${options.projectId} · appId=${options.appId}`);
-    lines.push(`   Remote Config：${wiring.config === null ? '掛不起來（用程式碼裡的後備值）' : 'OK'}`);
-  } catch (error) {
-    // 這裡不必自己把那份忘掉——`ensure()` 已經在接線失敗時清掉了，
-    // 所以這顆按鈕可以一直按，每一下都是真的重試一次。
-    lines.push(`1. 接線失敗：${describe(error)}`);
-    // 接不起來就沒有東西可以往下走了。
-    return lines;
-  }
-
-  try {
-    const result = await getToken(wiring.appCheck);
-    // 只印長度不印權杖本身：那是一張這台裝置的通行證，印在畫面上等於請人拍照帶走。
-    lines.push(`2. App Check 權杖 OK（長度 ${result.token.length}）`);
-  } catch (error) {
-    lines.push(`2. App Check 要不到權杖：${describe(error)}`);
-    // **仍然往下問**：Google 那端的回覆會說得更清楚（沒帶權杖多半換回 401）。
-  }
-
-  try {
-    const model = getGenerativeModel(
-      wiring.ai,
-      {
-        model: setting(wiring.config, REMOTE_MODEL_KEY),
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA as unknown as SchemaRequest,
-        },
-      },
-      { timeout: TIMEOUT_MS },
-    );
-    const result = await model.generateContent(
-      promptFor(term, setting(wiring.config, REMOTE_INSTRUCTIONS_KEY)),
-    );
-    const text = result.response.text();
-    lines.push(text === '' ? '3. 模型有回應，但內容是空的' : `3. 問到了：${text.slice(0, 300)}`);
-  } catch (error) {
-    // 這裡刻意**不走** `toReadingError()`：那一支的工作是把錯翻成使用者看得懂的話，
-    // 而 401 會被它翻成 `SilentError`——正是這支探針要挖出來的那一種。
-    lines.push(`3. 問模型失敗：${describe(error)}`);
-  }
-
-  return lines;
-}
+   要不要留一個只有維護者看得到的出口是 spec 層的決定，票 `16` 收尾時已經寫明它不歸畫面票。 */

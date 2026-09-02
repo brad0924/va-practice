@@ -163,6 +163,11 @@ const en: typeof zhHant = {
   'data.stopSync': 'Stop backing up',
   'data.stopConfirm':
     'Nothing is backed up to the cloud after this, and your cards and progress stay on this device in full. Stop backing up?',
+  'data.stopConfirmNative':
+    'Nothing is backed up to the cloud after this, and your cards and progress stay on this device in full. ' +
+    'The nickname and password remembered here are deleted as well, and if you have iCloud Keychain turned on, the copy on your other devices goes with them. ' +
+    'You have to enter the password again to pick the backup up later. Stop backing up?',
+  'data.switchNickname': 'Use a different nickname',
   'data.nickname': 'Nickname',
   'data.password': 'Password',
   'data.newPassword': 'New password',
