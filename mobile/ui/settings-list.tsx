@@ -29,9 +29,21 @@
  * 「持續高亮」在單欄的 iPhone 上看不到（那條規矩對的是 iPad 的雙欄，左欄要標出右欄在看誰）。
  * 這支 app 只出 iPhone 直式（`app.json` 的 `orientation: "portrait"`），因此接受這個缺口。
  * 哪天要支援 iPad 的雙欄，這一段要重新想過。
+ *
+ * ## 帶控制項的兩種列（票 `19`）
+ *
+ * `SettingsSwitchRow` 與 `SettingsTimeRow` 是 `SettingsRow` 的兄弟，不是它的參數。
+ * 三者共用底下同一份 `styles`，因此列高、左右內距、分隔線的起算點都是同一套——
+ * **票 `19` 要的正是這件事**（各畫各的就會走鐘）。
+ *
+ * 分成三支而不是往 `SettingsRow` 塞旗標，是因為它們的按法不一樣：那一支整列是一顆按鈕，
+ * 這兩支整列不能按，按的是右邊那個控制項本身（iOS 的「設定」也是這樣，點開關那一列的
+ * 空白處什麼都不會發生）。壓成一支的話會多出「有 `switchValue` 就不要包 Pressable」
+ * 這種互斥規則，而那種規則寫錯了編譯器不會攔。
  */
-import { Children, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Children, useMemo, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Switch, Text, View, type ViewStyle } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { color, fontSize, SCREEN_INSET, TAP_SIZE, weight } from './theme';
 
 /**
@@ -147,6 +159,97 @@ export function SettingsRow({ label, value, chevron, checked, tone, onPress }: S
   );
 }
 
+export interface SettingsSwitchRowProps {
+  label: string;
+  value: boolean;
+  onValueChange(on: boolean): void;
+  /** 系統對話框跳出來的期間鎖住，免得連點兩下變成兩次請求。 */
+  disabled?: boolean;
+}
+
+/**
+ * 帶開關的一列。
+ *
+ * **整列不包 `Pressable`**：能按的只有右邊那顆開關，包起來 VoiceOver 會把整列唸成按鈕，
+ * 而按它什麼都不會發生。開關自己就是個有 role 的控制項，標籤靠 `accessibilityLabel` 接上去。
+ */
+export function SettingsSwitchRow({
+  label,
+  value,
+  onValueChange,
+  disabled,
+}: SettingsSwitchRowProps) {
+  return (
+    <View style={[styles.row, styles.controlRow]}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.spring} />
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        accessibilityLabel={label}
+      />
+    </View>
+  );
+}
+
+export interface SettingsTimeRowProps {
+  label: string;
+  /** `HH:MM`，24 小時制。與 `core/lib/daily-reminder.ts` 那一格同一個形狀。 */
+  time: string;
+  onChange(time: string): void;
+}
+
+/**
+ * 帶時間膠囊的一列。點膠囊，滾輪在原地展開，不推入新頁（票 `19` 決定四）。
+ *
+ * **膠囊本身就是系統那個 `UIDatePicker`**（`display="compact"`），不是自己畫一顆再去叫
+ * 滾輪出來。因此 12／24 小時制、字級、深淺色、展開的動畫全部跟著系統走，一行都不必寫；
+ * 自己做一個只會比它差（票 `18` 就是這麼決定的）。對照組是 iOS 內建「提醒事項」設時間的樣子。
+ *
+ * 收與交都是 `HH:MM` 而不是 `Date`：呼叫端手上那一格本來就是 `HH:MM`，讓它每次自己翻一趟
+ * 只是把同一段換算複製到別處。**年月日在這裡沒有意義**，底下那個 `Date` 只是滾輪要的容器。
+ */
+export function SettingsTimeRow({ label, time, onChange }: SettingsTimeRowProps) {
+  /**
+   * 滾輪要的那個 `Date`。
+   *
+   * `core/lib/daily-reminder.ts` 底下也有一支拆 `HH:MM` 的（`parseTime()`），**沒有共用**：
+   * 那一支沒有 export，而票 `19` 明訂 `core/` 一行都不改。兩邊要的東西也不同——那邊拆出
+   * 時與分交給原生組觸發時刻，這邊要的是一個給控制項用的容器。
+   *
+   * 每次重畫都造一個新的 `Date` 會讓滾輪跟著重來一次，因此只在時刻真的變了才換。
+   */
+  const value = useMemo(() => {
+    const [hour, minute] = time.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hour, minute, 0, 0);
+    return date;
+  }, [time]);
+
+  return (
+    <View style={[styles.row, styles.controlRow]}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.spring} />
+      <DateTimePicker
+        mode="time"
+        display="compact"
+        value={value}
+        // 這裡收的是 `onValueChange`：套件從第 9 版起把 `onChange` 標成棄用，
+        // 用它會在 dev 模式印一行警告。
+        onValueChange={(_event, picked) => onChange(toClock(picked))}
+        accessibilityLabel={label}
+      />
+    </View>
+  );
+}
+
+/** `Date` 的時與分寫成 `HH:MM`。個位數要補一個零，那一格只裝得下這個形狀。 */
+function toClock(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 /** 群組與群組之間的間距，讓呼叫端疊在同一個捲動區裡。 */
 export const settingsListStyle: ViewStyle = {
   paddingHorizontal: SCREEN_INSET,
@@ -185,6 +288,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: ROW_INSET,
     paddingVertical: 10,
     gap: 8,
+  },
+  /**
+   * 右邊擺的是控制項而不是字時，上下內距要收窄。
+   *
+   * 開關本身高 31 點、時間膠囊約 34 點，配上原本的 `paddingVertical: 10` 會把列撐到 51／54，
+   * 而旁邊純文字的列是 44——同一組清單裡三種列高，一眼看得出來。收成 6 之後開關那列剛好
+   * 落回 `minHeight` 的 44，時間那列 46，兩者與純文字列並排看不出差別。
+   *
+   * **這仍然是 `minHeight` 不是 `height`**：字級調大時列由標籤撐開，Dynamic Type 活著。
+   */
+  controlRow: {
+    paddingVertical: 6,
   },
   /** 按下去的樣子（HIG `B-03`）。整列亮起來，與 iOS 的清單一致。 */
   pressed: {

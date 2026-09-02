@@ -190,6 +190,11 @@ const en: typeof zhHant = {
   'data.reminderTitle': 'Daily reminder',
   'data.reminderToggle': 'Remind me every day',
   'data.reminderTime': 'at',
+  // 手機版分組清單那兩列的標籤。**與上面兩條的值有重疊是刻意的**：英文那句不帶逗號，
+  // 拆成兩列之後剛好照用；讀不通的是 `data.reminderTime` 那個孤立的 `at`（票 19）。
+  // 為什麼不直接改上面兩條，見 `zh-Hant.ts` 同一處。
+  'data.reminderSwitch': 'Remind me every day',
+  'data.reminderWhen': 'Reminder time',
   'data.reminderHint':
     'You are only nudged on days that have cards due, days with none stay quiet; and once you have finished reviewing, the rest of that day stays quiet too. ' +
     'This switch applies to this device only. It is not uploaded to the cloud and does not appear in exported backup files.',

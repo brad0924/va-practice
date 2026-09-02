@@ -173,6 +173,11 @@ const ja: typeof zhHant = {
   'data.reminderTitle': '毎日のリマインド',
   'data.reminderToggle': '毎日リマインドする、',
   'data.reminderTime': '通知時刻',
+  // 手機版分組清單那兩列的標籤。時刻那條與上面同字是刻意的——日文這邊讀不通的是
+  // `data.reminderToggle` 結尾那個逗號（票 19）。為什麼不直接改上面兩條，
+  // 見 `zh-Hant.ts` 同一處。
+  'data.reminderSwitch': '毎日リマインドする',
+  'data.reminderWhen': '通知時刻',
   'data.reminderHint':
     '期日のカードがある日だけ通知します。1枚もない日は通知しません。その日の復習を終えたあとは、残りのリマインドも届きません。' +
     'この設定はこの端末にだけ適用され、クラウドにはアップロードされず、書き出したバックアップファイルにも入りません。',

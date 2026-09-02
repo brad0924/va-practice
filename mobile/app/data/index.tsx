@@ -14,7 +14,7 @@ import { shareFileNative } from '../../lib/share-file-native';
 import { DataScreen } from '../../ui/data-screen';
 
 export default function DataRoute() {
-  const { session, cloud, cloudConsent, cloudStatus } = useApp();
+  const { session, cloud, cloudConsent, reminder, cloudStatus } = useApp();
   const router = useRouter();
 
   return (
@@ -22,6 +22,9 @@ export default function DataRoute() {
       session={session}
       cloud={cloud}
       cloudConsent={cloudConsent}
+      // 每日提醒也是共用的那一份（票 `19`）：評分存完之後的整批重排接在
+      // `../../lib/app-context.tsx` 裡，這一頁自己再建一個就是兩台各排各的。
+      reminder={reminder}
       cloudStatus={cloudStatus}
       // 當前時間由外面遞進來，與 `core/` 那一層同一個規矩。匯出的檔名要用它。
       now={() => new Date()}

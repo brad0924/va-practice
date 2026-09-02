@@ -9,7 +9,7 @@
  * | 介面語言 | 做 |
  * | 雲端備份 | 做 |
  * | Gemini 金鑰 | 本來就不長。iOS 走固定金鑰，使用者什麼都不必設定（`ADR-0016`） |
- * | 每日提醒 | 票 `19` |
+ * | 每日提醒 | 票 `19` 接上了，排在雲端備份與手動備份之間 |
  * | 手動備份 | 做 |
  *
  * ## 版面：系統風格的分組清單
@@ -41,17 +41,26 @@
  */
 import { File } from 'expo-file-system';
 import { Stack } from 'expo-router';
-import { useReducer, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useReducer, useState } from 'react';
+import { Alert, AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { ScrollViewMarker } from 'react-native-screens/experimental';
 import { lang, t } from '@core/i18n';
 import { toMessage } from '@core/lib/app-error';
+import { APP_NAME } from '@core/lib/app-name';
 import type { CloudBackup } from '@core/lib/cloud-backup';
 import type { CloudConsent } from '@core/lib/cloud-consent';
+import type { DailyReminder } from '@core/lib/daily-reminder';
 import { toDateKey } from '@core/lib/review';
 import type { ReviewSession } from '../lib/review-session';
 import { langLabel } from './language-screen';
-import { SettingsFooterText, SettingsGroup, SettingsRow, settingsListStyle } from './settings-list';
+import {
+  SettingsFooterText,
+  SettingsGroup,
+  SettingsRow,
+  SettingsSwitchRow,
+  SettingsTimeRow,
+  settingsListStyle,
+} from './settings-list';
 import { color, TAB_BAR_CLEARANCE } from './theme';
 
 /**
@@ -72,6 +81,12 @@ export interface DataScreenProps {
   cloud: CloudBackup;
   /** 這台裝置要不要接雲端。這一頁讀 `declined()`，並在接回來時 `grant()`。 */
   cloudConsent: CloudConsent;
+  /**
+   * 每日提醒（票 `19`）。**「該不該再問一次權限」、「被拒絕之後要不要重問」那些判斷
+   * 全部住在它裡面**，這一頁只負責把手指翻成 `enable()`／`disable()`／`setTime()`，
+   * 再把它答出來的狀態畫出來。
+   */
+  reminder: DailyReminder;
   /** 雲端備份自己說的那行狀態字（推不上去、離線⋯⋯）。空字串代表沒事發生。 */
   cloudStatus: string;
   /** 現在幾點。匯出的檔名要用，與 `core/` 那一層同一個規矩：時間由外面遞進來。 */
@@ -94,6 +109,7 @@ export function DataScreen({
   session,
   cloud,
   cloudConsent,
+  reminder,
   cloudStatus,
   now,
   shareFile,
@@ -112,6 +128,86 @@ export function DataScreen({
 
   /** 匯出或匯入失敗那一行。成功不留話。 */
   const [failure, setFailure] = useState('');
+
+  /**
+   * 每日提醒那一組的三格畫面狀態（票 `19`）。
+   *
+   * **這三格是「畫面現在顯示什麼」，不是「事實是什麼」**——事實一律問 `reminder`，
+   * 而底下每一次改動都是先叫它、再把它答出來的值抄過來，不是自己算一個。
+   * 兩邊各記各的話，開關與真正登記出去的那一批就會各說各話。
+   */
+  const [reminderOn, setReminderOn] = useState(() => reminder.enabled());
+  const [reminderTime, setReminderTime] = useState(() => reminder.time());
+  /** 權限被拒絕（或被收回）那一段字要不要出現。 */
+  const [reminderDenied, setReminderDenied] = useState(false);
+  /** 系統對話框跳出來的期間鎖住開關，免得連點兩下變成兩次請求。 */
+  const [reminderAsking, setReminderAsking] = useState(false);
+
+  /**
+   * 問一次「提醒現在是不是真的還在運作」，不是的話把開關彈回去並說明原因。
+   *
+   * 一個亮著卻收不到提醒的開關正是 spec 決定二十四禁止的假象。`verify()` 拿到 false 時
+   * 自己就會把開關關掉、清空已登記的，這裡只負責把畫面跟上去。
+   * 關著時一次都不問——沒開的提醒沒有「還成不成立」可言。
+   */
+  const verifyReminder = useCallback(() => {
+    if (!reminder.enabled()) return;
+    void reminder.verify().then((live) => {
+      if (live) return;
+      setReminderOn(false);
+      setReminderDenied(true);
+    });
+  }, [reminder]);
+
+  /**
+   * 兩條路都要問：這一頁第一次出來時，以及每次 app 從背景回到前景時。
+   *
+   * **第二條不能省。** 網頁版每次進「資料」畫面都重建整片 DOM，因此那邊問一次就夠了；
+   * 這裡的四個 tab 底下是 `UITabBarController`（見 `../app/_layout.tsx`），**畫面掛上去
+   * 之後就不會卸載**，切走再切回來不會再跑一次 `useEffect`。少了回到前景這一條，
+   * 「去『設定 → JP Vocab → 通知』把通知關掉，回到 app」那條路上開關會一直亮著，
+   * 而那正是決定二十四禁止的假象。
+   *
+   * 從系統設定回來時使用者往往還停在這一頁，`AppState` 是唯一接得到那件事的訊號——
+   * 畫面沒有卸載，也沒有重新聚焦。`../lib/app-context.tsx` 用同一個事件做跨日檢查。
+   */
+  useEffect(() => {
+    verifyReminder();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') verifyReminder();
+    });
+    return () => subscription.remove();
+  }, [verifyReminder]);
+
+  /**
+   * 開關被扳動了。
+   *
+   * 關掉那條是同步的，開起來那條要先過通知權限那一關，因此**先把開關扳過去再等**——
+   * 不先扳的話，系統對話框跳出來的那一兩秒，開關會停在原位，看起來像沒按到。
+   * 被拒絕時再彈回去，與網頁版 `src/ui/data-view.ts` 的 `deny()` 同一個處理。
+   */
+  const toggleReminder = (on: boolean): void => {
+    setReminderDenied(false);
+    if (!on) {
+      reminder.disable();
+      setReminderOn(false);
+      return;
+    }
+    setReminderOn(true);
+    setReminderAsking(true);
+    void reminder.enable().then((granted) => {
+      setReminderAsking(false);
+      // 讀回它記著的那一格，不是直接用 `granted`：那一格才是後面重排會看的東西。
+      setReminderOn(reminder.enabled());
+      if (!granted) setReminderDenied(true);
+    });
+  };
+
+  /** 改了幾點叫。`reminder` 自己會依新時間整批重排，這裡只把畫面跟上去。 */
+  const changeReminderTime = (time: string): void => {
+    reminder.setTime(time);
+    setReminderTime(reminder.time());
+  };
 
   /**
    * 雲端那一區現在是哪一種樣子。**票 `18` 那張四種狀態的表就是這一行**：
@@ -321,6 +417,43 @@ export function DataScreen({
             )}
             {state.kind === 'active' && (
               <SettingsRow label={t('data.stopSync')} tone="danger" onPress={confirmStop} />
+            )}
+          </SettingsGroup>
+
+          {/**
+           * 每日提醒（票 `19`）。排在雲端備份與手動備份之間，與網頁版那一頁同一個順序。
+           *
+           * 兩列都用 `settings-list.tsx` 那兩支，不在這裡自己畫——三頁共用同一套列高與
+           * 分隔線，各畫各的就會走鐘（理由的正本在該檔檔頭）。
+           */}
+          <SettingsGroup
+            title={t('data.reminderTitle')}
+            footer={
+              <>
+                <SettingsFooterText text={t('data.reminderHint')} />
+                {reminderDenied && (
+                  // `{app}` 是 iOS 設定 app 裡的項目名，也就是主畫面圖示底下那行字。
+                  <SettingsFooterText
+                    text={t('data.reminderDenied', { app: APP_NAME.short })}
+                    tone="danger"
+                  />
+                )}
+              </>
+            }
+          >
+            <SettingsSwitchRow
+              label={t('data.reminderSwitch')}
+              value={reminderOn}
+              onValueChange={toggleReminder}
+              disabled={reminderAsking}
+            />
+            {/* 關著的時候那一格沒有意義，長在那裡只會讓人以為關著也會叫（票 18 的立場）。 */}
+            {reminderOn && (
+              <SettingsTimeRow
+                label={t('data.reminderWhen')}
+                time={reminderTime}
+                onChange={changeReminderTime}
+              />
             )}
           </SettingsGroup>
 

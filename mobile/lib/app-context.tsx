@@ -12,12 +12,14 @@ import { getLocales } from 'expo-localization';
 import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { initI18n, setLang as switchLang, type LangChoice } from '@core/i18n';
-import { createStore, type StorageLike, type Store } from '@core/lib/storage';
+import { cardsInBooks, createStore, type StorageLike, type Store } from '@core/lib/storage';
 import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import type { CloudConsent } from '@core/lib/cloud-consent';
+import { planReminders, type DailyReminder } from '@core/lib/daily-reminder';
 import type { AppData } from '@core/lib/types';
 import { createNativeCloudConsent } from './cloud-consent-native';
 import { isSelfCheckRequested, reportCryptoSelfCheck } from './crypto-self-check';
+import { createNativeDailyReminder } from './daily-reminder-native';
 import { rateHaptic } from './haptics';
 import { loadNativeCloudStorage } from './keychain-native';
 import { createReviewSession, type ReviewSession } from './review-session';
@@ -60,6 +62,34 @@ function createWiring(
   onStatus: (message: string) => void,
 ) {
   let session: ReviewSession;
+
+  /**
+   * 現在幾點。**這個閉包裡只有一支**：複習佇列是依哪一天建的、提醒排在哪幾天，
+   * 兩者必須用同一把尺量，否則通知上的數字與打開 app 看到的會對不起來。
+   *
+   * 寫成遞進去的函式而不是各自 `new Date()`，也是這一層的規矩——當前時間一律由外面
+   * 遞進來（`./review-session.ts` 的檔頭、`core/lib/review.ts` 都是同一條）。
+   */
+  const now = () => new Date();
+
+  /**
+   * 每日提醒（票 `19`）。
+   *
+   * **吃的必須與 `buildQueue()` 同一批卡**（複習範圍內的那些），否則通知上的數字與使用者
+   * 打開 app 看到的對不起來。網頁版 `src/app.ts` 把這一行刻意排在建佇列那一行旁邊，
+   * 這裡的 `session.snapshot()` 交出來的正是同一份資料。
+   *
+   * 幾點叫由提醒自己記著並遞進來（那個 `time`），這裡不去讀那一格——兩邊各讀各的就有機會
+   * 讀到不一樣的答案。
+   *
+   * `session` 這時候還沒建好，但 `plan` 只有在使用者開開關或資料變動時才會被叫到，
+   * 那都是底下那一支建完之後的事。同一個閉包裡的 `cloud` 也是這樣接的。
+   */
+  const reminder = createNativeDailyReminder(storage, (time) => {
+    const { data } = session.snapshot();
+    return planReminders(cardsInBooks(data.cards, data.scopes.review), now(), time);
+  });
+
   /**
    * 雲端備份本體。**`cloud-backup.ts` 一個字沒改**，遞進去的東西與網頁版 `src/app.ts`
    * 對應的那一段一樣。
@@ -85,6 +115,10 @@ function createWiring(
       store.save(pulled);
       // 拉下來是「整份資料被換掉了」，複習佇列要跟著重建。
       session.reload();
+      // 那也是一次資料變動，提醒要整批重排。**這一條非補不可**：`reload()` 不經過
+      // `onPersisted`，漏掉的話「別台裝置複習完，這台的通知數字跟著改」就不成立。
+      // 網頁版 `src/app.ts` 的 `reload()` 底下就寫著同一句。
+      reminder.refresh();
     },
 
     /**
@@ -112,21 +146,30 @@ function createWiring(
 
   session = createReviewSession({
     store,
-    now: () => new Date(),
+    now,
     random: Math.random,
     onChange,
     /**
-     * **評分存完就直接推。**中間沒有閘門了。
+     * 本機存完一份新資料，接著推上雲端並把提醒整批重排。**兩件事排在一起**，
+     * 與網頁版 `src/app.ts` 的 `persist()` 同一個位置。
      *
-     * 票 `13` 之前這裡隔著一道：標答比對會把**全域**亂數來源換成表裡那個固定的初始向量，
-     * 那幾秒內推備份上去的話，那一份會用一個公開在版控裡的初始向量加密。
-     * 比對搬出使用者的啟動路徑之後沒有人再鎖亂數來源，閘門就沒有存在的理由。
+     * **評分存完就直接推，中間沒有閘門了。** 票 `13` 之前這裡隔著一道：標答比對會把
+     * **全域**亂數來源換成表裡那個固定的初始向量，那幾秒內推備份上去的話，那一份會用一個
+     * 公開在版控裡的初始向量加密。比對搬出使用者的啟動路徑之後沒有人再鎖亂數來源，
+     * 閘門就沒有存在的理由。
+     *
+     * 提醒那一步（票 `19`）是「資料一變就整批重排」：先清掉全部已登記的，再依最新資料
+     * 重新登記。「複習完就不再被叫」與「改了複習範圍數字跟著改」因此走的是同一條路徑，
+     * 不需要任何個別取消的邏輯。關著提醒時 `refresh()` 自己什麼都不做。
      */
-    onPersisted: (data) => cloud.push(data),
+    onPersisted: (data) => {
+      cloud.push(data);
+      reminder.refresh();
+    },
     haptic: rateHaptic,
   });
 
-  return { cloud, session };
+  return { cloud, session, reminder };
 }
 
 export interface AppShared {
@@ -135,6 +178,8 @@ export interface AppShared {
   /** 這台裝置要不要接雲端。畫面那一端用它記下「親手登入成功也算同意」。 */
   cloudConsent: CloudConsent;
   session: ReviewSession;
+  /** 這台裝置的每日提醒（票 `19`）。資料頁那一組開關讀它、也改它。 */
+  reminder: DailyReminder;
   cloudStatus: string;
   setCloudStatus(message: string): void;
   /**
@@ -243,6 +288,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void cloudConsent.wantsPull(cloud.nickname(), store.load().updatedAt > 0).then((pull) => {
       if (pull) cloud.begin(store.load());
     });
+
+    /**
+     * 開機把提醒的窗口往前推一次（票 `19`）。
+     *
+     * **這一步是必要的，不是保險。** 排的是未來七天，只靠資料變動觸發的話，一個
+     * 「開了 app 卻沒複習」的人在第八天之後完全收不到提醒。沒開提醒時它什麼都不做。
+     *
+     * **刻意排在那一問的外面，不掛在它的 `.then` 裡。** 提醒與雲端是兩件無關的事：
+     * 那一問答「不要」時提醒照排，而它萬一整個被拒絕，提醒也不該跟著整趟不發生。
+     * 網頁版 `src/app.ts` 的 `finishBoot()` 同樣是無條件叫它。
+     *
+     * 先後不重要：`cloud.begin()` 是非同步的，真的拉下一份新資料時會走 `onPulled`，
+     * 那裡自己再排一次。
+     */
+    wiring.reminder.refresh();
   }, [wiring]);
 
   /**
@@ -286,6 +346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         cloud: wiring.cloud,
         cloudConsent,
         session: wiring.session,
+        reminder: wiring.reminder,
         cloudStatus,
         setCloudStatus,
         setLang(choice) {

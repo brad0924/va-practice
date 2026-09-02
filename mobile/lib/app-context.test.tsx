@@ -2,6 +2,7 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, act } from '@testing-library/react-native';
 import { Text } from 'react-native';
+import { t } from '@core/i18n';
 import { currentCard, DEFAULT_EASE } from '@core/lib/review';
 import type { AppData } from '@core/lib/types';
 
@@ -135,11 +136,40 @@ jest.mock('@core/lib/cloud-backup', () => ({
   },
 }));
 
+/**
+ * 假的每日提醒。真的那一支底下是 `expo-notifications`，Node 裡沒有那一半。
+ *
+ * 這支測試要驗的是**三個呼叫點有沒有接上**（票 `19`），不是提醒自己怎麼排——那一層由
+ * `@core/lib/daily-reminder.ts` 自己的測試守。因此只記下 `refresh()` 被叫了幾次，
+ * 以及遞進去的那支 `plan` 交出來的是哪一批（它必須與複習佇列吃同一批卡）。
+ */
+const mockReminderRefresh = jest.fn();
+let mockReminderPlan: ((time: string) => readonly ScheduledReminder[]) | null = null;
+
+jest.mock('./daily-reminder-native', () => ({
+  createNativeDailyReminder: (
+    _storage: StorageLike,
+    plan: (time: string) => readonly ScheduledReminder[],
+  ) => {
+    mockReminderPlan = plan;
+    return {
+      enabled: () => true,
+      time: () => '08:00',
+      setTime: () => {},
+      enable: () => Promise.resolve(true),
+      verify: () => Promise.resolve(true),
+      disable: () => {},
+      refresh: mockReminderRefresh,
+    };
+  },
+}));
+
 // 這兩行排在 jest.mock 底下：app-context 一被 import 就會去開那格儲存、接介面字串表、
 // 建雲端那一端，假貨要先就位。（babel 會把 jest.mock 提到最前面，順序是寫給人看的。）
 import { AppProvider, useApp, type AppShared } from './app-context';
 import type { StorageLike } from '@core/lib/storage';
 import type { CloudBackupHooks } from '@core/lib/cloud-backup';
+import type { ScheduledReminder } from '@core/lib/daily-reminder';
 import { MARKER, TRIGGER_FILE, RESULT_FILE } from './crypto-self-check';
 
 const TRIGGER_PATH = `documents/${TRIGGER_FILE}`;
@@ -209,6 +239,8 @@ beforeEach(() => {
   mockAsked.length = 0;
   mockAnswer = true;
   mockKeychainFailure = null;
+  mockReminderRefresh.mockClear();
+  mockReminderPlan = null;
 });
 
 describe('開機時的標答比對', () => {
@@ -361,5 +393,82 @@ describe('開機時接回雲端登入狀態', () => {
     expect(currentCard(shared.session.snapshot().queue)?.id).toBe('card-拉下來的');
     // 伺服器蓋的時間戳要留在本機那份上，下次開 app 才比得出新舊。
     expect(shared.store.load().updatedAt).toBe(1_700_000_000_000);
+  });
+});
+
+describe('每日提醒的三個呼叫點（票 19）', () => {
+  it('開機畫面出來之後排一次', async () => {
+    await mount();
+
+    // 排的是未來七天，因此每開一次 app 就把窗口往前推一次。只靠資料變動觸發的話，
+    // 一個「開了 app 卻沒複習」的人在第八天之後完全收不到提醒。
+    expect(mockReminderRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('這台答「不要」不接雲端，提醒照樣排——那兩件事無關', async () => {
+    mockAnswer = false;
+
+    await mount();
+
+    expect(mockBegin).not.toHaveBeenCalled();
+    expect(mockReminderRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('評分存完就整批重排，與雲端推送掛在同一根上', async () => {
+    const shared = await mount();
+    await act(async () => {
+      shared.store.save(seed());
+      shared.session.reload();
+    });
+    // 開機那一趟已經排過一次，這裡只看評分帶出來的那一次。
+    mockReminderRefresh.mockClear();
+
+    await act(async () => {
+      shared.session.rate('good');
+    });
+
+    expect(mockReminderRefresh).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledTimes(1);
+  });
+
+  it('雲端拉下一份新的也要重排——那條路不經過 onPersisted', async () => {
+    await mount();
+    const hooks = mockCloudHooks;
+    if (hooks === null) throw new Error('雲端那一端沒有拿到接線');
+    mockReminderRefresh.mockClear();
+
+    await act(async () => {
+      hooks.onPulled(JSON.stringify(seed()), 1_700_000_000_000);
+    });
+
+    // 少了這一句，「別台裝置複習完，這台的通知數字跟著改」就不成立。
+    expect(mockReminderRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('排出來的那一批只吃複習範圍內的卡，與複習佇列同一批', async () => {
+    const shared = await mount();
+    const local = seed();
+    const 兩本兩張: AppData = {
+      ...local,
+      books: [...local.books, { id: 'book-2', name: '範圍外那本' }],
+      cards: [...local.cards, { ...local.cards[0], id: 'card-2', bookId: 'book-2' }],
+      // 複習範圍只勾第一本，第二本只在列表與統計裡。
+      scopes: { review: ['book-1'], list: ['book-1', 'book-2'], stats: ['book-1', 'book-2'] },
+    };
+    await act(async () => {
+      shared.store.save(兩本兩張);
+      shared.session.reload();
+    });
+
+    const plan = mockReminderPlan;
+    if (plan === null) throw new Error('提醒那一端沒有拿到 plan');
+    const batch = plan('08:00');
+
+    // 未來那幾天的張數是累積的，新卡從第一天起就算進去，因此每一則都該寫「1 張」。
+    // 寫成 2 就代表範圍外那張也被算進去了——通知上的數字與打開 app 看到的對不起來。
+    expect(batch.length).toBeGreaterThan(0);
+    for (const reminder of batch) {
+      expect(reminder.body).toBe(t('reminder.body', { count: 1 }));
+    }
   });
 });

@@ -1,11 +1,13 @@
 // 這一支是 mobile/ 自己新寫的，所以直接寫 Jest。`core/` 那批仍寫著 `from 'vitest'`
 // 並靠 `../test/vitest-shim.ts` 轉接——那個包袱只屬於搬過來的舊測試（票 `02`）。
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { t } from '@core/i18n';
+import { APP_NAME } from '@core/lib/app-name';
 import type { CloudBackup } from '@core/lib/cloud-backup';
 import type { CloudConsent } from '@core/lib/cloud-consent';
+import type { DailyReminder } from '@core/lib/daily-reminder';
 import { DEFAULT_EASE } from '@core/lib/review';
 import { createStore, type StorageLike } from '@core/lib/storage';
 import type { AppData } from '@core/lib/types';
@@ -36,6 +38,37 @@ let mockPicked: unknown = { canceled: true, result: null };
 jest.mock('expo-file-system', () => ({
   File: { pickFileAsync: () => Promise.resolve(mockPicked) },
 }));
+
+/**
+ * 時間膠囊底下是 iOS 自己的 `UIDatePicker`，Node 裡沒有那一半。
+ *
+ * 換成一顆按得動的東西：顯示現在是幾點幾分，按下去就把時刻換成 `MOCK_PICKED_TIME`。
+ * **這支測試看得到的只有「畫面有沒有把手指翻成正確的指令」**——滾輪長什麼樣、
+ * 跟不跟得上系統的 12／24 小時制，那兩件事在這台機器上全是假的，留給真機驗收。
+ */
+const MOCK_PICKED_TIME = { hour: 21, minute: 5 };
+
+jest.mock('@react-native-community/datetimepicker', () => {
+  const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    __esModule: true,
+    default: ({
+      value,
+      onValueChange,
+    }: {
+      value: Date;
+      onValueChange(event: unknown, date: Date): void;
+    }) => {
+      const picked = new Date(value);
+      picked.setHours(MOCK_PICKED_TIME.hour, MOCK_PICKED_TIME.minute, 0, 0);
+      return (
+        <Pressable onPress={() => onValueChange({}, picked)}>
+          <Text>{`${value.getHours()}:${value.getMinutes()}`}</Text>
+        </Pressable>
+      );
+    },
+  };
+});
 
 function fakeStorage(): StorageLike {
   const cells = new Map<string, string>();
@@ -110,6 +143,65 @@ function fakeCloud(initialNickname: string | null) {
   return { cloud, calls };
 }
 
+/**
+ * 假的每日提醒。**它真的記著開關與時刻**，與 `createDailyReminder()` 一致——
+ * 假貨若讓 `enabled()` 一直答同一個答案，「被拒絕時開關彈回去」這條就永遠測不到。
+ *
+ * `enable()` 與 `verify()` 的答案由外面決定：這支測試要驗的是**畫面怎麼反應**，
+ * 不是那三支方法自己怎麼判斷（那一層由 `core/lib/daily-reminder.ts` 自己的測試守）。
+ */
+function fakeReminder(options: { enabled?: boolean; granted?: boolean; live?: boolean } = {}) {
+  let on = options.enabled ?? false;
+  let time = '08:00';
+  // 這兩格中途換得掉：使用者去系統設定把通知開回來或關掉，就是它們在動。
+  let granted = options.granted ?? true;
+  let live = options.live ?? true;
+  const calls = {
+    enable: jest.fn(),
+    disable: jest.fn(),
+    verify: jest.fn(),
+    setTime: jest.fn(),
+    refresh: jest.fn(),
+  };
+  const reminder: DailyReminder = {
+    enabled: () => on,
+    time: () => time,
+    setTime: (next: string) => {
+      calls.setTime(next);
+      time = next;
+    },
+    enable: () => {
+      calls.enable();
+      on = granted;
+      return Promise.resolve(on);
+    },
+    verify: () => {
+      calls.verify();
+      // 真貨在權限被收回時會就地把開關關掉，假貨也要，否則「彈回去」測到的是畫面自己
+      // 記著的一份，不是它與提醒那台機器對得上。
+      if (!live) on = false;
+      return Promise.resolve(live);
+    },
+    disable: () => {
+      calls.disable();
+      on = false;
+    },
+    refresh: calls.refresh as unknown as DailyReminder['refresh'],
+  };
+  return {
+    reminder,
+    calls,
+    /** 使用者去了一趟系統設定，把通知打開或關掉。 */
+    setGranted: (next: boolean) => {
+      granted = next;
+    },
+    /** 已經開著的提醒，權限在系統設定裡被收回了。 */
+    setLive: (next: boolean) => {
+      live = next;
+    },
+  };
+}
+
 function fakeConsent(declined: boolean) {
   const grant = jest.fn();
   const consent: CloudConsent = {
@@ -132,6 +224,28 @@ interface AlertButton {
   onPress?: () => void;
 }
 const alerts: { title: string; message?: string; buttons: AlertButton[] }[] = [];
+
+/**
+ * 接住 app 進出前景那個事件。**Node 底下沒有背景與前景**，這裡留下畫面掛上去的那支處理器，
+ * 測試就能自己演一次「使用者去了一趟系統設定又回來」。
+ */
+let appStateHandler: ((state: string) => void) | null = null;
+
+jest.spyOn(AppState, 'addEventListener').mockImplementation(((
+  type: string,
+  handler: (state: string) => void,
+) => {
+  if (type === 'change') appStateHandler = handler;
+  return { remove: () => {} };
+}) as unknown as typeof AppState.addEventListener);
+
+/** app 回到前景。 */
+async function backToForeground(): Promise<void> {
+  if (appStateHandler === null) throw new Error('沒有人在聽 app 進出前景');
+  await act(async () => {
+    appStateHandler?.('active');
+  });
+}
 
 jest.spyOn(Alert, 'alert').mockImplementation((title, message, buttons) => {
   alerts.push({ title, message, buttons: (buttons ?? []) as AlertButton[] });
@@ -182,12 +296,14 @@ interface MountOptions {
   declined?: boolean;
   cloudStatus?: string;
   shareFile?: (content: string, filename: string) => Promise<void>;
+  reminder?: { enabled?: boolean; granted?: boolean; live?: boolean };
 }
 
 async function mount(options: MountOptions = {}) {
   const session = options.session ?? buildSession();
   const { cloud, calls } = fakeCloud(options.nickname ?? null);
   const { consent, grant } = fakeConsent(options.declined ?? false);
+  const { reminder, calls: reminderCalls, setGranted, setLive } = fakeReminder(options.reminder);
   const shareFile = jest.fn(options.shareFile ?? (() => Promise.resolve()));
   const onOpenLanguage = jest.fn();
   const onOpenSignIn = jest.fn();
@@ -199,6 +315,7 @@ async function mount(options: MountOptions = {}) {
       session={session}
       cloud={cloud}
       cloudConsent={consent}
+      reminder={reminder}
       cloudStatus={options.cloudStatus ?? ''}
       now={() => NOW}
       shareFile={shareFile as unknown as (content: string, filename: string) => Promise<void>}
@@ -213,6 +330,10 @@ async function mount(options: MountOptions = {}) {
     view,
     session,
     calls,
+    reminder,
+    reminderCalls,
+    setReminderGranted: setGranted,
+    setReminderLive: setLive,
     grant,
     shareFile,
     onOpenLanguage,
@@ -454,6 +575,145 @@ describe('匯入', () => {
     });
     expect(app.session.snapshot().data.books).toEqual(一本一張.books);
     expect(app.onImported).not.toHaveBeenCalled();
+  });
+});
+
+describe('每日提醒（票 19）', () => {
+  const denied = () => t('data.reminderDenied', { app: APP_NAME.short });
+
+  it('那一組排在「雲端備份」與「手動備份」之間', async () => {
+    const app = await mount();
+
+    // 比的是三個群組標頭在畫面樹裡的先後。只驗「有沒有長出來」的話，
+    // 哪天有人把它接到最底下，這條仍然會綠。
+    const tree = JSON.stringify(app.view.toJSON());
+    expect(tree.indexOf(t('data.cloudTitle'))).toBeLessThan(tree.indexOf(t('data.reminderTitle')));
+    expect(tree.indexOf(t('data.reminderTitle'))).toBeLessThan(tree.indexOf(t('data.fileTitle')));
+  });
+
+  it('關著時只有開關那一列，時間那一列不長出來', async () => {
+    const app = await mount({ reminder: { enabled: false } });
+
+    expect(app.view.queryByText(t('data.reminderSwitch'))).not.toBeNull();
+    // 關著的時候那一格沒有意義，長在那裡只會讓人以為關著也會叫（票 18 的立場）。
+    expect(app.view.queryByText(t('data.reminderWhen'))).toBeNull();
+    // 沒開就不必問權限，一次都不要問。
+    expect(app.reminderCalls.verify).not.toHaveBeenCalled();
+  });
+
+  it('打開開關會請求權限，允許之後長出時間那一列', async () => {
+    const app = await mount({ reminder: { enabled: false, granted: true } });
+
+    await fireEvent(app.view.getByLabelText(t('data.reminderSwitch')), 'valueChange', true);
+
+    await waitFor(() => {
+      expect(app.view.queryByText(t('data.reminderWhen'))).not.toBeNull();
+    });
+    expect(app.reminderCalls.enable).toHaveBeenCalledTimes(1);
+    expect(app.view.queryByText(denied())).toBeNull();
+  });
+
+  it('被拒絕時開關彈回關閉，群組底下說出原因', async () => {
+    const app = await mount({ reminder: { enabled: false, granted: false } });
+
+    await fireEvent(app.view.getByLabelText(t('data.reminderSwitch')), 'valueChange', true);
+
+    await waitFor(() => {
+      expect(app.view.queryByText(denied())).not.toBeNull();
+    });
+    // 寧可讓開關彈回去，也不要讓使用者以為提醒在運作卻永遠收不到（spec 決定二十四）。
+    expect(app.view.getByLabelText(t('data.reminderSwitch')).props.value).toBe(false);
+    expect(app.view.queryByText(t('data.reminderWhen'))).toBeNull();
+  });
+
+  it('畫出來時問一次權限還在不在，被收回就彈回去', async () => {
+    // 使用者剛從系統設定把通知關掉：記著的狀態仍是「開著」，但它已經不是真的。
+    const app = await mount({ reminder: { enabled: true, live: false } });
+
+    await waitFor(() => {
+      expect(app.view.queryByText(denied())).not.toBeNull();
+    });
+    expect(app.reminderCalls.verify).toHaveBeenCalledTimes(1);
+    expect(app.view.getByLabelText(t('data.reminderSwitch')).props.value).toBe(false);
+    expect(app.view.queryByText(t('data.reminderWhen'))).toBeNull();
+  });
+
+  it('去系統設定把通知關掉，回到 app 就彈回去——這一頁不會重新掛載', async () => {
+    const app = await mount({ reminder: { enabled: true, live: true } });
+    await settle();
+    expect(app.view.getByLabelText(t('data.reminderSwitch')).props.value).toBe(true);
+
+    // 使用者去了一趟「設定 → JP Vocab → 通知」，把通知關掉，然後切回來。
+    app.setReminderLive(false);
+    await backToForeground();
+
+    // 少了回到前景那條訊號，開關會一直亮著——四個 tab 底下是 UITabBarController，
+    // 畫面掛上去之後不會卸載，`useEffect` 那一次不會再跑。
+    expect(app.view.queryByText(denied())).not.toBeNull();
+    expect(app.view.getByLabelText(t('data.reminderSwitch')).props.value).toBe(false);
+    expect(app.view.queryByText(t('data.reminderWhen'))).toBeNull();
+  });
+
+  it('回到前景時提醒是關著的，就一次權限都不問', async () => {
+    const app = await mount({ reminder: { enabled: false } });
+
+    await backToForeground();
+
+    // 沒開的提醒沒有「還成不成立」可言，問它只是白跑一趟原生。
+    expect(app.reminderCalls.verify).not.toHaveBeenCalled();
+  });
+
+  it('權限還在就照記著的狀態畫，什麼都不說', async () => {
+    const app = await mount({ reminder: { enabled: true, live: true } });
+
+    await settle();
+
+    expect(app.view.getByLabelText(t('data.reminderSwitch')).props.value).toBe(true);
+    expect(app.view.queryByText(t('data.reminderWhen'))).not.toBeNull();
+    expect(app.view.queryByText(denied())).toBeNull();
+  });
+
+  it('關掉開關就清掉已排的，時間那一列跟著收起來', async () => {
+    const app = await mount({ reminder: { enabled: true, live: true } });
+    await settle();
+
+    await fireEvent(app.view.getByLabelText(t('data.reminderSwitch')), 'valueChange', false);
+
+    expect(app.reminderCalls.disable).toHaveBeenCalledTimes(1);
+    expect(app.view.queryByText(t('data.reminderWhen'))).toBeNull();
+  });
+
+  it('改時間交出去的是 HH:MM，畫面跟著換', async () => {
+    const app = await mount({ reminder: { enabled: true, live: true } });
+    await settle();
+
+    await fireEvent.press(app.view.getByText('8:0'));
+
+    // 個位數要補零，那一格只裝得下這個形狀（`TIME_PATTERN`）。
+    expect(app.reminderCalls.setTime).toHaveBeenCalledWith('21:05');
+    // 畫面讀的是提醒那台機器記著的值，不是自己另存一份——兩邊各記各的就會各說各話。
+    expect(app.view.queryByText('21:5')).not.toBeNull();
+  });
+
+  it('拒絕過、去系統設定開回來，再打開一次就成立，那段字收掉', async () => {
+    const app = await mount({ reminder: { enabled: false, granted: false } });
+    const toggle = app.view.getByLabelText(t('data.reminderSwitch'));
+
+    await fireEvent(toggle, 'valueChange', true);
+    await waitFor(() => {
+      expect(app.view.queryByText(denied())).not.toBeNull();
+    });
+
+    // 使用者去了一趟「設定 → JP Vocab → 通知」，把它打開了。
+    app.setReminderGranted(true);
+    await fireEvent(toggle, 'valueChange', true);
+
+    await waitFor(() => {
+      expect(app.view.queryByText(t('data.reminderWhen'))).not.toBeNull();
+    });
+    // 上一次那段錯誤訊息不能留在畫面上，它已經不是真的了。
+    expect(app.view.queryByText(denied())).toBeNull();
+    expect(app.reminderCalls.enable).toHaveBeenCalledTimes(2);
   });
 });
 
