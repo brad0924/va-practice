@@ -132,7 +132,7 @@ function cloudSection(app: App): HTMLElement {
       el('p', 'hint', t('data.signedInAs', { nickname: signedInAs })),
       el('h3', 'subsection-title', t('data.changePasswordTitle')),
       changePasswordForm(app),
-      button('danger', t('data.stopSync'), () => {
+      button('danger', t('data.stopBackup'), () => {
         if (!confirm(t('data.stopConfirm'))) return;
         app.cloud.signOut();
         // 重畫成未登入的樣子，暱稱密碼欄位跟著回來。

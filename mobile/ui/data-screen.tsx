@@ -258,13 +258,13 @@ export function DataScreen({
    * 做法與 `./book-scope-sheet.tsx` 刪單字本、編輯畫面刪卡一致。
    */
   const confirmStop = () => {
-    Alert.alert(t('data.stopSync'), t('data.stopConfirmNative'), [
+    Alert.alert(t('data.stopBackup'), t('data.stopConfirmNative'), [
       // 取消那顆借的是 `books.cancel`。**翻譯檔裡沒有 `data.cancel` 這條**，而這張票的
       // 字串預算是兩條，全花在講得出新東西的那兩句上——為一個各處都寫「取消」的詞再開一條，
       // 只是多一份要維護的翻譯。編輯畫面同樣是借的（它借 `editor.cancel`）。
       { text: t('books.cancel'), style: 'cancel' },
       {
-        text: t('data.stopSync'),
+        text: t('data.stopBackup'),
         style: 'destructive',
         onPress: () => {
           cloud.signOut();
@@ -416,7 +416,7 @@ export function DataScreen({
               <SettingsRow label={t('data.changePasswordTitle')} chevron onPress={onOpenPassword} />
             )}
             {state.kind === 'active' && (
-              <SettingsRow label={t('data.stopSync')} tone="danger" onPress={confirmStop} />
+              <SettingsRow label={t('data.stopBackup')} tone="danger" onPress={confirmStop} />
             )}
           </SettingsGroup>
 

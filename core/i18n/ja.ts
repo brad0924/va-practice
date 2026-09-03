@@ -149,7 +149,7 @@ const ja: typeof zhHant = {
   'data.changePasswordTitle': 'パスワードの変更',
   'data.changeHint':
     'パスワードを変更すると、古いパスワードのままの端末は弾かれます。バックアップを続けるには、それぞれで新しいパスワードを入力し直す必要があります。',
-  'data.stopSync': 'バックアップを停止',
+  'data.stopBackup': 'バックアップを停止',
   'data.stopConfirm':
     '停止するとクラウドへのバックアップは行われません。カードと進捗はこの端末にそのまま残ります。停止しますか？',
   'data.stopConfirmNative':

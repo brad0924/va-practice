@@ -357,7 +357,7 @@ describe('雲端備份那一區的四種狀態', () => {
     expect(app.view.queryByText(t('data.signIn'))).not.toBeNull();
     // 沒登入就不該長出這三列——它們講的是一組還不存在的暱稱密碼。
     expect(app.view.queryByText(t('data.changePasswordTitle'))).toBeNull();
-    expect(app.view.queryByText(t('data.stopSync'))).toBeNull();
+    expect(app.view.queryByText(t('data.stopBackup'))).toBeNull();
     expect(app.view.queryByText(t('data.switchNickname'))).toBeNull();
 
     await fireEvent.press(app.view.getByText(t('data.signIn')));
@@ -369,7 +369,7 @@ describe('雲端備份那一區的四種狀態', () => {
 
     expect(app.view.queryByText('阿貓')).not.toBeNull();
     expect(app.view.queryByText(t('data.changePasswordTitle'))).not.toBeNull();
-    expect(app.view.queryByText(t('data.stopSync'))).not.toBeNull();
+    expect(app.view.queryByText(t('data.stopBackup'))).not.toBeNull();
     // 正在同步的裝置不該看到那條反悔的路。
     expect(app.view.queryByText(t('data.pullNow', { nickname: '阿貓' }))).toBeNull();
 
@@ -383,7 +383,7 @@ describe('雲端備份那一區的四種狀態', () => {
     expect(app.view.queryByText(t('data.pullNow', { nickname: '阿貓' }))).not.toBeNull();
     expect(app.view.queryByText(t('data.switchNickname'))).not.toBeNull();
     // 這台沒在同步，「停止同步」與「換密碼」都沒有意義。
-    expect(app.view.queryByText(t('data.stopSync'))).toBeNull();
+    expect(app.view.queryByText(t('data.stopBackup'))).toBeNull();
     expect(app.view.queryByText(t('data.changePasswordTitle'))).toBeNull();
     // 為什麼現在沒在備份，要講清楚，不然那顆鈕看不懂。
     expect(app.view.queryByText(t('data.declinedHint'))).not.toBeNull();
@@ -419,7 +419,7 @@ describe('停止同步', () => {
   it('先問，而且問的是手機版那一條——它講明密碼會一起刪掉', async () => {
     const app = await mount({ nickname: '阿貓' });
 
-    await fireEvent.press(app.view.getByText(t('data.stopSync')));
+    await fireEvent.press(app.view.getByText(t('data.stopBackup')));
 
     // 問完之前一個字都不准動。
     expect(app.calls.signOut).not.toHaveBeenCalled();
@@ -432,20 +432,20 @@ describe('停止同步', () => {
   it('確認之後真的停了，那一區畫回「登入」', async () => {
     const app = await mount({ nickname: '阿貓' });
 
-    await fireEvent.press(app.view.getByText(t('data.stopSync')));
+    await fireEvent.press(app.view.getByText(t('data.stopBackup')));
     await pressAlertButton('destructive');
 
     expect(app.calls.signOut).toHaveBeenCalledTimes(1);
     // 密碼沒了，`nickname()` 就答不出來，這一區跟著畫回「未登入」的樣子。
     // 不驗這一段的話，「按了之後畫面沒反應」會靜靜地過關。
-    expect(app.view.queryByText(t('data.stopSync'))).toBeNull();
+    expect(app.view.queryByText(t('data.stopBackup'))).toBeNull();
     expect(app.view.queryByText(t('data.signIn'))).not.toBeNull();
   });
 
   it('按取消什麼都不發生', async () => {
     const app = await mount({ nickname: '阿貓' });
 
-    await fireEvent.press(app.view.getByText(t('data.stopSync')));
+    await fireEvent.press(app.view.getByText(t('data.stopBackup')));
     await pressAlertButton('cancel');
 
     expect(app.calls.signOut).not.toHaveBeenCalled();
@@ -454,7 +454,7 @@ describe('停止同步', () => {
   it('那顆是破壞性樣式，而且不是預設選項（HIG B-06）', async () => {
     const app = await mount({ nickname: '阿貓' });
 
-    await fireEvent.press(app.view.getByText(t('data.stopSync')));
+    await fireEvent.press(app.view.getByText(t('data.stopBackup')));
 
     // 取消排在前面，停止那顆帶 destructive。順序與樣式一起驗——只驗樣式的話，
     // 哪天有人把它排到第一個、變成手滑就按到的那顆，這條仍然會綠。

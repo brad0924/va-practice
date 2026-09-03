@@ -182,7 +182,7 @@ export default {
   'data.pullNow': '接回雲端備份（暱稱 {nickname}）',
   'data.changePasswordTitle': '換密碼',
   'data.changeHint': '換密碼後，其他還在用舊密碼的裝置會被擋下來，需要各自重新輸入新密碼才能繼續備份。',
-  'data.stopSync': '停止備份',
+  'data.stopBackup': '停止備份',
   'data.stopConfirm': '停止後不再備份到雲端，卡片與進度會完整留在這台裝置。確定要停止？',
   // 手機版專用的第二條。**網頁版繼續用上面那條，一個字不動**——兩邊按下去的後果不一樣。
   // iOS 上暱稱與密碼存在 Keychain，而那一筆標記為可同步：刪掉它會經 iCloud 鑰匙圈帶到

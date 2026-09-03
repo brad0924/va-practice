@@ -160,7 +160,7 @@ const en: typeof zhHant = {
   'data.changePasswordTitle': 'Change password',
   'data.changeHint':
     'Once the password changes, other devices still on the old one are turned away, and each of them has to enter the new password before it can back up again.',
-  'data.stopSync': 'Stop backing up',
+  'data.stopBackup': 'Stop backing up',
   'data.stopConfirm':
     'Nothing is backed up to the cloud after this, and your cards and progress stay on this device in full. Stop backing up?',
   'data.stopConfirmNative':
