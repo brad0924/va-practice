@@ -54,6 +54,16 @@ iOS 版的畫面層以 React Native 重寫，Liquid Glass 用 `expo-glass-effect
 
 **已定案，不留回頭路。** 沒有停損條件、沒有「做不成就回 Capacitor」。這與前兩張探路票刻意在動工前寫死停損條件的做法相反，是維護者明確的選擇。
 
+> **2026-09-03：出包改在 GitHub Actions 上做，不用 EAS Build。上面那句「EAS Build 雲端出包」訂正。**
+>
+> **理由沒有變，變的只是向誰借那台 Mac。** 這條路線的要求是「整條路在 Windows 上走得完」，而 GitHub 的 macOS runner 同樣滿足它——`expo prebuild` 在 Windows 上跑不了（票 `03` 記過），但在 runner 上跑得了。EAS Build 與 GitHub Actions 解的是同一個問題：借一台 Mac。
+>
+> 選 GitHub 的理由有兩條：public repo 的 macOS runner 不計費，而 EAS 免費方案有每月配額與排隊；簽章那整套（臨時鑰匙圈、匯入 p12、讀 provisioning profile、收尾清理）票 `ios-app 17` 已經做過一次，`.github/workflows/ios-testflight.yml` 裡現成，搬得過來。
+>
+> **開發流程仍然走 Expo。** `eas build --profile development` 還是日常接 Metro 的方式，`mobile/eas.json` 一個字都不改。換掉的只有「出正式包」那一段。
+>
+> 決定與代價見票 `20`。這一段的手段若日後又換回 EAS，改的是那支 workflow，這條路線本身不受影響。
+
 **不做 Android。** 每個決定只需要對 iOS 負責——真要寫原生模組時只寫 Swift，不必再寫一份 Kotlin。Liquid Glass 本來也只有 iOS 有。
 
 ### 程式碼怎麼擺
@@ -116,6 +126,12 @@ MMKV 是完全同步的（走 JSI），因此 `ADR-0002` 的 `StorageLike` 同�
 **Capacitor 版不先送審，等 React Native 版好了才一起送，而且不設回頭看的時間點。**
 
 票 `ios-app 11`（送審）與 `20`（在地化）都已備妥，維護者明確選擇擋住。**代價已知並接受**：萬一卡在加解密相容那一關，App Store 上就是一直空著。這與 `.scratch/rn-spike/issues/01` 當初「互不阻擋，先上架不吃虧」的做法相反。
+
+> **2026-09-03：「等 React Native 版好了」那個條件達成了，但送審仍然擋著。**
+>
+> 19 張功能票全收，四項原生功能到齊。**接下來只做到 TestFlight，不做送審**——那是票 `20`，它的成功條件是「TestFlight 上出現一個裝得起來的 build」。TestFlight 的內部測試不需要任何 App Store 頁面素材，所以這一步跟送審天然分得開。
+>
+> `ios-app 11` 維持 `needs-triage`，**上架仍然不設時間點**，這一段的決定沒有變。變的只是它的 blocker 清單——原本列的全是 Capacitor 版的票號，已改成「票 `20`」加「`ios-app 20`（多語系素材）」。
 
 ## 驗收決定
 

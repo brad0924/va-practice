@@ -44,6 +44,19 @@ app 名稱、圖示、啟動畫面沿用 Capacitor 版那一份，不要另外�
 
 ## Comments
 
+### 2026-09-03 — 第 5 條變好做了：舊 iPhone 可以直接從 TestFlight 裝
+
+票 `20` 談規格時順帶發現的。上面那節寫「用 `preview` 版裝」——那要專門為了這一條出一個包。
+
+**票 `20` 跑通之後不必了。** 那張票會讓 React Native 版上 TestFlight，而 TestFlight 的
+內部測試不挑機器：翻出來的那支舊 iPhone 只要登得進去，直接就裝得到，不必再出 `preview` 包、
+也不必把它登記進佈建描述檔。
+
+`preview` profile 因此留著不刪（票 `20` 的〈決定〉寫明 `mobile/eas.json` 不動），
+但它現在是備案而不是唯一的路。
+
+這一條**仍然開著**，卡的還是同一件事：手上沒有 iOS 16.4 到 25 的機器。
+
 ### 2026-08-25 — 真機上通了，五條過四條
 
 development 版用 EAS Build 出包、裝進 iPhone、接上 Windows 上的 Metro，畫面出來了。

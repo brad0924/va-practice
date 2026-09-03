@@ -2,7 +2,13 @@
 
 Status: needs-triage
 Type: enhancement
-Blocked by: 03, 04, 05, 06, 07, 08, 09, 10, 20, 21
+Blocked by: `.scratch/rn-rewrite/issues/20`（TestFlight build）, 20（多語系素材）
+
+> **blocker 清單換過（2026-09-03）。** 原本那行是 `03, 04, 05, 06, 07, 08, 09, 10, 20, 21`，
+> 全是 Capacitor 版的票號——要送審的已經改成 React Native 版，那些票沒有一張對得上，
+> 而且 `21`（app 圖示）本身已經 `done`。改成現在這兩條：先有一個 React Native 版的
+> TestFlight build（`rn-rewrite 20`），再有多語系上架素材（本目錄的 `20`）。
+> 這只是把清單修正到對得上現況，**凍結的決定沒有變**，見下一段。
 
 > **上架被擋住了（2026-08-24）。** 維護者決定 Capacitor 版不先送審，等 React Native 改寫版
 > 好了才一起送，而且**不設回頭看的時間點**。這張票的規格沒有問題，是時機被凍結——`Status`
@@ -11,7 +17,11 @@ Blocked by: 03, 04, 05, 06, 07, 08, 09, 10, 20, 21
 
 決策背景見 `../spec.md`。
 
-> **21 是後來加的**：裝在手機上的 app 圖示至今仍是 `cap add ios` 留下的 Capacitor 範例圖。
+> **這一段已經過去了（2026-09-03）**：`21` 與 `22` 都是 `done`，手機上的圖示現在是
+> 鉄紺底的玻璃格「単語」。React Native 版的 `mobile/assets/icon.png` 與它 md5 相同，
+> 同一份 `scripts/icon.svg` 產出來的。`21` 因此從 blocker 清單拿掉。底下留著當紀錄。
+
+> ~~**21 是後來加的**~~：裝在手機上的 app 圖示至今仍是 `cap add ios` 留下的 Capacitor 範例圖。
 > `04` 做的是 App Store Connect 那張，不是這張，兩者是不同的檔案。帶著範本素材送審是
 > 「App 尚未完成」這類退件的典型理由，所以擋住。實際落在哪一條準則寫進本票時再查。
 

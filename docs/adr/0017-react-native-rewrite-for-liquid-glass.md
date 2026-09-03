@@ -30,6 +30,8 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 **維護者主要在 Windows 上開發。** React Native 用 Expo 開發、EAS Build 在雲端編譯，整條路在 Windows 上走得完——`.scratch/rn-spike/issues/01` 已經實際走過一次。SwiftUI 要 macOS 與 Xcode，可用時間只有週末在家那台 Mac。
 
+> **2026-09-03：出正式包改在 GitHub Actions 的 macOS runner 上做，不用 EAS Build。** 上面提到 EAS 是為了說明「在 Windows 上走得完」，**那個理由完全沒有變**——GitHub 的 runner 同樣是雲端的 Mac。換的只是向誰借。這份 ADR 的結論（選 React Native 而不選 SwiftUI）不受影響。決定見 `.scratch/rn-rewrite/spec.md` 的〈路線〉訂正與票 `.scratch/rn-rewrite/issues/20`。
+
 這也是 `.scratch/swiftui-spike/issues/01` 當初否決 React Native 的理由**反過來**的地方。那張票的動機是「想寫原生」，React Native 買不到（還是 TypeScript），所以出局。**這次的動機是 Liquid Glass，跟寫哪種語言無關**，那個否決理由跟著失效。
 
 代價是 Liquid Glass 在 React Native 上要靠第三方套件包系統元件（`expo-glass-effect` 的 `GlassView` 包的是 `UIVisualEffectView`），不是 Apple 第一手的 `.glassEffect()`。
