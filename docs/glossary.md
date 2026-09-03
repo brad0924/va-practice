@@ -40,6 +40,7 @@
 | 提醒排程 | Reminder Schedule | リマインド予定 | ~~Forecast~~、~~Queue~~（會與複習佇列混淆）、~~Calendar~~ |
 | 備份 | Backup | バックアップ | ~~Snapshot~~、~~Sync~~、~~Export file~~ |
 | 雲端備份 | Cloud Backup | クラウドバックアップ | ~~Sync~~（會讓人誤以為逐張合併）、~~Cloud Drive~~、~~Account~~ |
+| 登入 | Sign in | ログイン | ~~Sync~~、~~Connect~~、~~Link device~~ |
 | 保險副本 | Safety Copy | セーフティコピー | ~~Sync~~、~~Cache~~、~~Backup~~（會與雲端備份及匯出檔混淆）、~~Second source~~ |
 | 匯入單字 | Import Words | 単語の取り込み | ~~Import~~（會與備份的匯入混淆）、~~Merge~~ |
 | 暱稱 | Nickname | ニックネーム | ~~Account~~、~~Username~~、~~User ID~~ |
