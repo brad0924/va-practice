@@ -360,3 +360,70 @@ Standards 軸指出這支比同儕 workflow 鬆，兩件都端出去問，兩件
 而且兩邊寫法**已經開始分岐**（那邊 `test -n "$(ls -d ...)"`，這邊 `WORKSPACE=$(... | head -1)`）。
 抽成 composite action 是自然的收法，但那要動另一支 workflow，超出這張票的範圍。
 **留給票 `21`**，它本來就要清這一區。
+
+### 2026-09-03 — 第一趟 CI：倒在推播權限，不是簽章分工
+
+run 21，`ARCHIVE FAILED`，exit 65。前面每一步都綠：兩套測試、prebuild、`pod install`、
+build number 寫進 `Info.plist`、憑證與 profile 匯入，全過。
+
+**〈已知的坑〉第二條那個賭注贏了。** 五個簽章設定全從指令列傳，Pods 那一側完全沒有排斥
+provisioning profile，`inject-signing.mjs` 那套複雜分工確實不必照抄。倒的是別的東西：
+
+```
+error: Provisioning profile "va-practice App Store" doesn't include
+       the Push Notifications capability. (in target 'JPVocab')
+error: Provisioning profile "va-practice App Store" doesn't include
+       the aps-environment entitlement. (in target 'JPVocab')
+```
+
+#### 這個失敗票 `19` 預言過，而且我們已經照它說的做了
+
+`mobile/lib/daily-reminder-native.ts` 的檔頭寫著：
+
+> 加了它，建置出來的 app 會帶著推播 entitlement，簽章時 Apple 會回頭查這個 App ID
+> 有沒有開 Push Notifications 能力，沒開就當場失敗——為了一個一則都不會發的功能。
+> **2026-09-02 維護者拍板不加。**
+
+「不加」的做法是不把 `expo-notifications` 的設定檔外掛列進 `app.json` 的 `plugins`。
+**那個做法在 Expo SDK 57 上無效。**
+
+`expo-notifications` 被列在 `@expo/prebuild-config` 的 `versionedExpoSDKPackages` 裡
+（`build/plugins/withDefaultPlugins.js` 第 171 行），`expo prebuild` 會**自動套用**它的外掛，
+跟 `app.json` 寫了什麼無關。那支外掛的 iOS 那一半只有一句話：
+
+```js
+if (!config.modResults['aps-environment']) config.modResults['aps-environment'] = mode;
+```
+
+#### 修法：讓它加，然後拿掉
+
+新增 `mobile/plugins/without-push-entitlement.js`，寫進 `app.json` 的 `plugins`。
+**沒有去 Apple 後台開 Push Notifications 能力**——票 `19` 的結論（這支 app 不要推播權限）
+沒有變，變的只是怎麼做到。憑證與 profile 一張都沒動，決定五因此照樣成立。
+
+順序這一格是關鍵，查證過才寫：`@expo/config-plugins` 的 mod 執行順序是**倒過來的，
+最後註冊的先跑**（`withMod` 先跑自己的 action，再呼叫前一個註冊的）。而註冊順序是
+`app.json` 的 `plugins` 最先、自動套用的那批在後——所以寫在 `app.json` 裡的這支跑在最後，
+拿得掉前面加上去的那格。這一條是本機跑小實驗量出來的，不是照文件猜的。
+
+#### 它有兩支測試守著
+
+這支外掛平常只有 macOS 上的 `expo prebuild` 跑得到，而且是「寫錯了會安靜地沒有效果」
+的那一種——沒效果的下場就是再燒一趟十分鐘的 CI。所以補了
+`mobile/plugins/without-push-entitlement.test.ts`，直接把 mod 鏈叫起來驗兩件事：
+
+- `aps-environment` 被拿掉，其他 entitlement 一格不動
+- 本來就沒有那格時**當場丟例外**，不安靜跳過（安靜跳過分不出「套件不再加它」與
+  「順序壞了」，而後者要等 Archive 才發現）
+
+`mobile/` jest 現在是 21 套 521 支，全綠。根目錄 vitest 34 檔 639 支不受影響。
+
+#### 順帶訂正的一段註解
+
+`mobile/lib/daily-reminder-native.ts` 檔頭那段說明現在是錯的（它說不寫進 `app.json`
+就不會帶那格權限）。加了一小節訂正，講清楚結論沒變、機制換了。
+
+#### 下一趟要看的
+
+再觸發一次 workflow。build number 會是新的 `run_number`，不會撞號。
+這次要看的是 Archive 能不能過——過了就輪到 export 與上傳兩步，那兩步這一趟還沒跑到。

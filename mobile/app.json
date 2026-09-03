@@ -49,6 +49,7 @@
         }
       ],
       "./plugins/with-app-check-first",
+      "./plugins/without-push-entitlement",
       [
         "expo-build-properties",
         {

@@ -24,6 +24,16 @@
  * 一個 AppDelegate subscriber），與設定檔外掛無關。2026-09-02 維護者拍板不加。
  * 哪天真的要做遠端推播，那時再把它加回來。
  *
+ * ### 但「不寫進 `app.json`」擋不住那格權限（2026-09-03 訂正）
+ *
+ * 上面預言的失敗真的發生了，而且**是在已經照做的情況下發生的**：第一趟 TestFlight build
+ * 倒在「provisioning profile 沒有 Push Notifications 能力」。
+ *
+ * 原因是 `expo-notifications` 被列在 `@expo/prebuild-config` 的 `versionedExpoSDKPackages`
+ * 裡，`expo prebuild` 會**自動套用**它的設定檔外掛，跟 `app.json` 寫了什麼無關。
+ * 現在改成讓它加、然後由 `../plugins/without-push-entitlement.js` 拿掉，
+ * 那支外掛有測試守著（票 `20`）。這一段的**結論沒有變**，變的是怎麼做到。
+ *
  * ## `setNotificationHandler()` 也**刻意沒有**設，寫下來免得日後被當成漏掉
  *
  * 套件文件在 `scheduleNotificationAsync()` 底下寫著「不設處理器的話通知不會被呈現」。
