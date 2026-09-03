@@ -2,7 +2,7 @@
 
 Status: needs-triage
 Type: enhancement
-Blocked by: 20（要先確定 React Native 版真的出得了 TestFlight build）
+Blocked by: ~~20~~（**2026-09-03 解除**：run 22 出了 TestFlight build，維護者實機裝起來驗過）
 
 決策背景見 `../spec.md` 的〈路線〉。
 

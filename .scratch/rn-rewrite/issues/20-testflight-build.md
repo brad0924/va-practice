@@ -1,6 +1,6 @@
 # 20 — React Native 版出一次 TestFlight build
 
-Status: ready-for-human
+Status: done
 Type: enhancement
 Blocked by: 無（19 張功能票已全部收掉）
 
@@ -202,14 +202,14 @@ scheme 名稱由 Expo 依 app 名稱決定，動工時從產物讀出來，**不
 - [x] `ios-testflight.yml` 不再出現 `cap sync` 與 `ios/App/App.xcodeproj`
 - [x] workflow 在 build 之前跑過根目錄的 vitest 與 `mobile/` 的 jest，任一支紅燈就不出包
       （加碼：兩套各配一道 `npm run typecheck`，見 2026-09-03 的 code-review 那則）
-- [ ] 手動觸發一次 workflow，走完 prebuild、簽章、archive、export、上傳，全綠
-- [ ] **Apple 後台的憑證張數一張都沒增加**（比照票 `ios-app 17` 的驗收）
-- [ ] 臨時鑰匙圈在 job 結束時被清掉，不留在 runner 上
-- [ ] App Store Connect 處理完，TestFlight 上出現這個 build
-- [ ] **實機**：從 TestFlight 裝起來，四項原生功能都還在——日文語音唸得出來、評分有觸覺回饋、
+- [x] 手動觸發一次 workflow，走完 prebuild、簽章、archive、export、上傳，全綠（run 22）
+- [x] **Apple 後台的憑證張數一張都沒增加**（比照票 `ios-app 17` 的驗收）
+- [x] 臨時鑰匙圈在 job 結束時被清掉，不留在 runner 上（收尾那步掛 `if: always()`，run 22 綠燈時跑過；這一段與票 `ios-app 17` 驗過的那份逐字相同）
+- [x] App Store Connect 處理完，TestFlight 上出現這個 build
+- [x] **實機**：從 TestFlight 裝起來，四項原生功能都還在——日文語音唸得出來、評分有觸覺回饋、
       雲端備份的密碼存得進 Keychain、每日提醒排得出來
-- [ ] **實機**（票 `22` 補完）：主畫面上是新圖示，不是舊的那疊閃卡
-- [ ] **實機**（票 `22` 補完）：在深色桌布上，圖示邊界跟背景分得開
+- [x] **實機**（票 `22` 補完）：主畫面上是新圖示，不是舊的那疊閃卡
+- [x] **實機**（票 `22` 補完）：在深色桌布上，圖示邊界跟背景分得開
 - [x] 網頁版部署（`deploy.yml`）不受影響
 - [x] `core/`、`mobile/app`、`mobile/ui` 零改動
 
@@ -427,3 +427,45 @@ if (!config.modResults['aps-environment']) config.modResults['aps-environment'] 
 
 再觸發一次 workflow。build number 會是新的 `run_number`，不會撞號。
 這次要看的是 Archive 能不能過——過了就輪到 export 與上傳兩步，那兩步這一趟還沒跑到。
+
+### 2026-09-03 — 十一條驗收全過，收掉
+
+run 22 全綠，TestFlight 上出現 build，維護者從 TestFlight 裝起來驗完實機。
+
+**兩趟 CI，倒過一次。** run 21 倒在推播權限（見上一則），run 22 過。
+
+#### 這張票押對的兩個賭注
+
+**一、build 在 GitHub 的 macOS runner 上跑得完。** `expo prebuild` 加 `pod install` 加
+`xcodebuild archive`，整條路在 runner 上走得通，`../spec.md`〈路線〉那段訂正成立。
+決定二說「不設停損條件、卡住就繼續修」，實際只修了一次。
+
+**二、簽章分工不必照抄。** 〈已知的坑〉第二條要求「先試最簡單的——設定全從指令列傳」。
+Pods 那一側完全沒有排斥 provisioning profile，config plugin 一支都不必寫。
+票 `ios-app 17` 那四趟 CI 試出來的複雜分工，是 Firebase 走 SPM 才需要的。
+
+#### 動工時查出來、與票上假設不同的兩件
+
+都記在上面兩則裡，這裡只列標題：
+
+- **build number 不能照抄**（`CURRENT_PROJECT_VERSION` 在 Expo 專案上傳了沒人讀，
+  改用 `PlistBuddy` 直接寫 `Info.plist`）
+- **「不把外掛寫進 `app.json`」擋不住推播權限**（`expo prebuild` 會自動套用，
+  改成讓它加、再由 `mobile/plugins/without-push-entitlement.js` 拿掉）
+
+#### 順帶補完的
+
+票 `ios-app 22` 那兩條實機確認打勾了：主畫面上是新圖示，深色桌布上邊界分得開、
+不必動用它預留的補救方案。
+
+#### 這張票解鎖了什麼
+
+票 `21`（移除 Capacitor）的 `Blocked by` 條件達成——React Native 版真的出得了
+裝得起來的 TestFlight build。它仍是 `needs-triage`，什麼時候做是另一件事。
+
+#### 還開著、與這張票無關的
+
+- 票 `03` 第 5 條（iOS 26 以下的退回行為）仍然沒有機器可驗
+- 票 `ios-app 11`（送審）維持 `needs-triage`，決定七說了不解凍
+- **新開的票 `.scratch/cloud-backup/issues/05`**：這趟實機驗收順帶撞出來的 bug——
+  換一個暱稱登入會蓋掉舊暱稱的雲端備份。與本票無關，行為怎麼改還沒談
