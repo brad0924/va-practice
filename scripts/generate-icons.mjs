@@ -1,8 +1,8 @@
 /**
  * 產生主畫面圖示。讀 `scripts/icon.svg`，用 sharp 轉成四張 PNG。
  *
- * 網頁版與兩個 iOS 版（Capacitor 與 React Native）的圖示都從這裡出來。圖案的唯一來源是
- * 那份 SVG 母檔，多一個來源就多一個會漂移的地方，所以不要手動把圖片複製進 `ios/` 或 `mobile/`。
+ * 網頁版與 iOS 版的圖示都從這裡出來。圖案的唯一來源是那份 SVG 母檔，
+ * 多一個來源就多一個會漂移的地方，所以不要手動把圖片複製進 `mobile/`。
  *
  * sharp 只跑在本機——`.github/workflows/` 裡沒有任何一支工作流程叫這支腳本，
  * PNG 是跑完直接 commit 進 repo 的。
@@ -19,13 +19,9 @@ const SOURCE = join(ROOT, 'scripts/icon.svg');
 const OUT_DIR = join(ROOT, 'public');
 // 192／512 給 PWA 的主畫面圖示，1024 是 App Store Connect 的必填素材。
 const SIZES = [192, 512, 1024];
-// 裝進手機、出現在主畫面的那張，兩個 iOS 版各一份。Capacitor 版的 `Contents.json` 只列
-// 第一筆；React Native 版交給 Expo，它從 `mobile/assets/icon.png` 自己切出各尺寸
-// （`mobile/app.json` 的 `icon` 指的就是這個檔）。兩份都從這裡出去，母檔仍然只有一份。
-const NATIVE_ICONS = [
-  join(ROOT, 'ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png'),
-  join(ROOT, 'mobile/assets/icon.png'),
-];
+// 裝進手機、出現在主畫面的那張。切各尺寸交給 Expo，它從 `mobile/assets/icon.png`
+// 自己切（`mobile/app.json` 的 `icon` 指的就是這個檔）。
+const NATIVE_ICON = join(ROOT, 'mobile/assets/icon.png');
 const NATIVE_ICON_SIZE = 1024;
 // 母檔的畫布邊長。SVG 的預設解析度是 72 dpi，按比例放大才會是原生尺寸。
 const SOURCE_SIZE = 1024;
@@ -51,11 +47,8 @@ async function main() {
     console.log(`icon-${size}.png`);
 
     if (size === NATIVE_ICON_SIZE) {
-      const png = await render(size).removeAlpha().png().toBuffer();
-      for (const file of NATIVE_ICONS) {
-        writeFileSync(file, png);
-        console.log(relative(ROOT, file));
-      }
+      writeFileSync(NATIVE_ICON, await render(size).removeAlpha().png().toBuffer());
+      console.log(relative(ROOT, NATIVE_ICON));
     }
   }
 }

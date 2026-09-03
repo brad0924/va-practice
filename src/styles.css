@@ -24,10 +24,9 @@
 
 * {
   box-sizing: border-box;
-  /* 連點兩下不放大。手滑連按兩次按鈕就把畫面撐大，是 WebKit 內建的手勢，
-     Capacitor 的 zoomEnabled: false 只擋得到雙指、擋不到它。manipulation
-     只拿掉連點兩下，捲動與雙指縮放都留著——網頁版想放大看漢字筆畫的人
-     不受影響（iOS app 的雙指本來就被 Capacitor 關掉了，與這行無關）。
+  /* 連點兩下不放大。手滑連按兩次按鈕就把畫面撐大，是 WebKit 內建的手勢。
+     manipulation 只拿掉連點兩下，捲動與雙指縮放都留著——想放大看漢字筆畫的人
+     不受影響。
      掛在 * 而不是 html：頁內有數個 overflow-y: auto 的捲動容器，手勢會在
      容器邊界停止往上找，只掛根元素會漏掉容器內部。 */
   touch-action: manipulation;

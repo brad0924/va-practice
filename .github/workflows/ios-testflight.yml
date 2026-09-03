@@ -201,9 +201,10 @@ jobs:
 
       # **簽章設定全部從指令列傳，PROVISIONING_PROFILE_SPECIFIER 也包含在內。**
       # Capacitor 版不能這樣：那邊 Firebase 走 SPM 拉進八個額外 target，它們不接受被塞
-      # provisioning profile，所以 profile 名稱得靠 scripts/inject-signing.mjs 單獨掛到
-      # App target 上。這一版 `mobile/app.json` 設了 `disableSPM: true`，**Firebase 走
-      # CocoaPods**，Pods 是獨立的專案、簽章行為不一樣，那套分工不必照抄。
+      # provisioning profile，所以 profile 名稱得靠一支腳本單獨掛到 App target 上
+      # （那支腳本隨 Capacitor 一起移除了，見票 `rn-rewrite 21`）。這一版 `mobile/app.json`
+      # 設了 `disableSPM: true`，**Firebase 走 CocoaPods**，Pods 是獨立的專案、
+      # 簽章行為不一樣，那套分工不必照抄。
       #
       # 這一步若倒在「provisioning profile 對不上 bundle identifier」那類訊息上，
       # 就是 Pods 那邊也吃到了 profile——那時再寫一支 Expo config plugin 把它單獨掛回

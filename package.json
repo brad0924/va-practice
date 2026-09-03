@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:ios": "tsc --noEmit && vite build --mode ios",
-    "sync:ios": "npm run build:ios && cap sync ios",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

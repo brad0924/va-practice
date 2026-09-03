@@ -1,30 +1,17 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { APP_NAME } from './app-name';
-import plist from '../../ios/App/App/Info.plist?raw';
 import expoConfig from '../../mobile/app.json?raw';
 import privacyZhHant from '../../public/privacy.html?raw';
 import privacyEn from '../../public/privacy-en.html?raw';
 
 /**
- * `Info.plist`、Expo 的 `app.json` 與各語言版的隱私權政策都在打包流程外，拿不到常數，
+ * Expo 的 `app.json` 與各語言版的隱私權政策都在打包流程外，拿不到常數，
  * 只能寫字面值（見 ADR-0012）。
  * 這支測試是那條路唯一的安全網：改名時漏改哪一個檔，這裡就紅燈。
  *
  * 因此失敗訊息必須指得出「哪個檔的哪一處」——紅燈了還要自己去翻檔案找，這道守門就白做了。
  */
-
-/**
- * 抓不到比對不了，所以抓不到本身就是失敗，而且要跟「值不對」分開講：
- * 前者代表那個檔的格式被改過（換行、改字），後者才是漏改名字。
- */
-function pick(source: string, file: string, where: string, pattern: RegExp): string {
-  const found = source.match(pattern);
-  if (found === null) {
-    throw new Error(`${file} 的${where}找不到名字，該處格式可能改過了，請一併更新這支測試的比對規則：${pattern}`);
-  }
-  return found[1];
-}
 
 /**
  * 釘住的都是「已知位置」，抓不到檔案裡新長出來的下一處名字。
@@ -35,40 +22,23 @@ function countOf(source: string, name: string): number {
 }
 
 /**
- * 兩個 iOS 版各有一處寫著短名，守法完全一樣：那一處要等於常數，而且整個檔裡短名只能出現那一次。
- * 差別只在怎麼把那一處讀出來——`Info.plist` 是 XML 只能靠 regex 撈，`app.json` 是 JSON，
- * 解開直接取鍵就好，不必猜哪一個 `"name"` 才是它。
+ * iOS 版的名字寫在 `mobile/app.json` 的 `expo.name`，Expo 出包時把它寫進自己產的
+ * 那份 `Info.plist` 的 `CFBundleDisplayName`，最後落在 iPhone 主畫面上。
+ * 那份 `Info.plist` 每次 `expo prebuild` 重新產生、不進版控，所以守的是 `app.json` 這一頭。
  *
- * React Native 版的名字寫在 `mobile/app.json` 的 `expo.name`，Expo 出包時把它寫進自己產的
- * 那份 `Info.plist` 的 `CFBundleDisplayName`，最後落在 iPhone 上的仍是同一個位置。
+ * 它是 JSON，解開直接取鍵就好，不必猜哪一個 `"name"` 才是它。
  */
-const shortNameSpots = [
-  {
-    file: 'ios/App/App/Info.plist',
-    where: 'CFBundleDisplayName',
-    source: plist,
-    read: (source: string, file: string, where: string) =>
-      pick(source, file, where, /<key>CFBundleDisplayName<\/key>\s*<string>(.*?)<\/string>/),
-  },
-  {
-    file: 'mobile/app.json',
-    where: 'expo.name',
-    source: expoConfig,
-    read: (source: string) => JSON.parse(source).expo.name,
-  },
-];
-
-describe.each(shortNameSpots)('$file 的顯示名稱與常數一致', ({ file, where, source, read }) => {
-  it(`${where}（iPhone 主畫面圖示底下那行字）`, () => {
-    const actual = read(source, file, where);
-    expect(actual, `${file} 的 ${where} 與 APP_NAME.short 不一致`).toBe(APP_NAME.short);
+describe('mobile/app.json 的顯示名稱與常數一致', () => {
+  it('expo.name（iPhone 主畫面圖示底下那行字）', () => {
+    const actual = JSON.parse(expoConfig).expo.name;
+    expect(actual, 'mobile/app.json 的 expo.name 與 APP_NAME.short 不一致').toBe(APP_NAME.short);
   });
 
-  it(`短名只出現在 ${where} 這一處`, () => {
-    const count = countOf(source, APP_NAME.short);
+  it('短名只出現在 expo.name 這一處', () => {
+    const count = countOf(expoConfig, APP_NAME.short);
     expect(
       count,
-      `${file} 裡的短名出現 ${count} 次，這支測試只釘了 ${where} 一處。` +
+      `mobile/app.json 裡的短名出現 ${count} 次，這支測試只釘了 expo.name 一處。` +
         `多出來的那處改名時會被漏掉，請把它也加進比對規則並更新這個數字`,
     ).toBe(1);
   });
@@ -79,7 +49,7 @@ describe.each(shortNameSpots)('$file 的顯示名稱與常數一致', ({ file, w
  * `Privacy Policy —`、`最後更新` 變成 `Last updated`），抓中文上下文的 regex 一條都活不下來。
  *
  * 因此那幾處在 HTML 裡標成 `data-app-name`，這裡只掃屬性：語言無關，一支測試管得到所有翻譯版，
- * 順帶不再因為那附近改個換行、改個標點就假紅燈。`Info.plist` 那半段是 XML，沒有這個問題，維持原樣。
+ * 順帶不再因為那附近改個換行、改個標點就假紅燈。`app.json` 那半段是 JSON，沒有這個問題，維持原樣。
  */
 const MARKER = 'data-app-name';
 

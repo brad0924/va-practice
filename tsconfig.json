@@ -22,8 +22,7 @@
     // 這個別名在七個地方各記了一次，core/ 換位置時要全部一起改：
     //
     //   網頁版  這裡的 paths、底下 include 的 "core"、vite.config.ts 的 resolve.alias，
-    //           以及 vite.config.ts 與 capacitor.config.ts 自己那兩行相對 import
-    //           （設定檔吃不到別名）
+    //           以及 vite.config.ts 自己那行相對 import（設定檔吃不到別名）
     //   iOS 版  mobile/tsconfig.json 的 paths（型別）、mobile/metro.config.js 的
     //           resolveRequest 與 watchFolders（手機上找不找得到檔）、
     //           mobile/jest.config.js 的 moduleNameMapper 與 roots（測試）
@@ -31,5 +30,5 @@
       "@core/*": ["./core/*"]
     }
   },
-  "include": ["core", "src", "vite.config.ts", "capacitor.config.ts"]
+  "include": ["core", "src", "vite.config.ts"]
 }
