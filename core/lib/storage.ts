@@ -83,8 +83,13 @@ function parseJson(json: string): unknown {
   }
 }
 
-/** 全新裝置的那一份：零本零卡。卡片只來自使用者新增或匯入單字，沒有隨程式發佈的來源。 */
-function blank(): AppData {
+/**
+ * 全新裝置的那一份：零本零卡。卡片只來自使用者新增或匯入單字，沒有隨程式發佈的來源。
+ *
+ * 匯出是為了登入時「清空，重新開始」那一條（`cloud-backup.ts` 的 `signIn()`，見 `ADR-0020`）。
+ * 那裡刻意不自己再寫一份零本零卡——寫成兩份的話，日後 `AppData` 多一格欄位就有一邊會漏掉。
+ */
+export function blank(): AppData {
   return {
     version: DATA_VERSION,
     books: [],

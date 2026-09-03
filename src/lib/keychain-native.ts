@@ -35,7 +35,7 @@ export async function loadNativeCloudStorage(): Promise<StorageLike> {
   });
 
   // 這台 iPhone 在改用 Keychain 之前存在 localStorage 的那一份從此不再被讀到，
-  // 但它是明文，留著只是白白多一個讀得到密碼的地方，而且「停止同步」也清不到它。
+  // 但它是明文，留著只是白白多一個讀得到密碼的地方，而且「停止備份」也清不到它。
   // 刻意不把它搬進 Keychain：使用者重新輸入一次就好，換來的是不必養一段只跑一次的搬遷碼。
   localStorage.removeItem(CREDENTIALS_KEY);
 

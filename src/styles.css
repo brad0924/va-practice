@@ -1358,3 +1358,17 @@ button,
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* 選擇用的彈窗（choice-modal.ts）裡那幾顆鈕。統計畫面那個彈窗裝的是 .row，是 div，
+   因此這一條碰不到它。
+   .primary 與 .secondary 只給顏色，尺寸一向由容器那一條給（.actions > button、
+   .form-actions > .primary）；而 .danger 自帶 margin-top: 2rem，那是它平常當區塊
+   底部孤鈕時要的間距，排成一列時會在中間戳一個洞，因此在這裡歸零。 */
+.modal-rows > button {
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: 0;
+  border-radius: 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}

@@ -8,7 +8,7 @@
  * 領域概念照 `docs/glossary.md` 的英文欄，**連「英文避用」那一欄一起遵守**（票 06）。
  * 有三個地方因此繞開了最順口的字，覺得不自然想改回去之前先讀這裡：
  *
- * - 停止同步那顆鈕寫 `Stop backing up`，不是 `Stop syncing`——`Sync` 是雲端備份的
+ * - 停止備份那顆鈕寫 `Stop backing up`，不是 `Stop syncing`——`Sync` 是雲端備份的
  *   避用詞（會讓人誤以為逐張合併）。全檔一個 sync 都沒有。
  * - 讀音格的合併與拆開寫 `Join`／`Separate`，不是 `Merge`／`Split`——那兩個字分別是
  *   匯入單字與讀音格的避用詞。
@@ -217,6 +217,17 @@ const en: typeof zhHant = {
   'cloud.pullTitle': 'Cloud backup',
   'cloud.pullAccept': 'Pick it up',
   'cloud.pullDecline': 'Cancel',
+  'cloud.replaceTitle': 'Take the cloud copy',
+  'cloud.replaceConfirm':
+    'The cloud backup for "{nickname}" replaces the cards and progress on this device in full, and that cannot be undone. ' +
+    'To keep what is on this device, cancel first and export a backup file from the Data screen. Continue?',
+  'cloud.replaceAccept': 'Continue',
+  'cloud.firstBackupTitle': '"{nickname}" has no cloud backup yet',
+  'cloud.firstBackupBody':
+    'Start the backup from the cards and progress on this device, or clear this device and start over? Clearing cannot be undone.',
+  'cloud.firstBackupUseLocal': 'Use this device',
+  'cloud.firstBackupBlank': 'Clear and start over',
+  'cloud.cancel': 'Cancel',
   'cloud.wrongPassword': 'Wrong nickname or password',
   'cloud.tooLarge':
     'The number of cards is over the limit for cloud backup, so nothing was uploaded this time. Please export a file from Manual backup on the Data screen and keep it. The cards and progress on this device are completely unaffected.',

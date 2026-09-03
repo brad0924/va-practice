@@ -5,8 +5,12 @@
  * 刻意不寫成 `{ ...zhHant, ... }`：那樣漏填一條會靜靜掉回中文，
  * 「少一條就編譯錯」的守門就失效了。
  *
- * 領域概念照 `docs/glossary.md` 的日本語欄。**「英文避用」那一欄只管英文**，
- * 因此中文那份的「同步」在這裡照樣是「同期」，不必像 `en.ts` 那樣繞開。
+ * 領域概念照 `docs/glossary.md` 的日本語欄，**`CONTEXT.md` 的 `_Avoid_` 一併遵守**。
+ * 最常踩到的是〈雲端備份〉的「同步」：那個詞會讓人誤以為兩邊的進度被逐張合併，
+ * 因此這一份全檔一個「同期」都沒有，一律講「バックアップ」（票 `cloud-backup/06`）。
+ *
+ * > 這裡本來寫著「避用欄只管英文，中文那份的『同步』在這裡照樣是『同期』」。
+ * > 那句話與 `zh-Hant.ts` 一起違反了詞彙表，兩邊在票 `cloud-backup/06` 一起收掉。
  *
  * 標點與數量詞照日文習慣（票 06）：讀點「、」、句點「。」、括號「（）」與「」，
  * 中文那份的全形逗號一個都不留；數字與量詞之間不空格，カード論「枚」、単語帳論「冊」。
@@ -144,8 +148,8 @@ const ja: typeof zhHant = {
   'data.pullNow': 'クラウドバックアップを引き継ぐ（{nickname}）',
   'data.changePasswordTitle': 'パスワードの変更',
   'data.changeHint':
-    'パスワードを変更すると、古いパスワードのままの端末は弾かれます。同期を続けるには、それぞれで新しいパスワードを入力し直す必要があります。',
-  'data.stopSync': '同期を停止',
+    'パスワードを変更すると、古いパスワードのままの端末は弾かれます。バックアップを続けるには、それぞれで新しいパスワードを入力し直す必要があります。',
+  'data.stopSync': 'バックアップを停止',
   'data.stopConfirm':
     '停止するとクラウドへのバックアップは行われません。カードと進捗はこの端末にそのまま残ります。停止しますか？',
   'data.stopConfirmNative':
@@ -160,7 +164,7 @@ const ja: typeof zhHant = {
   'data.connecting': '接続中…',
   'data.updatePassword': 'パスワードを更新',
   'data.passwordUpdated':
-    'パスワードを更新しました。ほかの端末では、新しいパスワードを入力し直すまで同期できません。',
+    'パスワードを更新しました。ほかの端末では、新しいパスワードを入力し直すまでバックアップできません。',
   'data.geminiTitle': 'Gemini API キー',
   'data.geminiHint':
     'Google AI Studio（aistudio.google.com/apikey）でキーを作成し、' +
@@ -200,6 +204,17 @@ const ja: typeof zhHant = {
   'cloud.pullTitle': 'クラウドバックアップ',
   'cloud.pullAccept': '引き継ぐ',
   'cloud.pullDecline': 'キャンセル',
+  'cloud.replaceTitle': 'クラウドの分を使う',
+  'cloud.replaceConfirm':
+    '「{nickname}」のクラウドバックアップが、この端末のカードと進捗をまるごと置き換えます。元には戻せません。' +
+    'この端末の分を残したい場合は、いったんキャンセルして、「データ」画面からバックアップファイルを書き出してください。続けますか？',
+  'cloud.replaceAccept': '続ける',
+  'cloud.firstBackupTitle': '「{nickname}」のクラウドバックアップはまだありません',
+  'cloud.firstBackupBody':
+    'この端末のカードと進捗でバックアップを作りますか。それともこの端末を空にして、最初から始めますか。空にすると元には戻せません。',
+  'cloud.firstBackupUseLocal': 'この端末の分を使う',
+  'cloud.firstBackupBlank': '空にして最初から',
+  'cloud.cancel': 'キャンセル',
   'cloud.wrongPassword': 'ニックネームまたはパスワードが違います',
   'cloud.tooLarge':
     'カードの枚数がクラウドバックアップの上限を超えたため、今回はアップロードしていません。「データ」の手動バックアップからファイルに書き出して保存してください。この端末のカードと進捗にはまったく影響ありません。',

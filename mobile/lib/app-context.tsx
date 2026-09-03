@@ -18,6 +18,7 @@ import type { CloudConsent } from '@core/lib/cloud-consent';
 import { planReminders, type DailyReminder } from '@core/lib/daily-reminder';
 import type { AppData } from '@core/lib/types';
 import { createNativeCloudConsent } from './cloud-consent-native';
+import { askFirstBackupNatively, askReplaceNatively } from './cloud-prompts-native';
 import { isSelfCheckRequested, reportCryptoSelfCheck } from './crypto-self-check';
 import { createNativeDailyReminder } from './daily-reminder-native';
 import { rateHaptic } from './haptics';
@@ -142,6 +143,14 @@ function createWiring(
      * > 兩句跟著探針一起走。
      */
     onStatus,
+
+    /**
+     * 登入時那兩個問句（`ADR-0020`）。兩支都只是把 `Alert.alert` 包成 `Promise`，
+     * 本體在 `./cloud-prompts-native.ts`——這裡與網頁版 `src/app.ts` 對應那一段
+     * 同一個位置、同一件事，差別只在那邊一個走 `confirm()`、一個走自己畫的彈窗。
+     */
+    askReplace: askReplaceNatively,
+    askFirstBackup: askFirstBackupNatively,
   });
 
   session = createReviewSession({

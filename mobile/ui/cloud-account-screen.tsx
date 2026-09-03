@@ -37,8 +37,9 @@ export interface CloudSignInScreenProps {
 }
 
 /**
- * 登入。**同一顆按鈕走得到兩個方向**——`signIn()` 先看雲端那份新不新：雲端新就拉下來
- * （電腦存、手機拉），本機新就推上去（手機存、電腦拉）。
+ * 登入。**`signIn()` 不比新舊**（`ADR-0020`）：那個暱稱在雲端已經有備份就一律拉下來，
+ * 只有雲端還空著時才把這台這份存上去。內容會被蓋掉時它會先問一句，問的方式在
+ * `../lib/cloud-prompts-native.ts`。
  *
  * **「改用別的暱稱」進來的也是這一頁。** 打一組新的送出去，`signIn()` 會把 Keychain
  * 那一筆蓋掉——因此資料頁上不必、也刻意沒有一個「忘掉舊的那一組」的動作。
@@ -65,10 +66,13 @@ export function CloudSignInScreen({ session, cloud, cloudConsent, onDone }: Clou
     setError('');
     setBusy(true);
     try {
-      await cloud.signIn(nickname.current, password.current, session.snapshot().data);
+      const signedIn = await cloud.signIn(nickname.current, password.current, session.snapshot().data);
+      // 使用者在警示窗按了取消：沒有登入，本機與雲端都一個字沒動（`ADR-0020`）。
+      // 那不是錯誤，因此不寫錯誤字、也不算同意；停在這一頁讓他重按或改暱稱。
+      if (!signedIn) return;
       cloudConsent.grant();
-      // 雲端那份比較新的話，`onPulled` 那一側已經重讀過一次；這一行是本機比較新那條路上
-      // 的補償——`signIn()` 會把本機這份推上去並蓋一個新的時間戳。多讀一次是安全的。
+      // 拉下來那一條，`onPulled` 那一側已經重讀過一次；這一行是「雲端還空著、把這台
+      // 這份存上去」那條路上的補償——`signIn()` 會蓋一個新的時間戳。多讀一次是安全的。
       session.reload();
       onDone();
     } catch (reason) {

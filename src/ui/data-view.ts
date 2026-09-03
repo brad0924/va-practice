@@ -101,7 +101,7 @@ function langSection(app: App): HTMLElement {
 }
 
 /**
- * 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止同步兩個控制項。
+ * 雲端備份：未登入時是一組暱稱密碼欄位，登入後是換密碼與停止備份兩個控制項。
  * iOS 上多一個狀態——**記得暱稱、但這台裝置拒絕過**，那時給的是一條反悔的路。
  */
 function cloudSection(app: App): HTMLElement {
@@ -111,7 +111,7 @@ function cloudSection(app: App): HTMLElement {
   const signedInAs = app.cloud.nickname();
 
   // 拒絕過的裝置不能畫成「已登入」：暱稱與密碼確實還在（Keychain 那一筆刻意不刪），
-  // 但這台並沒有在同步。反悔的路留在這裡，按下去就接回來，一個字都不必打——
+  // 但這台並沒有在備份。反悔的路留在這裡，按下去就接回來，一個字都不必打——
   // 不留的話，改主意的代價是重新輸入一組可能一年沒打過的密碼（票 14）。
   if (signedInAs !== null && app.cloudConsent?.declined() === true) {
     section.append(
@@ -166,6 +166,12 @@ function cloudSection(app: App): HTMLElement {
     el('div', 'form-actions', submit),
   );
 
+  /** 把送出鈕放回可以再按的樣子。沒登入成的兩條路（按了取消、出錯）都要走它。 */
+  const restore = (): void => {
+    submit.disabled = false;
+    submit.textContent = t('data.signIn');
+  };
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     error.textContent = '';
@@ -173,7 +179,13 @@ function cloudSection(app: App): HTMLElement {
     submit.textContent = t('data.connecting');
     void app.cloud
       .signIn(nickname.value, password.value, app.data)
-      .then(() => {
+      .then((signedIn) => {
+        // 使用者在確認框按了取消：沒有登入，本機與雲端都一個字沒動（`ADR-0020`）。
+        // 那不是錯誤，因此不寫錯誤字、也不算同意，只把按鈕放回去。
+        if (!signedIn) {
+          restore();
+          return;
+        }
         // 在這台裝置上親手打完密碼就是同意了——下次開 app 再問一次是在羞辱他（票 14）。
         app.cloudConsent?.grant();
         // 重畫成已登入的樣子。拉到雲端資料的情形下這裡是第二次重畫，內容相同。
@@ -181,8 +193,7 @@ function cloudSection(app: App): HTMLElement {
       })
       .catch((reason: unknown) => {
         error.textContent = toMessage(reason);
-        submit.disabled = false;
-        submit.textContent = t('data.signIn');
+        restore();
       });
   });
 

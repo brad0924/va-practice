@@ -11,9 +11,10 @@ import { createNativeDailyReminder } from './lib/daily-reminder-native';
 import { currentCard, rebuildQueue, rate as rateCard, toDateKey, type Queue } from '@core/lib/review';
 import { onNativeForeground } from './lib/foreground-native';
 import type { AppData, Card, Rating } from '@core/lib/types';
-import { initI18n, setLang as switchLang, type LangChoice } from '@core/i18n';
+import { initI18n, setLang as switchLang, t, type LangChoice } from '@core/i18n';
 import { initSpeech } from './ui/speech';
 import { createSyncStatus } from './ui/sync-status';
+import { askChoice } from './ui/choice-modal';
 import { reviewView } from './ui/review-view';
 import { listView } from './ui/list-view';
 import { dataView } from './ui/data-view';
@@ -128,6 +129,31 @@ export function start(root: HTMLElement, cloudStorage: StorageLike): void {
       store.save(data);
     },
     onStatus: createSyncStatus(document.body),
+
+    /**
+     * 登入時雲端那份會整份蓋掉本機這份，先問一句（`ADR-0020`）。
+     *
+     * 兩顆按鈕的問句照舊走 `confirm()`，與這一頁其他幾個確認同一套。它是同步的，
+     * 包一層 `Promise.resolve()` 就接得上——`./lib/cloud-consent-native.ts` 是同一個寫法。
+     */
+    askReplace: (nickname) => Promise.resolve(confirm(t('cloud.replaceConfirm', { nickname }))),
+
+    /**
+     * 雲端還沒有這個暱稱的備份，問要拿什麼建立。
+     *
+     * 三個答案，`confirm()` 只有兩顆按鈕，因此走自己畫的那一個（`./ui/choice-modal.ts`）。
+     */
+    askFirstBackup: (nickname) =>
+      askChoice({
+        title: t('cloud.firstBackupTitle', { nickname }),
+        body: t('cloud.firstBackupBody'),
+        choices: [
+          { label: t('cloud.firstBackupUseLocal'), value: 'local' },
+          { label: t('cloud.firstBackupBlank'), value: 'blank', danger: true },
+          { label: t('cloud.cancel'), value: 'cancel' },
+        ],
+        dismiss: 'cancel',
+      }),
   });
 
   // 這台裝置對「要不要接回雲端」的答案。記在 localStorage 的獨立一格，與提醒開關、

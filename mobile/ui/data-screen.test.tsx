@@ -134,7 +134,9 @@ function fakeCloud(initialNickname: string | null) {
   const cloud: CloudBackup = {
     nickname: () => nickname,
     begin: calls.begin as unknown as CloudBackup['begin'],
-    signIn: () => Promise.resolve(),
+    // `true` 代表真的登入了（`ADR-0020` 之後 `signIn()` 也答得出「使用者按了取消」）。
+    // 這支測試沒有一條走到登入，答什麼都行，給成功那一個比較不會誤導人。
+    signIn: () => Promise.resolve(true),
     changePassword: () => Promise.resolve(),
     signOut: calls.signOut as unknown as CloudBackup['signOut'],
     push: calls.push as unknown as CloudBackup['push'],
