@@ -172,6 +172,13 @@ function fakeFirebase() {
         updatedAt,
       });
     },
+    /** 雲端現在替這個暱稱存著什麼（解密後的 JSON 原文）。沒有那筆就是 null。 */
+    async read(nickname: string, password: string): Promise<string | null> {
+      const keys = await deriveKeys(nickname, password);
+      const entry = entries.get(keys.path);
+      if (entry === undefined) return null;
+      return decrypt(keys.key, entry.payload);
+    },
   };
 }
 
@@ -441,5 +448,116 @@ describe('雲端備份', () => {
     expect(rules.rules.backups.$key.open.payload['.validate']).toContain(
       `length <= ${CLOUD_PAYLOAD_LIMIT}`,
     );
+  });
+});
+
+/**
+ * 使用者 2026-09-03 回報的手順：停止同步 → 換一個暱稱登入 → 刪卡 → 停止同步 →
+ * 回舊暱稱登入。結果舊暱稱那份雲端備份裡，剛剛刪掉的卡也不見了。
+ *
+ * 這一組刻意把接線層那一格也模擬進來：`onPushed` 回來的伺服器時間戳要寫回本機那份
+ * （真的接線在 `mobile/lib/review-session.ts` 的 `noteCloudTimestamp` 與 `src/app.ts`）。
+ * 少了那一格，本機的 `updatedAt` 永遠停在原地，新舊比較就不是真的那一套。
+ *
+ * ## 兩條都是 `it.fails`，不是 `it.skip`
+ *
+ * 行為要怎麼改還沒談定（票 `.scratch/cloud-backup/issues/05`），所以現在斷言的是
+ * 「使用者期待的結果」而現況做不到。`it.fails` 的意思是**這一條現在就該失敗**：
+ * bug 還在的時候它是綠的，**有人把 bug 修好的那一天它會轉紅**，逼修的人回頭
+ * 把斷言與那張票一起收掉。`it.skip` 沒有這個效果——它會安靜地爛在那裡。
+ */
+describe('換暱稱', () => {
+  const OLD = '舊暱稱';
+  const NEW = '新暱稱';
+
+  /** 兩張卡的一份資料。刪掉第二張之後看得出來少了什麼。 */
+  function twoCards(updatedAt: number): AppData {
+    const data = appData('第一張', updatedAt);
+    data.cards.push({
+      id: '第二張',
+      bookId: 'book',
+      text: '第二張',
+      meaning: '第二張',
+      interval: null,
+      ease: DEFAULT_EASE,
+      due: null,
+    });
+    return data;
+  }
+
+  /** 一台裝置：本機那份跟著推拉更新時間戳，與真的接線層一致。 */
+  function fakeDevice(doFetch: typeof fetch, local: AppData) {
+    let data = local;
+    let pushes = 0;
+    const settled: Array<() => void> = [];
+    const hooks: CloudBackupHooks = {
+      storage: fakeStorage(),
+      fetch: doFetch,
+      onPulled(json, updatedAt) {
+        data = { ...(JSON.parse(json) as AppData), updatedAt };
+        for (const resolve of settled.splice(0)) resolve();
+      },
+      onPushed(updatedAt) {
+        data = { ...data, updatedAt };
+        pushes += 1;
+        for (const resolve of settled.splice(0)) resolve();
+      },
+      onStatus() {},
+    };
+    return {
+      cloud: createCloudBackup(hooks),
+      current: () => data,
+      /** 本機刪掉一張卡，然後推上去。等推完才回來。 */
+      async deleteCardAndPush(next: AppData) {
+        const before = pushes;
+        data = next;
+        this.cloud.push(next);
+        while (pushes === before) await new Promise<void>((resolve) => settled.push(resolve));
+      },
+    };
+  }
+
+  it.fails('在新暱稱底下刪掉的卡，舊暱稱的雲端備份也跟著少了一張', async () => {
+    const server = fakeFirebase();
+    await server.seed(OLD, PASSWORD, twoCards(100), 100);
+
+    const device = fakeDevice(server.fetch, twoCards(100));
+
+    // 1. 在舊暱稱底下停止同步
+    await device.cloud.signIn(OLD, PASSWORD, device.current());
+    device.cloud.signOut();
+
+    // 2. 用新暱稱登入
+    await device.cloud.signIn(NEW, PASSWORD, device.current());
+
+    // 3. 刪掉第二張卡
+    await device.deleteCardAndPush(appData('第一張', device.current().updatedAt));
+
+    // 4. 在新暱稱底下停止同步
+    device.cloud.signOut();
+
+    // 5. 回舊暱稱登入
+    const beforeStep5 = server.writes().length;
+    await device.cloud.signIn(OLD, PASSWORD, device.current());
+
+    // 機制確認：第 5 步走的是「把本機那份推上去」，不是「把雲端那份拉下來」。
+    expect(server.writes().length).toBe(beforeStep5 + 1);
+    expect(await server.read(OLD, PASSWORD)).toContain('第二張');
+  });
+
+  it.fails('縮到最小：兩次「停止同步」都不是必要條件', async () => {
+    const server = fakeFirebase();
+    await server.seed(OLD, PASSWORD, twoCards(100), 100);
+
+    const device = fakeDevice(server.fetch, twoCards(100));
+
+    // 從沒登入過舊暱稱，直接用新暱稱登入
+    await device.cloud.signIn(NEW, PASSWORD, device.current());
+    // 刪一張
+    await device.deleteCardAndPush(appData('第一張', device.current().updatedAt));
+    // 直接登入舊暱稱，中間不停止同步
+    await device.cloud.signIn(OLD, PASSWORD, device.current());
+
+    expect(await server.read(OLD, PASSWORD)).toContain('第二張');
   });
 });
