@@ -1,5 +1,14 @@
 name: Build iOS and upload to TestFlight
 
+# **這支出的是 React Native 版的包**（票 `rn-rewrite 20`）。
+# 2026-09-03 以前它出的是 Capacitor 版，build 那一段走 Capacitor 的同步指令、
+# 編的是它產生的那份 Xcode 專案。整段換成 `expo prebuild`，簽章與上傳兩大段原封保留——
+# 兩版是同一個 Apple 帳號、同一個 Bundle ID，那批 secrets 一個都沒換。
+#
+# 為什麼不用 EAS Build：public repo 的 macOS runner 不計費，EAS 免費方案有配額與排隊；
+# 而簽章那整套票 `ios-app 17` 已經做過一次，就在底下。
+# 訂正的理由見 `.scratch/rn-rewrite/spec.md` 的〈路線〉。
+#
 # 簽章憑證有效期一年，到期時倒在簽章那一步是正常的——
 # 要重做哪幾步見 docs/ios-signing-renewal.md（workflow 本身不用改）。
 #
@@ -17,33 +26,107 @@ jobs:
   build:
     # public repo 的標準 macOS runner 不計費
     runs-on: macos-latest
+    # 卡住的話六小時後才會自己停（GitHub 的預設），期間佔著上面那個 concurrency 名額，
+    # 下一趟只能排隊。同一個 repo 的 mobile-crypto.yml 用的也是 60。
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          # 兩份 node_modules：根目錄那份裝 vitest 與共用邏輯，mobile/ 那份裝 Expo 與 jest。
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
 
-      - run: npm ci
-      - run: npm test
-
-      # build:ios 產出 base 為 / 且不含 service worker 的版本，
-      # cap sync 把它複製進 ios/App/App/public
-      - run: npm run sync:ios
-
-      # `cap sync` 寫不出 Package.swift 的時候**仍然回傳 0**（在 Windows 上實測到：
-      # 建不了符號連結就是這個下場）。真的發生的話 build 會一路跑完、外掛卻不在產物裡，
-      # 要裝到 iPhone 上按下去才發現——一輪 TestFlight 就這樣白費。當場擋下來便宜得多。
+      # 兩套測試都是閘門，任一支紅燈就不出包（票 `rn-rewrite 20` 的決定四）。
+      # 擺在最前面是因為它們幾分鐘就跑完，而底下 prebuild 加 archive 要一刻鐘以上。
       #
-      # 連路徑一起檢查，不是只找套件名：Capacitor 8.5 在 Windows 上會把分隔符號寫成
-      # 反斜線（`symlinks\Capacitor…`），那在 Swift 裡是非法的跳脫字元，檔案根本解析不了。
-      # 只比對套件名的話，那份壞掉的 Package.swift 照樣過關。
-      - name: 確認 Firebase 外掛真的進了 Package.swift
-        run: |
-          grep -q 'symlinks/CapacitorFirebaseAppCheck' ios/App/CapApp-SPM/Package.swift \
-            || { echo "Package.swift 裡找不到 symlinks/CapacitorFirebaseAppCheck——cap sync 沒寫進去，或分隔符號是反斜線"; exit 1; }
+      # 每一套前面各配一道 typecheck，跟 test.yml 那兩個 job 的形狀對齊——出正式包這條路
+      # 不該比日常 CI 鬆。多花約半分鐘。
+      - name: 裝套件（根目錄）
+        run: npm ci
 
-      # App Store Connect API 金鑰。簽章已改成固定憑證（見下一步），
+      - name: 型別檢查（根目錄）
+        run: npm run typecheck
+
+      # 共用的 core/lib，包含雲端備份加解密的六列標答
+      - name: 測試（根目錄 vitest）
+        run: npm test
+
+      - name: 裝套件（mobile）
+        working-directory: mobile
+        run: npm ci
+
+      - name: 型別檢查（mobile）
+        working-directory: mobile
+        run: npm run typecheck
+
+      # 相依守門與畫面測試
+      - name: 測試（mobile jest）
+        working-directory: mobile
+        run: npm test
+
+      # Expo 專案平常沒有 ios/ 目錄，出包時才長出來（mobile/.gitignore 把 /ios 排除掉）。
+      # --clean 是為了讓每一趟都從同樣的起點開始，不吃到上一趟留下的東西。
+      #
+      # **`expo prebuild` 的 `pod install` 失敗時它自己照樣回報成功**：錯誤印出來，
+      # 然後 exit 0。底下那一段檢查是為了讓紅燈亮在**印著錯誤的這一步**。
+      # 認 `.xcworkspace` 而不是認退出碼：那份 workspace 正是 `pod install` 的產出。
+      # 同一個坑與同一段解釋在 mobile-crypto.yml 裡也有一份。
+      #
+      # scheme 名稱由 Expo 依 `mobile/app.json` 的 `name` 決定，不寫死——改個 app 名字
+      # 它就變了。workspace 的檔名就是 scheme 名，原生專案的目錄名也是同一個。
+      - name: 產出 iOS 原生專案
+        working-directory: mobile
+        run: |
+          npx expo prebuild --platform ios --clean
+          WORKSPACE=$(ls -d ios/*.xcworkspace 2>/dev/null | head -1)
+          test -n "$WORKSPACE" || {
+            echo "::error::pod install 沒有做完（沒有產出 .xcworkspace）。原因在上面這一步的 log 裡。"
+            exit 1
+          }
+          # 兩個都往下傳。WORKSPACE 是實際找到的那條路徑，Archive 直接用它，
+          # 不要再從 SCHEME 拼回來——拼回來等於把「兩者同名」這件事多賭一次。
+          {
+            echo "WORKSPACE=$WORKSPACE"
+            echo "SCHEME=$(basename "$WORKSPACE" .xcworkspace)"
+          } >> "$GITHUB_ENV"
+
+      # TestFlight 不接受重複的 build number，用 run_number 保證遞增。
+      # 它與 App Store Connect 的 build number 是兩套獨立計數器，re-run 時 run_number
+      # 不會 +1；撞號會在上傳那步大聲倒掉、不會靜默出錯，重跑一趟就過。這是票
+      # `ios-app 17` 當時的決定，票 `rn-rewrite 20` 沿用。
+      #
+      # **不能像 Capacitor 版那樣把 CURRENT_PROJECT_VERSION 傳給 xcodebuild。**
+      # `expo prebuild` 把 CFBundleVersion 寫成字面值 "1"，不是 `$(CURRENT_PROJECT_VERSION)`
+      # （見 @expo/config-plugins 的 build/ios/Version.js 那支 setBuildNumber）——
+      # 那個建置設定傳了也沒有人讀，每一趟都會是 1，第二趟開始就撞號。所以直接改 Info.plist。
+      #
+      # 改在 prebuild 之後、archive 之前：prebuild --clean 每趟重生 ios/，寫早了會被蓋掉。
+      - name: 把 build number 寫進 Info.plist
+        working-directory: mobile
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          # 原生專案的目錄名與 scheme 同名，是 Expo 依 app 名稱一起決定的。
+          # 萬一哪天不再同名，把 ios/ 底下實際長出來的東西印出來，
+          # 不必再燒一趟 CI 才看得到目錄結構。
+          INFO_PLIST="ios/$SCHEME/Info.plist"
+          test -f "$INFO_PLIST" || {
+            echo "::error::找不到 $INFO_PLIST"
+            ls -la ios/
+            exit 1
+          }
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$INFO_PLIST"
+          # 讀回來確認。PlistBuddy 的 Set 遇到不存在的鍵時只印一行錯誤、照樣 exit 0，
+          # 少了這一段的話 build number 會靜靜留在 1，要等上傳那步才倒。
+          ACTUAL=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")
+          test "$ACTUAL" = "$BUILD_NUMBER" \
+            || { echo "::error::CFBundleVersion 寫不進去（現在是 $ACTUAL，要的是 $BUILD_NUMBER）"; exit 1; }
+
+      # App Store Connect API 金鑰。簽章走固定憑證（見下一步），
       # 這把金鑰現在只剩最後 altool 上傳那一步在用。
       - name: 寫入 App Store Connect API 金鑰
         env:
@@ -58,7 +141,7 @@ jobs:
       # -allowProvisioningUpdates 讓 Xcode 自己去 Apple 後台新建一張憑證，
       # 每跑一趟就燒掉一格額度，額度滿了整支 workflow 就倒。
       # 現在改成把維護者手上那張 Apple Distribution 憑證帶進來，
-      # CI 不再有權、也不再需要建立任何憑證。
+      # CI 不再有權、也不再需要建立任何憑證。這一段換版本一個字都沒改。
       - name: 匯入簽章憑證與 provisioning profile
         env:
           CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
@@ -116,34 +199,33 @@ jobs:
             cp "$RUNNER_TEMP/profile.mobileprovision" "$DIR/$PROFILE_UUID.mobileprovision"
           done
 
-      # provisioning profile 與 team 必須掛在 App 這個 target 上，**不能**從 xcodebuild
-      # 的指令參數傳。理由與那支腳本守著什麼，都寫在 scripts/inject-signing.mjs 的檔頭，
-      # 那支有 scripts/inject-signing.test.mjs 守著（跑得進 npm test）。
-      - name: 把 provisioning profile 掛到 App target 上
-        run: node scripts/inject-signing.mjs "$PROFILE_NAME"
-
-      # TestFlight 不接受重複的 build number，用 run_number 保證遞增。
-      # 直接把 CURRENT_PROJECT_VERSION 傳給 xcodebuild，不走 agvtool——
-      # 這個專案沒有設 VERSIONING_SYSTEM = apple-generic，agvtool 改不動它。
+      # **簽章設定全部從指令列傳，PROVISIONING_PROFILE_SPECIFIER 也包含在內。**
+      # Capacitor 版不能這樣：那邊 Firebase 走 SPM 拉進八個額外 target，它們不接受被塞
+      # provisioning profile，所以 profile 名稱得靠 scripts/inject-signing.mjs 單獨掛到
+      # App target 上。這一版 `mobile/app.json` 設了 `disableSPM: true`，**Firebase 走
+      # CocoaPods**，Pods 是獨立的專案、簽章行為不一樣，那套分工不必照抄。
       #
-      # **這裡唯一不能出現的是 PROVISIONING_PROFILE_SPECIFIER**，其餘三個簽章設定
-      # 都必須留在這裡、對全體適用。四趟 CI 一項一項試出來的（見 issues/01）：
+      # 這一步若倒在「provisioning profile 對不上 bundle identifier」那類訊息上，
+      # 就是 Pods 那邊也吃到了 profile——那時再寫一支 Expo config plugin 把它單獨掛回
+      # App target（`mobile/plugins/with-app-check-first.js` 是現成的形狀）。
+      # 先試簡單的、倒了再拆，是票 `rn-rewrite 20` 寫明的順序。
       #
-      #   CODE_SIGN_STYLE=Manual    少了它 → 那 8 個 SPM target 退回自動簽章，
-      #                             然後跟被指定的發佈憑證打架：「conflicting provisioning settings」
-      #   DEVELOPMENT_TEAM          少了它 → 「requires a development team」
-      #   CODE_SIGN_IDENTITY        那幾個 target 是會被蓋章的，要知道用哪張憑證
-      #   OTHER_CODE_SIGN_FLAGS     憑證在臨時鑰匙圈裡，不指名就找不到
+      #   CODE_SIGN_STYLE=Manual            不指定就退回自動簽章，跟被指定的發佈憑證打架
+      #   DEVELOPMENT_TEAM                  少了它 →「requires a development team」
+      #   CODE_SIGN_IDENTITY                要知道用哪張憑證蓋章
+      #   OTHER_CODE_SIGN_FLAGS             憑證在臨時鑰匙圈裡，不指名就找不到
+      #   PROVISIONING_PROFILE_SPECIFIER    手動簽章要指名用哪一張 profile
       #
-      # 也就是說那 8 個 target 完全接受「手動簽章、用這張憑證、屬於這個 team」，
-      # 它們唯一不接受的是被塞一張 provisioning profile。
+      # 走 -workspace 而不是 -project：prebuild 加 CocoaPods 產出的是 .xcworkspace，
+      # 只給 .xcodeproj 的話 Pods 那些相依整組不在，連編都編不起來。
       - name: Archive
+        working-directory: mobile
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           xcodebuild archive \
-            -project ios/App/App.xcodeproj \
-            -scheme App \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
@@ -151,7 +233,7 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
 
       - name: 匯出 ipa
         env:
