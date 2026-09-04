@@ -315,3 +315,15 @@ workflow 那一處只改註解，**build 段一行不動，票 `20` 的界線沒
 `ios/$SCHEME/Info.plist` 是活的（那一步 `working-directory: mobile`，指的是 prebuild 重生的
 `mobile/ios/`）；`scripts/hooks/privacy-signals.test.mjs` 裡那幾個 `ios/App/App/*.swift`
 是餵給比對函式的字串，不讀檔，28 個測試照樣全過。
+
+### 2026-09-04 — 網頁版實地確認過，票完全收掉
+
+推上 `main`、GitHub Pages 部署成功之後，維護者自己開了一次網站，四項都正常：
+卡片還在、能複習、匯出按得動、離線重整打得開。
+
+**這一項沒有任何自動化蓋得到。** 部署那支 workflow 只做兩件事——跑 `npm run build`、
+把 `dist/` 推上去，它不會開瀏覽器看一眼。CI 綠燈證明的是「包出得來、傳得上去」。
+
+風險集中在 `9fc9857`（動網頁版程式碼那批）：`createStore()` 底下拆掉了保險副本那層包裝、
+評分那支拿掉觸覺、`download()` 從兩條路變一條、service worker 要快取的檔從十一個變九個。
+這四件事各對應上面四項確認。
