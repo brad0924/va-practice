@@ -184,7 +184,7 @@ export function DataScreen({
    *
    * 關掉那條是同步的，開起來那條要先過通知權限那一關，因此**先把開關扳過去再等**——
    * 不先扳的話，系統對話框跳出來的那一兩秒，開關會停在原位，看起來像沒按到。
-   * 被拒絕時再彈回去，與網頁版 `src/ui/data-view.ts` 的 `deny()` 同一個處理。
+   * 被拒絕時再彈回去。網頁版曾經有同一段處理，票 `21` 把它那一區的每日提醒整個拆了。
    */
   const toggleReminder = (on: boolean): void => {
     setReminderDenied(false);

@@ -4,8 +4,9 @@
  *
  * ## 為什麼走 `expo-notifications`，與 Capacitor 版相反
  *
- * Capacitor 版底下是 app 自己那支插件（`ios/App/App/DailyReminderPlugin.swift`），
- * 理由是「四支方法不值得多牽一條 npm 依賴」。**那筆帳在這裡算不出來**：
+ * Capacitor 版底下是 app 自己那支插件（`DailyReminderPlugin.swift`，已隨票 `21` 連同整個
+ * `ios/` 目錄刪掉，溯源見 `ADR-0015`；底下再提到它都是歷史），理由是「四支方法不值得多牽
+ * 一條 npm 依賴」。**那筆帳在這裡算不出來**：
  * `mobile/.gitignore` 把 `/ios` 排除掉了，原生專案每次建置重新產生，所以自己寫 Swift
  * 除了那支檔還要多寫一支設定檔外掛把它塞進去（像 `../plugins/with-app-check-first.js`），
  * 再加上新架構的接線。實質是兩份工，換掉的只是一條官方套件的依賴（票 `19` 拍板）。

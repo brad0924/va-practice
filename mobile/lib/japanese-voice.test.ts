@@ -46,8 +46,9 @@ describe('挑日文語音', () => {
 describe('語速', () => {
   /**
    * `expo-speech` 的 iOS 那一端算的是 `utterance.rate = rate × AVSpeechUtteranceDefaultSpeechRate`
-   * （`node_modules/expo-speech/ios/SpeechModule.swift`），而 `ios/App/App/SpeechPlugin.swift`
-   * 寫的是 `AVSpeechUtteranceDefaultSpeechRate * 0.9`。同一個算式，所以填 0.9 就對得起來。
+   * （`node_modules/expo-speech/ios/SpeechModule.swift`），而 Capacitor 版的
+   * `SpeechPlugin.swift` 寫的是 `AVSpeechUtteranceDefaultSpeechRate * 0.9`（那支已隨票 `21`
+   * 刪掉，溯源見 `ADR-0015`）。同一個算式，所以填 0.9 就對得起來。
    */
   it('與 Capacitor 版同一個數字', () => {
     expect(SPEECH_RATE).toBe(0.9);

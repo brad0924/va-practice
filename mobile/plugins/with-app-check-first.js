@@ -20,8 +20,9 @@
  * 2. `didFinishLaunchingWithOptions` 裡 `RNFBAppCheckModule.sharedInstance()`
  *    排在 `FirebaseApp.configure()` **前面**
  *
- * > Capacitor 版當年為同一件事在 `ios/App/App/AppDelegate.swift` 手寫了十行 Swift
- * > （`.scratch/fixed-gemini-key/issues/01`）。那邊的 `ios/` 進版控所以改一次就好；
+ * > Capacitor 版當年為同一件事在自己的 `AppDelegate.swift` 手寫了十行 Swift
+ * > （`.scratch/fixed-gemini-key/issues/01`；那個 `ios/` 目錄票 `21` 已刪，溯源見
+ * > `ADR-0015`）。那邊的 `ios/` 進版控所以改一次就好；
  * > 這裡每次 `expo prebuild` 都重新產生，因此得寫成外掛。
  *
  * ## 這支外掛要排在 `@react-native-firebase/app` 後面

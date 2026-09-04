@@ -1,10 +1,11 @@
 /**
  * React Native 上的讀音預填：固定金鑰、走 Firebase AI Logic，使用者什麼都不必設定。
  *
- * **這是 `src/lib/gemini-reading-native.ts` 的第二份實作，不是抄一份新邏輯。**
- * 提示詞、回覆的形狀、逾時的秒數、重試的規矩、回來之後那道 `acceptPrefill` 的驗證，
- * 全部沿用 `core/` 那一份——模型看到的字三條路一模一樣（spec 決定十六），
- * 差別只在「誰把它交出去」。這支檔只負責那一段。
+ * **這是第二份實作，不是抄一份新邏輯**——第一份是網頁版走使用者自備金鑰那條
+ * （`src/ui/editor-view.ts` 的 `createAsk()`）。提示詞、回覆的形狀、逾時的秒數、
+ * 重試的規矩、回來之後那道 `acceptPrefill` 的驗證，全部沿用 `core/` 那一份——
+ * 模型看到的字兩條路一模一樣（spec 決定十六），差別只在「誰把它交出去」。
+ * 這支檔只負責那一段。
  *
  * ## 與 Capacitor 版那一支差在哪
  *
@@ -74,10 +75,13 @@ import { budgeted, withRetry } from '@core/lib/reading-retry';
 /**
  * Remote Config 那兩個參數的名字、後備表與過期時間**住在 `core/lib/gemini-reading.ts`**。
  *
- * 兩條 Firebase 路徑（這一支與 Capacitor 版的 `src/lib/gemini-reading-native.ts`）背後是
- * 同一個 Firebase 專案的同兩個參數——維護者改一次主控台，兩支 app 一起跟上。各抄一份的話，
- * 改到一半漏掉一邊時沒有任何測試會紅，而症狀是「那支 app 安靜地一直用程式碼裡的舊值」，
- * 沒有人看得出來。spec 的〈程式碼怎麼擺〉把讀音預填點名為共用邏輯，就是在講這件事。
+ * 曾經有兩條 Firebase 路徑（這一支與 Capacitor 版那支同名的 `gemini-reading-native.ts`），
+ * 背後是同一個 Firebase 專案的
+ * 同兩個參數——維護者改一次主控台，兩支 app 一起跟上。票 `21` 刪掉 Capacitor 版之後只剩
+ * 這一條，參數的名字仍然住在 `core/`：那裡與後備表、過期時間擺在一起，整批有
+ * `core/lib/gemini-reading.test.ts` 守著。搬過來只會讓「改到一半漏掉一邊」重新變成
+ * 沒有測試看得到的事，而症狀是「app 安靜地一直用程式碼裡的舊值」。spec 的〈程式碼怎麼擺〉
+ * 把讀音預填點名為共用邏輯，講的就是這件事。
  *
  * 為什麼要有這條路（`.scratch/fixed-gemini-key/issues/03`）：固定金鑰把「模型被下架」的
  * 修復成本從幾分鐘拉到幾天。自備金鑰時那是零星使用者踩到、改個字串 push 上去；固定金鑰

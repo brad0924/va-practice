@@ -21,8 +21,8 @@ module.exports = {
   // 其中兩支（app-name、cloud-backup）綁著網頁版的工具鏈，接進來要先各自想辦法。
   //
   // `safety-copy` 本來也在這裡，票 `07` 拿掉了：保險副本在 React Native 這一側不接，
-  // 讓它在這台跑等於暗示 `mobile/` 用得到它。那 14 條沒有損失，repo 根的 vitest
-  // 收的是 `core/**/*.test.ts`，照跑。
+  // 讓它在這台跑等於暗示 `mobile/` 用得到它。**那 14 條後來整批消失**——票 `21` 刪掉
+  // Capacitor 版之後 `core/lib/safety-copy.ts` 沒有任何呼叫端，程式碼與測試一起移除。
   //
   // 標答那一支（`cloud-crypto-vectors`）在這裡跑的是 **Node 內建的加解密**，不是手機上那份
   // quick-crypto——那個套件底下是 C++，在 Node 裡一被 import 就當場爆。所以它在這裡綠燈

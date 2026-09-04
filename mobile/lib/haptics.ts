@@ -1,6 +1,7 @@
 /**
- * 評分時震的那一下。Capacitor 版走自己寫的 `ios/App/App/HapticsPlugin.swift`，
- * React Native 版走 `expo-haptics`——兩邊底下都是 `UIImpactFeedbackGenerator`。
+ * 評分時震的那一下。Capacitor 版走自己寫的 `HapticsPlugin.swift`（已隨票 `21` 連同整個
+ * `ios/` 目錄刪掉，溯源見 `ADR-0015`；底下再提到它都是歷史），React Native 版走
+ * `expo-haptics`——兩邊底下都是 `UIImpactFeedbackGenerator`。
  *
  * **這是重接，不是重新設計**（票 `08`）。四個評分共用同一種震動，沒有參數：
  * 輕重是使用者自己的判斷，程式不該用震動替它加註解。`HapticsPlugin.swift` 明寫
@@ -12,7 +13,7 @@
  * > `review-session.ts` 的 `rate()` 直接叫，不問「這台機器震得動嗎」。
  *
  * 本模組不寫自動測試：原生模組在 Node 環境下不存在，硬要測就得造一整套假物件，
- * 測到的只是自己寫的假貨（與網頁版 `src/lib/haptics-native.ts` 同一個理由）。
+ * 測到的只是自己寫的假貨（與網頁那一側的 `haptics-native.ts` 同一個理由，票 `21` 已刪）。
  * 守得住的那一半——「評分會震、其它動作不震、震在存檔之前」——由
  * `review-session.test.ts` 遞一個假的進去驗，其餘靠真機的手動驗收清單。
  */

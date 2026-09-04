@@ -1,6 +1,7 @@
 /**
- * 原生日文朗讀。Capacitor 版走自己寫的 `ios/App/App/SpeechPlugin.swift`，
- * React Native 版走 `expo-speech`——兩邊底下都是 `AVSpeechSynthesizer`。
+ * 原生日文朗讀。Capacitor 版走自己寫的 `SpeechPlugin.swift`（已隨票 `21` 連同整個 `ios/`
+ * 目錄刪掉，溯源見 `ADR-0015`；底下再提到它都是歷史），React Native 版走
+ * `expo-speech`——兩邊底下都是 `AVSpeechSynthesizer`。
  *
  * 念什麼由呼叫端決定：先跑 `toReadingText()` 把漢字換成標注的讀音，聽到的與卡片教的
  * 讀法一致（與網頁版 `src/ui/speech.ts` 同一條規矩）。挑語音與選語速在這裡。

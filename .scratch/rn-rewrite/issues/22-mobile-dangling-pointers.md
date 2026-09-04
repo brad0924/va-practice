@@ -1,6 +1,6 @@
-# 22 — `mobile/` 底下九行註解指著已經不存在的檔
+# 22 — `mobile/` 底下有一批註解指著已經不存在的檔
 
-Status: needs-triage
+Status: done
 Type: chore
 Blocked by: 無（票 `21` 已 done）
 
@@ -8,7 +8,7 @@ Blocked by: 無（票 `21` 已 done）
 
 票 `21` 把 Capacitor 那一整套刪掉了：`ios/` 目錄與 `src/lib/` 底下那批 `*-native.ts`。
 
-`mobile/` 有九行註解拿那些檔當對照。例如 `mobile/lib/haptics.ts` 第 15 行：
+`mobile/` 有一批註解拿那些檔當對照。例如 `mobile/lib/haptics.ts`：
 
 > 測到的只是自己寫的假貨（與網頁版 `src/lib/haptics-native.ts` 同一個理由）。
 
@@ -17,57 +17,123 @@ Blocked by: 無（票 `21` 已 done）
 
 票 `21` 刻意不順手修，理由寫在它的〈決定〉第七條最後：那張票的〈驗收〉有一條
 「**`mobile/` 零改動**（`git diff --stat mobile/` 是空的）」，那是確認「沒有弄壞手機版」
-最硬的一道守門。為六行註解換掉它不划算。
+最硬的一道守門。為幾行註解換掉它不划算。
 
 ## 現況盤點
 
-查證於 2026-09-04（票 `21` 收掉之後）。
+**開票時盤的九行漏了不少。** 實作當天用一支臨時腳本掃過整個 `mobile/`
+（抓反引號裡看起來像路徑的字串、檢查檔在不在），實際是十六行、九個檔。
+底下是修正後的清單。
 
-### 指向已刪檔案的（九行，六個檔）
+### 指向已刪檔案的（十六行，九個檔）
 
-| 檔 | 行 | 指著 |
+| 檔 | 指著 | 開票時盤到了嗎 |
 | --- | --- | --- |
-| `mobile/lib/cloud-consent-native.ts` | 4 | `src/lib/cloud-consent-native.ts` |
-| `mobile/lib/daily-reminder-native.ts` | 7 | `ios/App/App/DailyReminderPlugin.swift` |
-| `mobile/lib/gemini-reading-native.ts` | 4 | `src/lib/gemini-reading-native.ts` |
-| `mobile/lib/gemini-reading-native.ts` | 77 | `src/lib/gemini-reading-native.ts` |
-| `mobile/lib/haptics.ts` | 2 | `ios/App/App/HapticsPlugin.swift` |
-| `mobile/lib/haptics.ts` | 15 | `src/lib/haptics-native.ts` |
-| `mobile/lib/japanese-voice.ts` | 2 | `ios/App/App/SpeechPlugin.swift` |
-| `mobile/lib/share-file-native.ts` | 4 | `src/lib/download-native.ts` |
-| `mobile/ui/data-screen.tsx` | 187 | `src/ui/data-view.ts` 的 `deny()` |
+| `mobile/lib/cloud-consent-native.ts` | `src/lib/cloud-consent-native.ts` | 有 |
+| `mobile/lib/daily-reminder-native.ts` | `ios/App/App/DailyReminderPlugin.swift` | 有 |
+| `mobile/lib/gemini-reading-native.ts` | `src/lib/gemini-reading-native.ts`（兩處） | 有 |
+| `mobile/lib/haptics.ts` | `ios/App/App/HapticsPlugin.swift`、`src/lib/haptics-native.ts` | 有 |
+| `mobile/lib/japanese-voice.ts` | `ios/App/App/SpeechPlugin.swift` | 有 |
+| `mobile/lib/share-file-native.ts` | `src/lib/download-native.ts` | 有 |
+| `mobile/ui/data-screen.tsx` | `src/ui/data-view.ts` 的 `deny()` | 有 |
+| `mobile/lib/review-session.ts` | `CONTEXT.md` 的「保險副本」詞條 | **沒有** |
+| `mobile/lib/japanese-voice.test.ts` | `ios/App/App/SpeechPlugin.swift` | **沒有** |
+| `mobile/plugins/with-app-check-first.js` | `ios/App/App/AppDelegate.swift` | **沒有** |
+| `mobile/README.md` | `ios/App/App/SpeechPlugin.swift` | **沒有** |
 
-最後那一行是不同的一種：`src/ui/data-view.ts` 還在，但票 `21` 把它裡面的
-`reminderSection()` 整區拆了，`deny()` 是那一區的內部函式，跟著沒了。
+### 不只是指標壞掉，句子本身也錯了（三處）
+
+這三處的問題比「路徑指不到」嚴重：**它們現在陳述的是假的事**。
+
+1. `mobile/README.md` 與 `mobile/jest.config.js` 都寫著保險副本那 14 條測試
+   「沒有損失，repo 根的 vitest 照跑」。票 `21` 把 `core/lib/safety-copy.ts`
+   連測試一起刪了，那 14 條整批消失。
+2. `mobile/lib/gemini-reading-native.ts` 寫「模型看到的字**三條路**一模一樣」。
+   Capacitor 那條沒了，現在是兩條。
+3. 同一支檔寫「**兩條** Firebase 路徑⋯⋯兩支 app 一起跟上」。現在只剩這一條。
 
 ### 指得到、不必動的
 
-`mobile/` 另有十四行拿網頁版當對照，指的檔案全都還在
-（`src/ui/review-view.ts`、`list-view.ts`、`editor-view.ts`、`data-view.ts`、
-`speech.ts`、`toast.ts`、`choice-modal.ts`、`book-filter.ts`、`reading-html.ts`）。
-**這些不在這張票的範圍。**
+`mobile/` 另有十四行拿網頁版當對照，指的檔案全都還在。**不在這張票的範圍。**
 
-### `mobile/README.md` 另有兩處
+### 不是票 `21` 造成的（七行，其中只有一行真的壞了）
 
-`mobile/README.md` 第 83 行與第 210 行提到保險副本與 Capacitor 版。
-那兩處是行文對照，不是斷掉的指標，但票 `21` 已經把「保險副本」從 `CONTEXT.md`
-與 `docs/glossary.md` 拿掉了，README 是否要跟進是這張票要決定的。
+掃描另外抓到七行指向 `ui/probe-screen.tsx`、`lib/cloud-probe.ts`、`app/data.tsx`。
+那三個東西不是 Capacitor 的一部分，是探針畫面（票 `18` 刪）與路由拆分（票 `18`）
+留下的，來源不同。
 
-## 要你拍板的
+**逐條看過之後，其中六行不是斷指標。** 它們寫的是「這一頁在票 `18` 之前掛的是探針畫面
+（`ui/probe-screen.tsx`）」這種話——句子自己就講明那支檔已經刪了，路徑是歷史識別碼，
+與這張票決定二採用的寫法一模一樣。
 
-1. **那九行怎麼改？** 三種寫法：把對照整句拿掉、改寫成「Capacitor 版曾經怎麼做」
-   的歷史敘述（不附路徑）、還是保留敘述但把路徑換成 `.scratch/rn-rewrite/issues/21`
-   之類查得到的出處。
-2. **`mobile/README.md` 那兩處要不要跟進？** 「保險副本」已經不是這個專案的正名詞了。
-3. **要不要順手加一道守門？** 現在沒有任何東西會抓到「註解裡的路徑指向不存在的檔」。
-   一支掃 `` `路徑` `` 反引號、檢查檔在不在的測試做得出來，但誤報率要先評估
-   （很多反引號裡是函式名、設定鍵，不是路徑）。
+只有 `mobile/ui/review-screen.tsx` 那一行是真的壞的：它寫「見 `../app/data.tsx`」，
+那是一句**叫人去看**的指路，而票 `18` 把它拆成了 `app/data/` 目錄。
+來源不是票 `21`，因此不在這張票裡，記進票 `23`。
+
+## 決定
+
+### 一、留敘述、拿掉死路徑、需要溯源的改指 `ADR-0015`
+
+三種寫法裡挑這一種。那些「Capacitor 版怎麼做、這裡為什麼不一樣」的段落**本身有用**：
+它們解釋的是設計判斷，不是單純的參見。壞掉的只有後面那個路徑。
+
+`ADR-0015` 是目前唯一還查得到 Capacitor 時代的地方，而且票 `21` 已經在它開頭
+補了一段「那整套已移除」。它接得住這些溯源。
+
+### 二、被刪檔案的**檔名**留著，只拿掉死掉的目錄
+
+`ios/App/App/HapticsPlugin.swift` 這種寫法，死掉的是 `ios/App/App/` 這段路徑，
+不是 `HapticsPlugin.swift` 這個名字——那個名字仍然是 git 歷史與 `ADR-0015` 裡查得到的
+識別碼。而且 `mobile/` 底下另有十處只寫檔名、不寫路徑地提到那幾支 Swift
+（例如 `daily-reminder-native.ts` 就有四處）。
+
+**把檔名也拿掉的話，那十處會變成孤兒**——讀的人看到一個沒有人介紹過的名字。
+因此做法是：檔頭第一次提到時保留檔名，緊接著一句「已隨票 `21` 連同整個 `ios/` 目錄刪掉，
+溯源見 `ADR-0015`；底下再提到它都是歷史」，後面十處一個字不動。
+
+**同一條規則也套在被刪的 TypeScript 上。** `src/lib/haptics-native.ts` 之類寫成
+`haptics-native.ts`，死掉的 `src/lib/` 拿掉、檔名留著。其中三支與 `mobile/` 這一側**同名**
+（`cloud-consent-native.ts`、`gemini-reading-native.ts`），那個同名是刻意的對照，
+因此寫成「Capacitor 版那支同名的 `xxx.ts`」，把「兩邊叫同一個名字」這件事講出來。
+
+### 三、`mobile/README.md` 那兩處保留敘述，補一個活的出處
+
+「保險副本」已經不是這個專案的正名詞，但那兩段在解釋「為什麼 React Native 版沒有這東西」，
+對讀的人仍有用。做法是保留說明、把錯掉的事實改對（那 14 條是整批消失，不是照跑）、
+再補上 `ADR-0015` 當溯源。
+
+`mobile/jest.config.js` 有一模一樣的錯句，一起改。
+
+### 四、`review-session.ts` 那一行一起修
+
+開票時沒盤到。它叫人去 `CONTEXT.md` 找「保險副本」，而那個詞條票 `21` 拿掉了，
+性質與其他幾行完全一樣。
+
+### 五、自動守門另開票，這張票不做
+
+一支掃反引號、檢查檔在不在的腳本做得出來——這張票驗收時就臨時寫了一支。
+但誤報率要先實測（十六個真陽性配上一批 `${coreRoot}/...` 樣板字串、
+`node_modules` 內部路徑之類的假陽性），那不是註解修正的一部分。開票 `23`。
 
 ## 這張票不做的事
 
 - **不改任何行為。** 從頭到尾只動註解
 - **不動 `core/lib/`、`src/`、`docs/`。** 票 `21` 已經把那幾邊的斷指標修完了
 - **不改那十四行指得到的對照**
+- **不修那七行探針與路由的斷指標**（來源不同，留給票 `23`）
+- **不把守門腳本收進版控**（票 `23`）
+
+## 驗收
+
+- [x] 票 `21` 刪掉的東西，`mobile/` 底下沒有任何一處還把它當成查得到的路徑
+      （唯一還壞著的是 `review-screen.tsx` 那句「見 `../app/data.tsx`」，來源是票 `18`，
+      不是這張票的範圍，記在票 `23`）
+- [x] 那十六行仍讀得懂：每一段的設計理由都在，只是路徑換成 `ADR-0015`
+- [x] 三處錯句改對：14 條測試、三條路→兩條路、兩條 Firebase 路徑→一條
+- [x] `mobile/` 底下十處只寫 Swift 檔名的地方一個字沒動，而且都有檔頭那句話接得住
+- [x] `npm run typecheck` 兩邊都過（repo 根與 `mobile/`）
+- [x] `npm test` 兩邊都綠：vitest 631 條、jest 521 條
+- [x] `git diff` 只有註解，沒有任何一行是程式碼
 
 ## Comments
 
@@ -79,3 +145,52 @@ Blocked by: 無（票 `21` 已 done）
 當場問過維護者，選了「另開一張票，票 `21` 不碰 `mobile/`」。這就是那張票。
 
 開票時只盤點、不決定，形狀比照票 `20` 與 `21` 當初的開法。
+
+### 2026-09-04 — 實作，四個決定與盤點的修正
+
+維護者拍板四題，全部照推薦走：留敘述改指 `ADR-0015`、README 補活的出處、
+`review-session.ts` 一起修、守門另開票。
+
+**動手之後盤點被推翻了兩次。**
+
+第一次是查證的時候。`gemini-reading-native.ts` 那兩處不只是路徑斷掉——句子裡數著
+「三條路」與「兩條 Firebase 路徑」，Capacitor 一刪，那兩個數字就是假的。
+再往下查，`safety-copy` 那 14 條測試也不是「repo 根照跑」，是票 `21` 連
+`core/lib/safety-copy.ts` 一起刪光了。**這三處是錯句，不是斷指標**，
+比原本盤的那九行嚴重。
+
+第二次是改完之後。臨時寫了一支腳本掃整個 `mobile/`，又抓到四行開票時沒看到的
+（`japanese-voice.test.ts`、`with-app-check-first.js`、`README.md`、`review-session.ts`）。
+開票時只翻了 `mobile/lib/` 與 `mobile/ui/`，`plugins/`、測試檔與 README 沒掃到。
+最後實際改的是十六行、九個檔。
+
+**決定二是實作當天多出來的。** 原本打算把 Swift 檔名連同路徑一起拿掉，
+改到一半發現 `mobile/` 底下另有十處只寫檔名地提到那幾支 Swift，
+拿掉之後那十處會變成沒有人介紹過的名字。於是回頭改成「檔名留著、只拿掉目錄」，
+並在檔頭補一句「底下再提到它都是歷史」。這個做法讓改動從二十六行縮回十六行。
+
+**那支掃描腳本沒有進版控**，理由寫在決定五。它跑出來的十二個結果裡，
+五個是刻意留的歷史檔名、六個是講明「已經刪了」的歷史敘述、一個是真的壞掉的指路
+（來源是票 `18`，不是票 `21`），零個是這張票該修而沒修的。
+
+**那十一個假陽性正是票 `23` 的難題。** 機器看到的是「反引號裡有個檔名、那個檔不在」，
+但寫這行的人本來就知道它不在——分不出「這是歷史」與「這是指路」的話，
+守門只會逼大家把有用的歷史敘述一行行刪掉。
+
+### 2026-09-04 — `/code-review` 的 Spec 軸抓到兩處
+
+**驗收第一條寫得太滿。** 原本寫「`mobile/` 底下沒有任何反引號路徑指向不存在的檔」，
+但同一張票的〈不是票 `21` 造成的〉自己承認 `review-screen.tsx` 那句「見 `../app/data.tsx`」
+是壞的。前半句是假的，已改成只涵蓋票 `21` 那一批。
+
+**`haptics.ts` 第 15 行換錯了對象。** 原文是「與網頁版 `src/lib/haptics-native.ts` 同一個理由」，
+第一版改成「與 Capacitor 版那支同一個理由」——但檔頭上方三行剛介紹過 `HapticsPlugin.swift`，
+讀的人會把「那支」讀成那支 Swift，而原意是網頁那一側的 TypeScript。
+這是決定一說的「留敘述」沒做到：敘述留了，指涉卻換掉了。
+
+修正的方式順帶把決定二補完整：**被刪的 TypeScript 也保留檔名**，
+原本那條規則只寫給 Swift。`share-file-native.ts`、`cloud-consent-native.ts`、
+`gemini-reading-native.ts` 三處一併補上檔名。
+
+**Standards 軸沒跑完**（撞到 API 的 session 上限），改由主線自己走一遍：
+繁簡、縮寫全名、`CONTEXT.md` 正名詞、票格式、以及每一個路徑與票號實際存不存在。

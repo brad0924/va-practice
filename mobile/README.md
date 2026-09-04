@@ -81,7 +81,9 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 接線見 `test/vitest-shim.ts`。
 
 > `safety-copy.test.ts` 曾經在這張表上，票 `07` 拿掉了：保險副本在 React Native 這一側不接，
-> 讓它在這台跑等於暗示 `mobile/` 用得到它。那 14 條沒有損失，repo 根的 vitest 照跑。
+> 讓它在這台跑等於暗示 `mobile/` 用得到它。**那 14 條後來整批消失**——票 `21` 刪掉 Capacitor
+> 版之後，`core/lib/safety-copy.ts` 沒有任何呼叫端，程式碼與測試一起移除，「保險副本」也不再是
+> 這個專案的正名詞。溯源見 `ADR-0015`。
 
 畫面測試用 `@testing-library/react-native`（票 `06` 加的，`ADR-0014` 那批 jsdom 畫面測試
 在 React Native 上作廢）。**它的 `render`、`rerender` 與 `fireEvent` 都是非同步的**，
@@ -189,8 +191,9 @@ Capacitor 版對得起來（票 `06` 定案 1a）。iOS 的語意色裡沒有任
 但那張票留了一個假設：`lineHeight` 多出來的空間上下平分。瀏覽器上成立，UIKit 可能全放在字的
 上方。假名離漢字太遠或壓到漢字時，調的是 `lib/term-layout.ts` 的 `READING_PULL_ADJUST`。
 
-**朗讀走 `expo-speech`**，語速填 `0.9`。那個數字與 `ios/App/App/SpeechPlugin.swift` 對得起來，
-因為兩邊算的都是 `rate × AVSpeechUtteranceDefaultSpeechRate`。
+**朗讀走 `expo-speech`**，語速填 `0.9`。那個數字與 Capacitor 版的 `SpeechPlugin.swift`
+對得起來（那支已隨票 `21` 刪掉，溯源見 `ADR-0015`），因為兩邊算的都是
+`rate × AVSpeechUtteranceDefaultSpeechRate`。
 有一處對不齊：那支 Swift 會先看使用者在系統設定裡選了哪顆日文語音，`expo-speech` 問不到
 這件事，所以這裡只挑品質最好的那顆，見 `lib/japanese-voice.ts` 的註解。
 
@@ -208,7 +211,8 @@ JavaScript 與原生程式碼之間那條直通管道），簡單說就是 JavaS
 而且 `app.json` 的 `ITSAppUsesNonExemptEncryption: false` 現在還是真的，開下去就不是了。
 
 **沒有保險副本。** Capacitor 版有一份，防的是 iOS 把 WebView 那層的網站資料清掉；React Native
-版沒有 WebView，MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。票 `07` 已拍板不留。
+版沒有 WebView，MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。票 `07` 已拍板不留，
+票 `21` 之後連 Capacitor 版那一份也不在了——「保險副本」是那個時代的詞，溯源見 `ADR-0015`。
 
 **檔案壞掉時退回上一版，不歸零。** `createMmkvStorage()` 明訂 `recoveryStrategy: 'recover-on-error'`。
 不設的話 MMKV 的預設是整格丟掉，app 開起來像剛裝好的。理由與溯源寫在 `lib/storage-mmkv.ts` 的註解。

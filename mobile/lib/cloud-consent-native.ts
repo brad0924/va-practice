@@ -1,7 +1,7 @@
 /**
  * 「這台裝置要不要接雲端」接上這台裝置的接線。問的方式只出現在這裡，
  * `core/lib/cloud-consent.ts` 因此維持可以在 vitest 裡測的純度，
- * 立場與 `src/lib/cloud-consent-native.ts`（Capacitor 版那支）相同。
+ * 立場與 Capacitor 版那支同名的 `cloud-consent-native.ts` 相同（票 `21` 已刪，溯源見 `ADR-0015`）。
  *
  * **React Native 上沒有 `confirm()`**，改用 `Alert.alert()`——那是原生的警示窗，而且是
  * 非同步的：按鈕的處理器在使用者選完之後才跑。`cloud-consent.ts` 的 `ask()` 從票 `17` 起

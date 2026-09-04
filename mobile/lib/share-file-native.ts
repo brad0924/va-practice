@@ -1,8 +1,9 @@
 /**
  * 把一份檔案交給使用者：寫進暫存檔，再叫出系統的分享單（票 `18`）。
  *
- * 做法與 Capacitor 版 `src/lib/download-native.ts` 一致——**iOS 上沒有「下載」這回事**，
- * 存到「檔案」、AirDrop、傳給自己都經過同一張分享單。這裡換的只是套件：
+ * 做法與 Capacitor 版那支 `download-native.ts` 一致（票 `21` 已刪，溯源見 `ADR-0015`）——
+ * **iOS 上沒有「下載」這回事**，存到「檔案」、AirDrop、傳給自己都經過同一張分享單。
+ * 這裡換的只是套件：
  * `@capacitor/filesystem` + `@capacitor/share` 換成 `expo-file-system` + `expo-sharing`。
  *
  * **比 Capacitor 那份少一段。** 那邊要自己認「使用者把分享單滑掉了」——插件在取消時
