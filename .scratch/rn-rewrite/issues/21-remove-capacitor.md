@@ -298,3 +298,20 @@ workflow 那一處只改註解，**build 段一行不動，票 `20` 的界線沒
 **`mobile/` 底下六處斷掉的註解指標另開票。** 那六行寫著「與 `src/lib/haptics-native.ts` 同一個理由」
 這類話，指的檔案都被這張票刪了。不在這裡順手修，是因為〈驗收〉那條「`mobile/` 零改動」
 是確認沒弄壞手機版最硬的一道守門，不值得為六行註解換掉。
+
+### 2026-09-04 — 收票後補掉兩處漏網
+
+維護者問「有沒有需要手動驗收的地方」，順手再掃一次，發現盤查時漏了兩處。
+**病灶是搜尋詞太窄**：整趟只搜「capacitor」，沒搜「ios/」。
+
+- `.github/workflows/deploy.yml` 的 `paths-ignore` 還列著 `ios/**`，註解寫「兩個 iOS 版」。
+  不影響行為（一個永遠不會命中的條件），但就是決定七要修的那一類。
+- `docs/ios-signing-renewal.md` 第 153 行說 App Attest 的 `production` 來自
+  `ios/App/App/App.entitlements`。**那是活的操作手冊**——2027 年 8 月換憑證時有人會照著做。
+  同一個值現在寫在 `mobile/app.json` 的 `ios.entitlements`，`expo prebuild` 每趟寫進產物。
+  論述完全成立，只是來源換了地方。
+
+查證過、確認不必動的兩處：`.github/workflows/ios-testflight.yml` 第 116 行的
+`ios/$SCHEME/Info.plist` 是活的（那一步 `working-directory: mobile`，指的是 prebuild 重生的
+`mobile/ios/`）；`scripts/hooks/privacy-signals.test.mjs` 裡那幾個 `ios/App/App/*.swift`
+是餵給比對函式的字串，不讀檔，28 個測試照樣全過。

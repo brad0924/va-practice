@@ -9,8 +9,7 @@ on:
       - '.scratch/**'
       - 'docs/**'
       - '.claude/**'
-      # 兩個 iOS 版的改動都不影響網頁版產物
-      - 'ios/**'
+      # iOS 版的改動不影響網頁版產物
       - 'mobile/**'
   workflow_dispatch:
 

@@ -150,7 +150,7 @@ App Attest 那次查的是 `appattest`，要印出這一段才算對：
 </array>
 ```
 
-**`production` 必須在清單裡**，因為 `ios/App/App/App.entitlements` 寫死了 `production`。profile 給的值涵蓋不了 entitlements 要的值，`codesign` 就會倒。
+**`production` 必須在清單裡**，因為 `mobile/app.json` 的 `ios.entitlements` 寫死了 `production`（`expo prebuild` 每趟把它寫進產生出來的 `App.entitlements`）。profile 給的值涵蓋不了 entitlements 要的值，`codesign` 就會倒。
 
 印出空的代表你抓到的還是舊那張，回第 2 步。
 
