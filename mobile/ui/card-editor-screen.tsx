@@ -459,7 +459,7 @@ export function CardEditorScreen({ session, card, ask, onDone }: CardEditorScree
 
       <ScrollView
         contentContainerStyle={styles.form}
-        // 導覽列是玻璃的（見 `../app/cards/_layout.tsx`），內容從它底下穿過去，
+        // 導覽列是玻璃的（見 [../app/cards/_layout.tsx](../app/cards/_layout.tsx)），內容從它底下穿過去，
         // 讓系統自己算要讓開多少。
         contentInsetAdjustmentBehavior="automatic"
         /**
@@ -607,7 +607,7 @@ export function CardEditorScreen({ session, card, ask, onDone }: CardEditorScree
       />
 
       {saved !== null && (
-        // `key` 換了整支重生，計時器跟著重來。理由見 `./toast.tsx`。
+        // `key` 換了整支重生，計時器跟著重來。理由見 [./toast.tsx](./toast.tsx)。
         <Toast key={saved.seq} message={saved.text} onHide={() => setSaved(null)} />
       )}
 

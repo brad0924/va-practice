@@ -723,7 +723,7 @@ describe('介面語言', () => {
   it('資料頁那一列顯示目前選的是哪一個，點下去進子畫面', async () => {
     const app = await mount();
 
-    // 測試環境沒有存過選擇，因此是「系統預設」（見 `core/test-setup.ts`）。
+    // 測試環境沒有存過選擇，因此是「系統預設」（見 [core/test-setup.ts](../../core/test-setup.ts)）。
     expect(app.view.queryByText(t('data.langSystem'))).not.toBeNull();
 
     await fireEvent.press(app.view.getByText(t('data.langTitle')));

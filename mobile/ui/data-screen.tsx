@@ -18,7 +18,7 @@
  * 在 React Native 上只做得到一半的原因。
  *
  * **標題「資料」置中，`headerLargeTitle: false`。** 這是既有的房規，不是這張票的新決定
- * （見 `./cards-screen.tsx` 的 `cardsHeader()`：置中是維護者明確要求的，2026-08-31，
+ * （見 [./cards-screen.tsx](./cards-screen.tsx) 的 `cardsHeader()`：置中是維護者明確要求的，2026-08-31，
  * 圖版五·甲）。三頁一致。
  *
  * > **附帶結果，寫下來免得日後被當成失誤**：iOS「設定」app 用的是靠左的大標題。
@@ -163,7 +163,7 @@ export function DataScreen({
    * 兩條路都要問：這一頁第一次出來時，以及每次 app 從背景回到前景時。
    *
    * **第二條不能省。** 網頁版每次進「資料」畫面都重建整片 DOM，因此那邊問一次就夠了；
-   * 這裡的四個 tab 底下是 `UITabBarController`（見 `../app/_layout.tsx`），**畫面掛上去
+   * 這裡的四個 tab 底下是 `UITabBarController`（見 [../app/_layout.tsx](../app/_layout.tsx)），**畫面掛上去
    * 之後就不會卸載**，切走再切回來不會再跑一次 `useEffect`。少了回到前景這一條，
    * 「去『設定 → JP Vocab → 通知』把通知關掉，回到 app」那條路上開關會一直亮著，
    * 而那正是決定二十四禁止的假象。
@@ -279,7 +279,7 @@ export function DataScreen({
    * 接回雲端備份。**一個字都不必打**——暱稱與密碼還在 Keychain 裡，只是這台答過「不接」。
    *
    * 走的是與開機那一問同意時同一支 `begin()`，行為因此一致：比新舊、該拉就拉。
-   * 拉到雲端資料的話 `onPulled` 那一側會重建複習佇列（見 `../lib/app-context.tsx`）。
+   * 拉到雲端資料的話 `onPulled` 那一側會重建複習佇列（見 [../lib/app-context.tsx](../lib/app-context.tsx)）。
    */
   const resume = () => {
     cloudConsent.grant();
@@ -380,7 +380,7 @@ export function DataScreen({
       <ScrollViewMarker>
         <ScrollView
           contentContainerStyle={styles.list}
-          // 導覽列是玻璃的（見 `../app/data/_layout.tsx`），內容從它底下穿過去，
+          // 導覽列是玻璃的（見 [../app/data/_layout.tsx](../app/data/_layout.tsx)），內容從它底下穿過去，
           // 讓系統自己算要讓開多少（HIG `L-02`）。
           contentInsetAdjustmentBehavior="automatic"
         >

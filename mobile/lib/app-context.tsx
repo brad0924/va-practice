@@ -101,7 +101,7 @@ function createWiring(
    */
   const cloud = createCloudBackup({
     // **暱稱與密碼那一格是 Keychain，不是 MMKV**（票 `17`）：那一筆標記為可同步，
-    // 換新 iPhone 時跟著 iCloud 鑰匙圈走（見 `./keychain-native.ts` 與 `ADR-0019`）。
+    // 換新 iPhone 時跟著 iCloud 鑰匙圈走（見 [./keychain-native.ts](./keychain-native.ts) 與 `ADR-0019`）。
     storage: cloudStorage,
     // bind 不可省：`fetch` 被拆下來單獨呼叫時會丟 Illegal invocation，
     // 與網頁版 `src/app.ts` 綁 window 是同一件事。
@@ -288,7 +288,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
      * **先問，答「要」才接**（票 `17`）。順序不能反——反過來就是先拉再問，問了也沒用。
      *
      * 問的是這一台，不是這個帳號：密碼跟著 iCloud 鑰匙圈走到新裝置，同意不跟著走
-     * （見 `core/lib/cloud-consent.ts`）。答過一次就不再問，沒登入過的裝置根本不問。
+     * （見 [core/lib/cloud-consent.ts](../../core/lib/cloud-consent.ts)）。答過一次就不再問，沒登入過的裝置根本不問。
      *
      * `updatedAt` 非 0 代表這份資料曾經與雲端往返過——那台裝置早就在同步了，不必問。
      * 遞給 `begin()` 的那一份在答完之後才重讀：警示窗擋著的期間本機不會變，

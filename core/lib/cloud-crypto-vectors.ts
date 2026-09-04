@@ -23,7 +23,7 @@
 import { deriveKeys, encrypt, decrypt } from './cloud-crypto';
 import table from './cloud-crypto-vectors.json';
 
-/** 標答表裡的一列。欄位的意思見 `scripts/generate-crypto-vectors.mjs` 的配方清單。 */
+/** 標答表裡的一列。欄位的意思見 [scripts/generate-crypto-vectors.mjs](../../scripts/generate-crypto-vectors.mjs) 的配方清單。 */
 export interface CryptoVector {
   name: string;
   why: string;

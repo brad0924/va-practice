@@ -4,7 +4,7 @@ React Native 版把雲端備份的暱稱與密碼存進 iOS Keychain 時，拉�
 並開 `cloudSync: true`，而不是 Expo 官方的 `expo-secure-store`。**理由只有一個：官方那支沒有
 iCloud 鑰匙圈同步。**
 
-決策的完整經過見 `.scratch/rn-rewrite/issues/17-keychain-and-device-consent.md`。
+決策的完整經過見 [.scratch/rn-rewrite/issues/17-keychain-and-device-consent.md](../../.scratch/rn-rewrite/issues/17-keychain-and-device-consent.md)。
 
 ## 為什麼這件事值得記一筆
 

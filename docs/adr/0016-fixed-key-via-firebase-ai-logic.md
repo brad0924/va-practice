@@ -4,7 +4,7 @@
 
 **網頁版一個字都不動**，仍然走 `gemini-key.ts` 那條路：使用者自備金鑰、自己貼、存在自己那台裝置、走自己的額度。網頁版掛在公開的 GitHub Pages 上，任何寫進打包產物的字串按 F12 就看得到，用 CI（Continuous Integration，持續整合）的 secret 在打包時注入也一樣——secret 只是沒進 git 歷史，照樣印進那個公開的 JS 檔。
 
-決策的完整經過見 `.scratch/fixed-gemini-key/spec.md`，本 ADR 只記錄決定本身。
+決策的完整經過見 [.scratch/fixed-gemini-key/spec.md](../../.scratch/fixed-gemini-key/spec.md)，本 ADR 只記錄決定本身。
 
 ## 這份與 `ADR-0005` 的關係
 
@@ -35,7 +35,7 @@
 
 ## 這條路是用真機驗過的，不是推論
 
-App Attest 是 Apple 的原生 API，模擬器一律回「不支援」，因此整條路能不能走通只有 TestFlight 加一支真 iPhone 答得出來。2026-08-20 驗完：原生層跟 Apple 換到的權杖，經 `CustomProvider` 交給 WebView 裡的 JS SDK（JavaScript Software Development Kit，JavaScript 軟體開發套件），Google 那端認得也接受（App Check 指標「已驗證的要求」不是零；沒帶權杖的對照組被 401 擋下）。經過見 `.scratch/fixed-gemini-key/issues/01-app-attest-spike.md`。
+App Attest 是 Apple 的原生 API，模擬器一律回「不支援」，因此整條路能不能走通只有 TestFlight 加一支真 iPhone 答得出來。2026-08-20 驗完：原生層跟 Apple 換到的權杖，經 `CustomProvider` 交給 WebView 裡的 JS SDK（JavaScript Software Development Kit，JavaScript 軟體開發套件），Google 那端認得也接受（App Check 指標「已驗證的要求」不是零；沒帶權杖的對照組被 401 擋下）。經過見 [.scratch/fixed-gemini-key/issues/01-app-attest-spike.md](../../.scratch/fixed-gemini-key/issues/01-app-attest-spike.md)。
 
 過程中量到的一件事值得記在決策層：**provider factory 必須搶在 `FirebaseApp.configure()` 之前指定**，否則 App Check 會用出廠預設的 DeviceCheck 把自己建好，之後再指定也換不回來。`ios/App/App/AppDelegate.swift` 那十行 Swift 因此不是探路程式碼，是這條路成立的前提。
 
@@ -45,7 +45,7 @@ App Attest 是 Apple 的原生 API，模擬器一律回「不支援」，因此�
 
 **`ADR-0005` 那個沒有第二道防線的風險被放大了。** 「整串讀音幻覺」——模型很有自信地說 `吹雪` 唸 `すいせつ`——不會報錯，要等複習翻面才發現，還會一路存進雲端備份。原本這只會發生在自己申請金鑰、知道自己開了什麼的人身上；現在**每個下載的人第一張卡就可能中**。防線仍然只有三道：填進格子而非直接存檔、一行「讀音由 AI 填入，請確認」的提示、預覽。本次一道都沒有加強，連那行提示的文字都沒改，因此這個放大了的風險是**原樣接受**的，不是被緩解過的。下次要動它，起點是「AI 可能填錯」與「儲存前」這兩句話從來沒有寫進 `editor.noteFilled`。
 
-**本決定不沿用「密碼跟著走，同意不跟著走」那條判例。** `.scratch/ios-app/issues/14` 立過那條規矩，理由是掌控感。讀音預填**不問使用者、不加開關**，第一次打完詞條就發請求。連帶兩個後果：不在乎這個功能的人也會消耗共用額度；而 `ADR-0005` 那句「送出去的內容是日文單字，可接受」的正當性換了主體——原本是使用者自己申請金鑰、自己接受 Google 的條款，現在是維護者替他決定的。這一點寫進了隱私權政策。理由與代價見 `.scratch/fixed-gemini-key/spec.md` 決定十。
+**本決定不沿用「密碼跟著走，同意不跟著走」那條判例。** `.scratch/ios-app/issues/14` 立過那條規矩，理由是掌控感。讀音預填**不問使用者、不加開關**，第一次打完詞條就發請求。連帶兩個後果：不在乎這個功能的人也會消耗共用額度；而 `ADR-0005` 那句「送出去的內容是日文單字，可接受」的正當性換了主體——原本是使用者自己申請金鑰、自己接受 Google 的條款，現在是維護者替他決定的。這一點寫進了隱私權政策。理由與代價見 [.scratch/fixed-gemini-key/spec.md](../../.scratch/fixed-gemini-key/spec.md) 決定十。
 
 **Remote Config 不牴觸「拒絕 `-latest` 別名」那條。** `ADR-0005` 那句話的重點在「**無預警**」——它寫的是「端點寫死單一模型而非 `-latest` 別名，是為了讓『模型換人』以錯誤的形式暴露出來，而不是讓同一個詞的讀音無預警改答案」。它拒絕的是無預警，不是不能換。差別在方向盤在誰手上：`-latest` 是 Google 想換就換、你不知道；Remote Config 是維護者自己按按鈕才換。之所以非搬上去不可，是因為固定金鑰把「模型下架」的修復成本從幾分鐘拉到幾天：`ADR-0005` 記錄過 `gemini-2.5-flash` 對新金鑰關閉、且型錄查不出來的事故，在自備金鑰下那是零星使用者踩到、改個字串 push 上去；在固定金鑰加 iOS 下，那是所有人同時停擺、等一輪送審，而使用者沒有自救途徑。兩個代價據實記錄。**一、不是「立刻生效」**：發布在 Google 那端是即時的，但裝置要等下一次抓取才看得到，本專案把間隔設成一小時（SDK 預設 12 小時，太久）——實務上仍是「幾小時」對「一到兩天」。**二、程式碼裡的 `gemini-3.6-flash` 這個字串不會消失**，只是身分從「唯一答案」變成「連不上時的後備」。
 

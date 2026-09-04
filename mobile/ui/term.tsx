@@ -3,7 +3,7 @@
  *
  * **長按選不起來，那是這條路的代價。** 詞條被拆成好幾個 `<Text>`，而 iOS 的長按選取
  * 只在單一個 `<Text>` 內成立（`.scratch/rn-spike/issues/01` 記過這件事）。
- * 補救是旁邊那顆「複製」，見 `./copy-button.tsx`。
+ * 補救是旁邊那顆「複製」，見 [./copy-button.tsx](./copy-button.tsx)。
  *
  * VoiceOver 補得回來：整排掛一個 `accessibilityLabel`，會把詞條當一個東西唸完，
  * 不會一欄一欄拆著唸。

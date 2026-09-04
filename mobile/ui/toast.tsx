@@ -13,7 +13,7 @@
  * ## 同時只有一則
  *
  * 連著存好幾張時是同一則被新內容取代，不疊成一整排蓋掉半個畫面。做法是呼叫端每次
- * 給一個新的 `key`（見 `./card-editor-screen.tsx`）：這支元件因此整個重生，
+ * 給一個新的 `key`（見 [./card-editor-screen.tsx](./card-editor-screen.tsx)）：這支元件因此整個重生，
  * 計時器跟著重新開始，不必自己去管「上一顆計時器收掉了沒」。
  */
 import { useEffect } from 'react';

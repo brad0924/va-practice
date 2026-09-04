@@ -4,7 +4,7 @@
  * ## 為什麼非有這一支不可
  *
  * **這支 app 一則遠端推播都不發。** 每日提醒走的是本機排程的通知，不需要任何推播權限
- * （見 `../lib/daily-reminder-native.ts` 的檔頭，2026-09-02 維護者拍板不加）。
+ * （見 [../lib/daily-reminder-native.ts](../lib/daily-reminder-native.ts) 的檔頭，2026-09-02 維護者拍板不加）。
  *
  * 帶著這格權限的代價是簽章當場失敗：Apple 會回頭查這個 App ID 有沒有開 Push
  * Notifications 能力，沒開就倒。**2026-09-03 第一趟 TestFlight build 就是這樣倒的**——

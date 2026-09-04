@@ -216,7 +216,7 @@ interface FieldProps {
   /**
    * 給 iOS 的密碼自動填入用。`username` 配 `password` 是「登入這一組」，`newPassword`
    * 讓系統知道該提議一組新的而不是回填舊的。這一格與「密碼存在 Keychain」是兩件事：
-   * 那一筆是 app 自己寫進去的（見 `../lib/keychain-native.ts`），這裡只是鍵盤上方那條建議。
+   * 那一筆是 app 自己寫進去的（見 [../lib/keychain-native.ts](../lib/keychain-native.ts)），這裡只是鍵盤上方那條建議。
    */
   textContentType?: 'username' | 'password' | 'newPassword';
   inputRef?: RefObject<TextInput | null>;

@@ -80,7 +80,7 @@ function build(data: AppData): ReviewSession {
  * 畫一次，交回查詢函式與「做完了幾次」。
  *
  * 這一頁與卡片列表不同，**不必手動重畫**：讀音格那台狀態機雖然也活在 React 外面，
- * 但每一支指令回來之後畫面自己會叫一次重畫（見 `./card-editor-screen.tsx` 的 `apply`）。
+ * 但每一支指令回來之後畫面自己會叫一次重畫（見 [./card-editor-screen.tsx](./card-editor-screen.tsx) 的 `apply`）。
  */
 async function show(session: ReviewSession, card: Card | null = null, ask: Ask | null = null) {
   const done: number[] = [];
@@ -168,7 +168,7 @@ describe('儲存並繼續', () => {
     expect(view.getByText('這個詞沒有漢字')).toBeTruthy();
     expect(view.queryByLabelText('焦的讀音')).toBeNull();
     // 底下這兩條**只驗到「重畫時交出去的值是空的」**，沒有驗到「框裡看得見的字被清掉了」。
-    // 那兩格是不受控的，真正動手清的是 `clear()`（見 `./card-editor-screen.tsx` 的 `reset`），
+    // 那兩格是不受控的，真正動手清的是 `clear()`（見 [./card-editor-screen.tsx](./card-editor-screen.tsx) 的 `reset`），
     // 而 `clear()` 底下是原生那一端，這台機器上是假的。眼睛看得到的那一半留給真機。
     expect(view.getByPlaceholderText('焦がす').props.defaultValue).toBe('');
     expect(view.getByPlaceholderText('燒焦').props.defaultValue).toBe('');

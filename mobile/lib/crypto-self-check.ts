@@ -26,7 +26,7 @@ export const MARKER = '[crypto-vectors]';
  * **為什麼不叫 CI 去日誌裡撈那一行**：日誌串流會把系統訊息插在中間、Release 版對
  * `console.log` 的處理又跟 Debug 版不一樣，撈得到撈不到要真的跑一次才知道。
  * 檔案沒有這些不確定：寫進去就在那裡，`xcrun simctl get_app_container` 指得到那個目錄。
- * 檔名見 `.github/workflows/mobile-crypto.yml`，兩邊要一致。
+ * 檔名見 [.github/workflows/mobile-crypto.yml](../../.github/workflows/mobile-crypto.yml)，兩邊要一致。
  */
 export const RESULT_FILE = 'crypto-vectors.txt';
 
@@ -34,7 +34,7 @@ export const RESULT_FILE = 'crypto-vectors.txt';
  * CI 塞這個檔，就代表「這一趟要跑標答」。**使用者那台永遠不會有它。**
  *
  * 與結論檔刻意放同一個目錄：CI 已經靠 `xcrun simctl get_app_container … data` 指到那裡了，
- * 多一個目錄就多一個會對不上的地方。檔名見 `.github/workflows/mobile-crypto.yml`
+ * 多一個目錄就多一個會對不上的地方。檔名見 [.github/workflows/mobile-crypto.yml](../../.github/workflows/mobile-crypto.yml)
  * 的 `TRIGGER_FILE`，兩邊要一致。
  *
  * 為什麼是檔案，而不是建置時的旗標或一條專用網址：走檔案這條路，CI 開的就是**使用者

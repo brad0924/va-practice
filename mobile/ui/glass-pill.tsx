@@ -2,11 +2,11 @@
  * 玻璃控制項：這一頁上面那兩條列都是它。標題列那三顆是膠囊，底部那幾顆由呼叫端蓋成圓角矩形。
  *
  * **玻璃只用在控制與導覽這一層**（HIG `M-01`）。卡片本體、釋義、頁面底色一律不套——
- * 那些是內容層，要分層時用標準材質（`M-02`），見 `./theme.ts`。
+ * 那些是內容層，要分層時用標準材質（`M-02`），見 [./theme.ts](./theme.ts)。
  *
  * `GlassView` 只在 iOS 26 以上存在，而且某些 iOS 26 beta 沒有這個 API，直接畫下去會閃退，
  * 因此畫之前先問一次 `isGlassEffectAPIAvailable()`。**16.4 到 25 的機器退回一般區塊**，
- * 不另外做仿玻璃版本（見 `.scratch/rn-rewrite/spec.md` 的〈外觀與舊版裝置〉）。
+ * 不另外做仿玻璃版本（見 [.scratch/rn-rewrite/spec.md](../../.scratch/rn-rewrite/spec.md) 的〈外觀與舊版裝置〉）。
  */
 import { GlassContainer, GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 import type { ReactNode } from 'react';
@@ -22,14 +22,14 @@ const MERGE_SPACING = 20;
 /**
  * 每一顆左右各留多少。**匯出去是因為有人要拿它算「四顆排不排得下同一列」**——
  * 那個算式必須用真正畫出來的內距，抄一個差不多的數字進去就會算錯換行時機，
- * 見 `./review-screen.tsx` 的 `ratingsFitOneRow()`。
+ * 見 [./review-screen.tsx](./review-screen.tsx) 的 `ratingsFitOneRow()`。
  */
 export const PILL_PADDING_H = 18;
 
 export interface GlassGroupProps {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
-  /** 這一組實際佔了多高。呼叫端靠它讓開捲動內容，見 `./review-screen.tsx`。 */
+  /** 這一組實際佔了多高。呼叫端靠它讓開捲動內容，見 [./review-screen.tsx](./review-screen.tsx)。 */
   onLayout?: ViewProps['onLayout'];
   /**
    * 這一組裡的玻璃靠多近才融成一塊。**傳 0 就是「同一組，但各自獨立」**。
@@ -125,7 +125,7 @@ export function GlassPill({ children, onPress, accessibilityLabel, block, style 
 const styles = StyleSheet.create({
   /**
    * 膠囊形狀：小元件用膠囊，大元件才改圓角矩形（HIG `B-13`）。標題列那幾顆走這個預設；
-   * 底部整寬的那幾顆自己傳 `style` 蓋成圓角矩形，見 `./review-screen.tsx`。
+   * 底部整寬的那幾顆自己傳 `style` 蓋成圓角矩形，見 [./review-screen.tsx](./review-screen.tsx)。
    *
    * > `B-10` 說不要寫死按鈕的尺寸與圓角、讓系統套 iOS 26 的新值。**這一條做不到**：
    * > React Native 沒有系統按鈕元件可用，尺寸只能自己給。這裡守的是下限——

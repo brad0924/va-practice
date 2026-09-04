@@ -6,7 +6,7 @@
  * `StorageLike` 這個同步介面因此原封搬得過來，27 處呼叫端一行不改。完整理由記在
  * `ADR-0002` 的 2026-08-25 補充，那份是正本。
  *
- * **這裡不加密。** MMKV 帶得動加密但沒開，理由見 `../README.md` 的〈資料存在哪裡〉。
+ * **這裡不加密。** MMKV 帶得動加密但沒開，理由見 [../README.md](../README.md) 的〈資料存在哪裡〉。
  */
 import { createMMKV } from 'react-native-mmkv';
 import type { StorageLike } from '@core/lib/storage';
@@ -32,7 +32,7 @@ const INSTANCE_ID = 'va-practice';
  * 完整版本**，不是半份資料。沒有舊版可退時結果與丟掉相同，所以這個設定只會比預設好。
  *
  * 這條路與雲端備份無關，純本機。雲端那邊解不開走的是 `RejectedByCloud`，
- * 見 `core/lib/cloud-backup.ts` 的 `open()`。
+ * 見 [core/lib/cloud-backup.ts](../../core/lib/cloud-backup.ts) 的 `open()`。
  */
 export function createMmkvStorage(): StorageLike {
   const mmkv = createMMKV({ id: INSTANCE_ID, recoveryStrategy: 'recover-on-error' });

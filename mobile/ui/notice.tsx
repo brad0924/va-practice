@@ -3,7 +3,7 @@
  *
  * 四個地方用它，講的都是同一件事——**畫面是空的，而空是有原因的**：
  * 複習畫面的「今日份完成」與「還沒有單字本」（票 `06`）、卡片列表的「還沒有單字本」（票 `15`），
- * 以及統計頁與編輯頁那兩處「還沒做」（見 `./placeholder-screen.tsx`）。
+ * 以及統計頁與編輯頁那兩處「還沒做」（見 [./placeholder-screen.tsx](./placeholder-screen.tsx)）。
  * 幾處長得一樣是刻意的，人才會一眼認出「這不是壞掉，是沒東西」。
  */
 import { StyleSheet, Text, View } from 'react-native';

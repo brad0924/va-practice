@@ -2,7 +2,7 @@
 
 `Build iOS and upload to TestFlight` 用一張固定的 `Apple Distribution` 憑證簽章，憑證存在 GitHub secrets 裡。**憑證有效期一年**，到期就要換一張。
 
-憑證是 2026-08-12 建的，所以**大約 2027 年 8 月**要做這件事。背景與當初為什麼這樣設計，見 `.scratch/ios-app/issues/17-ci-fixed-signing-certificate.md`。
+憑證是 2026-08-12 建的，所以**大約 2027 年 8 月**要做這件事。背景與當初為什麼這樣設計，見 [.scratch/ios-app/issues/17-ci-fixed-signing-certificate.md](../.scratch/ios-app/issues/17-ci-fixed-signing-certificate.md)。
 
 > **你可能不是來續期的。** 如果你只是在 App ID 上多勾了一個 capability，憑證好好的，不必走下面整套——跳到最後那節「[另一種情況：App ID 的 capability 改了](#另一種情況app-id-的-capability-改了)」。
 

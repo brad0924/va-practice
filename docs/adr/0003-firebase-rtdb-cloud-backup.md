@@ -38,4 +38,4 @@
 >
 > **沒有做的：多人加總會不會吃爆 1 GB 儲存與 10 GB／月傳輸，並未重算。** 單筆上限防的是單一路徑一次吃掉大量額度與程式異常膨脹，它**不防**有心人建立大量合規的小備份把額度慢慢塞滿——本 ADR 選定的方案在免費方案上沒有速率限制能力。此風險經評估後**接受**，配套是 Firebase 自己那套用量警示（查證結果為本專案預設已開啟）。
 >
-> 另：本段引用的「內建牌組 10.4 KB / 132 張」已被 `ADR-0008` 退場，那副牌組不再存在，數字僅作為當初的估算基準留存。路線的全貌見 `ADR-0015`，經過見 `.scratch/ios-app/issues/03-firebase-size-limit-and-alerts.md`。
+> 另：本段引用的「內建牌組 10.4 KB / 132 張」已被 `ADR-0008` 退場，那副牌組不再存在，數字僅作為當初的估算基準留存。路線的全貌見 `ADR-0015`，經過見 [.scratch/ios-app/issues/03-firebase-size-limit-and-alerts.md](../../.scratch/ios-app/issues/03-firebase-size-limit-and-alerts.md)。

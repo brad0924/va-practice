@@ -22,7 +22,7 @@
  * ## 單字本管理併在這一頁（圖版二·甲）
  *
  * 它本來排在資料頁，提前搬過來是因為零本時這一頁沒東西可看，而手機上原本唯一建得出本的
- * 地方是探針。做法是「選哪幾本」與「管理哪幾本」共用同一張 sheet，見 `./book-scope-sheet.tsx`。
+ * 地方是探針。做法是「選哪幾本」與「管理哪幾本」共用同一張 sheet，見 [./book-scope-sheet.tsx](./book-scope-sheet.tsx)。
  */
 import { File } from 'expo-file-system';
 import { Stack } from 'expo-router';
@@ -505,7 +505,7 @@ function CardRow({ card, bookName, onPress }: CardRowProps) {
       onPress={onPress}
       accessibilityRole="button"
       // 唸出來要是「詞條，釋義」而不是把振假名一欄一欄拆著唸。詞條那一塊自己也掛了
-      // 一個標籤（見 `./term.tsx`），但整列可按時 VoiceOver 讀的是這一層。
+      // 一個標籤（見 [./term.tsx](./term.tsx)），但整列可按時 VoiceOver 讀的是這一層。
       accessibilityLabel={`${toPlainText(card.text)}，${card.meaning}`}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >

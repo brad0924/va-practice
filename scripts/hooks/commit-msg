@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 /**
- * 隱私權政策的最後一道堡壘。這次 commit 碰到隱私相關的行為、卻沒動兩份政策時，把 commit 擋下來。
- * 它管人也管 agent——先鋒那道（`privacy-notice.mjs`）只跳給 agent 看。決策見 .scratch/i18n/issues/11。
+ * 兩道堡壘掛在同一支 hook 上。git 一個關卡只認一支 `commit-msg`，所以兩件事共用這個入口：
+ *
+ *   一、**隱私權政策**——這次 commit 碰到隱私相關的行為、卻沒動兩份政策時擋下來。
+ *       它管人也管 agent，先鋒那道（`privacy-notice.mjs`）只跳給 agent 看。
+ *       決策見 .scratch/i18n/issues/11。
+ *   二、**壞掉的指路**——註解或文件裡寫成 Markdown 連結的路徑指不到檔時擋下來。
+ *       決策見 .scratch/rn-rewrite/issues/23。
+ *
+ * 兩道各自獨立：一道紅燈不影響另一道要不要跑，訊息一起印出來。分兩次 commit 才發現還有第二個
+ * 問題，是最讓人想直接 `--no-verify` 的那種體驗。
  *
  * **掛在 commit-msg 而不是 pre-commit。** 出口是「在 commit message 裡寫一行理由」，而 git 的
  * pre-commit 跑在「取得 commit 訊息」之前，那時 `.git/COMMIT_EDITMSG` 裡躺的是**上一次**的訊息。
@@ -11,7 +19,7 @@
  * 走的也是這一關。
  *
  * 這個檔會被 `scripts/install-hooks.mjs` 複製到 `.git/hooks/`，所以判斷邏輯不能用相對路徑 import
- * ——複製過去之後相對位置就變了。改成先問 git 要 repo 根目錄，再從工作目錄裡載入那份大腦。
+ * ——複製過去之後相對位置就變了。改成先問 git 要 repo 根目錄，再從工作目錄裡載入那兩份大腦。
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -22,52 +30,88 @@ import { pathToFileURL } from 'node:url';
 const MAX_SHOWN = 20;
 
 const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
-const brain = join(root, 'scripts', 'hooks', 'privacy-signals.mjs');
+// 指路那道掃的是工作目錄裡的相對路徑。git 通常就從這裡跑 hook，但 worktree 與子目錄 commit
+// 不保證，講明比假設安全。
+process.chdir(root);
+
+const message = readFileSync(process.argv[2], 'utf8');
 
 /**
- * 那份大腦不在工作目錄裡，多半是 checkout 到了這道 hook 出現之前的 commit。那不是隱私問題，
+ * 大腦不在工作目錄裡，多半是 checkout 到了那道 hook 出現之前的 commit。那不是規則被違反，
  * 是「這份 checkout 沒有這段程式」——這時每一次 commit 都被一坨 Node 錯誤堆疊擋下來，比不擋更糟。
  * 所以放行，但講一句，免得它靜靜地不在。
  */
-if (!existsSync(brain)) {
-  process.stderr.write(`（跳過隱私權政策檢查：這份 checkout 裡沒有 ${brain}）\n`);
-  process.exit(0);
+async function brainAt(name) {
+  const path = join(root, 'scripts', 'hooks', name);
+  if (existsSync(path)) return await import(pathToFileURL(path).href);
+  process.stderr.write(`（跳過檢查：這份 checkout 裡沒有 ${path}）\n`);
+  return null;
 }
 
-const { blockingHits, describeHits, MARKER, PRIVACY_PAGES } = await import(pathToFileURL(brain).href);
-
-const message = readFileSync(process.argv[2], 'utf8');
-// `--unified=0` 只要改動行、不要前後文，訊息才不會被沒改到的行灌爆。行號照樣由 @@ 標頭給。
-// 環境變數原封繼承：`git commit -a` 會把要 commit 的內容放進另一份暫時的索引，靠 GIT_INDEX_FILE 指路。
-const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color'], {
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-});
-
-const hits = blockingHits(diff, message);
-if (hits.length === 0) process.exit(0);
-
-const shown = hits.slice(0, MAX_SHOWN);
-const rest = hits.length - shown.length;
-
-process.stderr.write(
-  [
+/** 命中清單長成一段可以直接印的文字，兩道的排版一致。 */
+function report(title, hits, describe, exits) {
+  const shown = hits.slice(0, MAX_SHOWN);
+  const rest = hits.length - shown.length;
+  return [
     '',
-    '✗ 這次 commit 碰到了隱私相關的行為，但兩份隱私權政策都沒動：',
+    title,
     '',
-    describeHits(shown),
+    describe(shown),
     rest > 0 ? `  …另外還有 ${rest} 處` : null,
     '',
-    '那兩份寫的每一句都是程式的實際行為，不是宣示。行為改了、政策沒跟，它就開始說謊。',
+    ...exits,
     '',
-    '過關有兩條路：',
-    `  1. 去改 ${PRIVACY_PAGES.join(' 與 ')}（兩份的內容逐句對應，要一起改）`,
-    '  2. 確定不用改的話，在 commit message 裡加一行：',
-    `       ${MARKER} <一句話理由>`,
-    `     例如 ${MARKER} 只是把那段讀取搬到另一個函式，行為沒變`,
-    '',
-  ]
-    .filter((line) => line !== null)
-    .join('\n') + '\n',
-);
+  ].filter((line) => line !== null);
+}
+
+const problems = [];
+
+// 一、隱私權政策
+const privacy = await brainAt('privacy-signals.mjs');
+if (privacy !== null) {
+  // `--unified=0` 只要改動行、不要前後文，訊息才不會被沒改到的行灌爆。行號照樣由 @@ 標頭給。
+  // 環境變數原封繼承：`git commit -a` 會把要 commit 的內容放進另一份暫時的索引，靠 GIT_INDEX_FILE 指路。
+  const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--no-color'], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const hits = privacy.blockingHits(diff, message);
+  if (hits.length > 0) {
+    problems.push(
+      ...report('✗ 這次 commit 碰到了隱私相關的行為，但兩份隱私權政策都沒動：', hits, privacy.describeHits, [
+        '那兩份寫的每一句都是程式的實際行為，不是宣示。行為改了、政策沒跟，它就開始說謊。',
+        '',
+        '過關有兩條路：',
+        `  1. 去改 ${privacy.PRIVACY_PAGES.join(' 與 ')}（兩份的內容逐句對應，要一起改）`,
+        '  2. 確定不用改的話，在 commit message 裡加一行：',
+        `       ${privacy.MARKER} <一句話理由>`,
+        `     例如 ${privacy.MARKER} 只是把那段讀取搬到另一個函式，行為沒變`,
+      ]),
+    );
+  }
+}
+
+// 二、壞掉的指路
+const links = await brainAt('dangling-links.mjs');
+if (links !== null && !links.hasMarker(message)) {
+  const hits = links.collect();
+  if (hits.length > 0) {
+    problems.push(
+      ...report('✗ 有指路的連結指不到檔：', hits, links.describeHits, [
+        '寫成 Markdown 連結就代表「這個檔現在查得到」，讀的人會照著點過去。',
+        '講古（「票 18 之前掛的是 x」）不該寫成連結，用反引號就好，那種這道關卡不看。',
+        '',
+        '過關有三條路：',
+        '  1. 把路徑改對',
+        '  2. 那一句其實是講古的話，把連結改回反引號',
+        '  3. 確定不用改的話，在 commit message 裡加一行：',
+        `       ${links.MARKER} <一句話理由>`,
+        `     例如 ${links.MARKER} 那支檔在下一張票才會建`,
+      ]),
+    );
+  }
+}
+
+if (problems.length === 0) process.exit(0);
+process.stderr.write(problems.join('\n') + '\n');
 process.exit(1);

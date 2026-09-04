@@ -13,7 +13,7 @@ import { color } from './theme';
 
 /**
  * 複習畫面的畫面測試。`ADR-0014` 那批 jsdom 畫面測試在 React Native 上作廢，
- * 這是改用 React Native 自己那套工具重寫的第一支（見 `.scratch/rn-rewrite/spec.md`
+ * 這是改用 React Native 自己那套工具重寫的第一支（見 [.scratch/rn-rewrite/spec.md](../../.scratch/rn-rewrite/spec.md)
  * 的〈測試決定〉）。它守的是票 `06` 驗收第 1 條：**複習流程走得完**。
  *
  * 排程與佇列那一層由 `../lib/review-session.test.ts` 守，這裡只驗接線：
@@ -200,7 +200,7 @@ describe('通往其他畫面的按鈕', () => {
 /**
  * 票 `08` 驗收第三條的程式碼那一半：**觸覺只加在評分上**。
  *
- * 這一頁不知道觸覺存在——震的那一下接在狀態機的 `rate()` 裡（見 `../lib/review-session.ts`）。
+ * 這一頁不知道觸覺存在——震的那一下接在狀態機的 `rate()` 裡（見 [../lib/review-session.ts](../lib/review-session.ts)）。
  * 因此這裡驗的不是這一頁做了什麼，而是**它沒有偷偷多接一條**：按下複製或掀開答案時，
  * 那條線不該被碰到。真的震不震只有真機驗得了，這支守的是「以後有人加第二處」。
  */

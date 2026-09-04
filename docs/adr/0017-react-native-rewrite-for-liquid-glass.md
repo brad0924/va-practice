@@ -4,7 +4,7 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 **畫面兩份，邏輯一份。** `src/lib/` 那批純邏輯（排程、儲存、雲端備份、加解密、讀音預填、提醒排程）抽成共用，網頁版與 React Native 各自只留自己的畫面碼。邏輯層分岔是這條路上最不能踩的線——雲端備份若有兩套實作在寫同一批資料，哪天解不開會查不出是誰寫壞的。
 
-決策的完整經過見 `.scratch/rn-rewrite/spec.md`，本 ADR 只記錄路線本身。
+決策的完整經過見 [.scratch/rn-rewrite/spec.md](../../.scratch/rn-rewrite/spec.md)，本 ADR 只記錄路線本身。
 
 ## 這份與 `ADR-0015` 的關係
 
@@ -20,7 +20,7 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 那份 ADR 點名三處接不上，是否決 React Native 的技術依據。逐條重看：
 
-- **`localStorage` 同步、`AsyncStorage` 非同步** — **已經驗過做得出來**（2026-08-25，`.scratch/rn-rewrite/issues/04`）。`react-native-mmkv` 是完全同步的（走 JSI，v4 是 Nitro Module），`ADR-0002` 的 `StorageLike` 同步介面原封搬過去了，27 處呼叫端一行不改；真機上存一批卡、關掉 app、重開，資料還在。當初寫 ADR 時只把 `AsyncStorage` 算進來。**這條否決理由到此正式不成立。**（`core/lib/storage.ts` 自己有三處呼叫 `crypto.randomUUID()`，React Native 沒有那個全域函式，靠 `mobile/lib/install-random-uuid.ts` 補上——那是另一件事，不影響這一條的結論。）
+- **`localStorage` 同步、`AsyncStorage` 非同步** — **已經驗過做得出來**（2026-08-25，`.scratch/rn-rewrite/issues/04`）。`react-native-mmkv` 是完全同步的（走 JSI，v4 是 Nitro Module），`ADR-0002` 的 `StorageLike` 同步介面原封搬過去了，27 處呼叫端一行不改；真機上存一批卡、關掉 app、重開，資料還在。當初寫 ADR 時只把 `AsyncStorage` 算進來。**這條否決理由到此正式不成立。**（`core/lib/storage.ts` 自己有三處呼叫 `crypto.randomUUID()`，React Native 沒有那個全域函式，靠 [mobile/lib/install-crypto.ts](../../mobile/lib/install-crypto.ts) 補上——那是另一件事，不影響這一條的結論。）
 - **`crypto.subtle` 沒有對應物** — **已有解，但要驗**。`react-native-quick-crypto` 的 `subtle` 支援 PBKDF2 與 AES-GCM。「有這個 API」不等於「加出來的東西網頁版解得開」，位元級相容仍是這條路上風險最高的一塊，驗法見 Consequences。
 - **振假名沒有對應物** — **已經驗過做得出來**。`.scratch/rn-spike/issues/01` 用兩層 `<Text>` 疊字做完並在真機上量過：假名字身底端與漢字字身頂端的距離兩版皆為 15 device px，換行也驗了。這一題不必重問。
 
@@ -30,7 +30,7 @@ iOS 版離開 Capacitor 的 WKWebView，畫面層以 React Native 重寫，目�
 
 **維護者主要在 Windows 上開發。** React Native 用 Expo 開發、EAS Build 在雲端編譯，整條路在 Windows 上走得完——`.scratch/rn-spike/issues/01` 已經實際走過一次。SwiftUI 要 macOS 與 Xcode，可用時間只有週末在家那台 Mac。
 
-> **2026-09-03：出正式包改在 GitHub Actions 的 macOS runner 上做，不用 EAS Build。** 上面提到 EAS 是為了說明「在 Windows 上走得完」，**那個理由完全沒有變**——GitHub 的 runner 同樣是雲端的 Mac。換的只是向誰借。這份 ADR 的結論（選 React Native 而不選 SwiftUI）不受影響。決定見 `.scratch/rn-rewrite/spec.md` 的〈路線〉訂正與票 `.scratch/rn-rewrite/issues/20`。
+> **2026-09-03：出正式包改在 GitHub Actions 的 macOS runner 上做，不用 EAS Build。** 上面提到 EAS 是為了說明「在 Windows 上走得完」，**那個理由完全沒有變**——GitHub 的 runner 同樣是雲端的 Mac。換的只是向誰借。這份 ADR 的結論（選 React Native 而不選 SwiftUI）不受影響。決定見 [.scratch/rn-rewrite/spec.md](../../.scratch/rn-rewrite/spec.md) 的〈路線〉訂正與票 `.scratch/rn-rewrite/issues/20`。
 
 這也是 `.scratch/swiftui-spike/issues/01` 當初否決 React Native 的理由**反過來**的地方。那張票的動機是「想寫原生」，React Native 買不到（還是 TypeScript），所以出局。**這次的動機是 Liquid Glass，跟寫哪種語言無關**，那個否決理由跟著失效。
 

@@ -1,6 +1,6 @@
 # mobile — React Native 版 iOS app
 
-iOS 版改寫成 React Native 的專案本體。決策背景見 `.scratch/rn-rewrite/spec.md` 與
+iOS 版改寫成 React Native 的專案本體。決策背景見 [.scratch/rn-rewrite/spec.md](../.scratch/rn-rewrite/spec.md) 與
 `docs/adr/0017-react-native-rewrite-for-liquid-glass.md`，這一份只寫「怎麼跑、怎麼出包」。
 
 **底部一條系統原生的導覽列，四個 tab**（票 `09`）：複習、卡片、資料、統計。走的是
@@ -78,7 +78,7 @@ Node 讀得懂的樣子、幫 `react-native` 與 `expo-*` 那批套件備好假�
 `core/lib/` 九支，從 `storage.test.ts` 到 `ai-logic-error.test.ts`，清單在
 `jest.config.js` 的 `testMatch` 上，每一條旁邊都寫著為什麼收它。
 **`core/` 那幾支一行未改**，仍寫著 `from 'vitest'`——改的是「vitest 這個名字指到哪裡」，
-接線見 `test/vitest-shim.ts`。
+接線見 [test/vitest-shim.ts](./test/vitest-shim.ts)。
 
 > `safety-copy.test.ts` 曾經在這張表上，票 `07` 拿掉了：保險副本在 React Native 這一側不接，
 > 讓它在這台跑等於暗示 `mobile/` 用得到它。**那 14 條後來整批消失**——票 `21` 刪掉 Capacitor
@@ -195,7 +195,7 @@ Capacitor 版對得起來（票 `06` 定案 1a）。iOS 的語意色裡沒有任
 對得起來（那支已隨票 `21` 刪掉，溯源見 `ADR-0015`），因為兩邊算的都是
 `rate × AVSpeechUtteranceDefaultSpeechRate`。
 有一處對不齊：那支 Swift 會先看使用者在系統設定裡選了哪顆日文語音，`expo-speech` 問不到
-這件事，所以這裡只挑品質最好的那顆，見 `lib/japanese-voice.ts` 的註解。
+這件事，所以這裡只挑品質最好的那顆，見 [lib/japanese-voice.ts](./lib/japanese-voice.ts) 的註解。
 
 ## 資料存在哪裡
 

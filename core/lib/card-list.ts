@@ -3,7 +3,7 @@
  *
  * 三支原本住在網頁版的 `src/ui/list-view.ts` 裡。React Native 版的卡片列表要用同一套
  * 規則，因此搬進來兩邊共用一份——票 `02` 那條「邏輯層不准分岔」畫的就是這條線
- * （見 `.scratch/rn-rewrite/issues/15-cards-list-and-books.md`）。**搬家不是重寫**：
+ * （見 [.scratch/rn-rewrite/issues/15-cards-list-and-books.md](../../.scratch/rn-rewrite/issues/15-cards-list-and-books.md)）。**搬家不是重寫**：
  * 分桶的邊界、排序的兩層翻轉、搜尋比對的四個欄位，一個字都沒改。
  *
  * 桶的標籤要查介面字串表，因此這支檔案 import 得到 `../i18n`——與 `daily-reminder.ts`

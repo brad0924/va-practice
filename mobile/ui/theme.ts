@@ -9,7 +9,7 @@
  * **字級是照著 iOS 的 text styles 抄的一張表。** React Native 沒有「給我 Body」這種 API，
  * 只吃數字，所以 HIG `T-02`（不要寫死字級）在這裡只做得到一半：數字集中在這裡一份，
  * 而且 `<Text>` 預設會跟著系統字級放大，因此 Dynamic Type 是活的。
- * 唯一關掉自動放大的是振假名那一排，理由見 `../lib/term-layout.ts`。
+ * 唯一關掉自動放大的是振假名那一排，理由見 [../lib/term-layout.ts](../lib/term-layout.ts)。
  */
 import { PlatformColor } from 'react-native';
 

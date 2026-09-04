@@ -3,7 +3,7 @@
  *
  * 網頁版把這些擺在 `src/app.ts` 的 `start()` 裡，與另外四個畫面的導覽、雲端備份、
  * 每日提醒混在一起。這裡拆出來是為了**測得動**——`ADR-0014` 那 1,319 行 jsdom 畫面測試
- * 在 React Native 上作廢（見 `.scratch/rn-rewrite/spec.md` 的〈測試決定〉），複習流程若也
+ * 在 React Native 上作廢（見 [.scratch/rn-rewrite/spec.md](../../.scratch/rn-rewrite/spec.md) 的〈測試決定〉），複習流程若也
  * 只活在 JSX 裡，這張票就沒有任何自動測試守得住它。
  *
  * **這裡沒有 React。** 當前時間與亂數一律由外面遞進來，跟 `core/lib/review.ts` 同一個規矩。

@@ -120,7 +120,7 @@ interface Wiring {
  * 不等的話，接完線馬上去要權杖，原生層手上還是**出廠預設的 DeviceCheck**，
  * 而主控台註冊的是 App Attest，換回來的是 `App not registered`（2026-09-01 真機踩到，
  * 網址結尾 `exchangeDeviceCheckToken` 就是證據）。Capacitor 版當年踩的是同一個坑的
- * 另一半，見 `.scratch/fixed-gemini-key/issues/01`。
+ * 另一半，見 [.scratch/fixed-gemini-key/issues/01](../../.scratch/fixed-gemini-key/issues/01-app-attest-spike.md)。
  *
  * 型別自己寫一份而不是 import：那支住在套件的 `lib/types/internal.ts`，
  * 沒有從公開入口匯出，而 `package.json` 的 `exports` 也擋住了深層路徑。
@@ -148,7 +148,7 @@ async function wire(): Promise<Wiring> {
   // 而主控台註冊的是 App Attest，兩邊對不上時 Google 回的是 `App not registered`。
   const provider = new ReactNativeFirebaseAppCheckProvider();
   // `appAttest` 而不是 `appAttestWithDeviceCheckFallback`：後者在 iOS 13 以下退回
-  // DeviceCheck，而這支 app 的下限是 16.4（見 `.scratch/rn-rewrite/spec.md`），
+  // DeviceCheck，而這支 app 的下限是 16.4（見 [.scratch/rn-rewrite/spec.md](../../.scratch/rn-rewrite/spec.md)），
   // 那條退路一台機器都用不到，留著只會讓「走的到底是哪一套」變得說不準。
   provider.configure({ apple: { provider: 'appAttest' } });
   const options = { provider, isTokenAutoRefreshEnabled: true };

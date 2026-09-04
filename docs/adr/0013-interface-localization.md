@@ -7,7 +7,7 @@
 - **錯誤物件帶 key，不帶文字**（`throw new AppError('book.scopeEmpty')`），畫面層拿到 key 才查表
 - **語言選擇存在 `va-practice:lang`，不進備份**，`DATA_VERSION` 維持 3
 
-實作細節與逐條決定見 `.scratch/i18n/spec.md`。
+實作細節與逐條決定見 [.scratch/i18n/spec.md](../../.scratch/i18n/spec.md)。
 
 ## 界線：這是介面語言，不是學習內容的語言
 
@@ -59,9 +59,9 @@
 
 ## Consequences
 
-**25 處 `throw new Error` 加上每一個接住錯誤的畫面層都要改。** 這是本 ADR 唯一動到架構的部分。`storage.ts:61` 的註解「壞掉時的訊息可以直接顯示給使用者」在改完之後不再成立——畫面層必須先查表。`toMessage()` 的角色也要跟著重新定義（實作時它與 `AppError` 一起搬到 `core/lib/app-error.ts`，理由見 `.scratch/i18n/issues/05-error-key-objects.md` 的 Comments）。
+**25 處 `throw new Error` 加上每一個接住錯誤的畫面層都要改。** 這是本 ADR 唯一動到架構的部分。`storage.ts:61` 的註解「壞掉時的訊息可以直接顯示給使用者」在改完之後不再成立——畫面層必須先查表。`toMessage()` 的角色也要跟著重新定義（實作時它與 `AppError` 一起搬到 `core/lib/app-error.ts`，理由見 [.scratch/i18n/issues/05-error-key-objects.md](../../.scratch/i18n/issues/05-error-key-objects.md) 的 Comments）。
 
-**`CONTEXT.md` 被動到一處：釋義的 `_Avoid_` 拿掉「意思」。** 理由是英文的 `Meaning` 正好等於那個被避開的詞，而「意思」屬於「只是比較鬆散的同義詞」這一類——沒有第二個東西可以混淆、也不會誤導，不值得為它把英文扭成 `Gloss`。逐條理由見 `.scratch/i18n/spec.md` 決定一。**除此之外 29 則的定義段落一個字都沒改。**
+**`CONTEXT.md` 被動到一處：釋義的 `_Avoid_` 拿掉「意思」。** 理由是英文的 `Meaning` 正好等於那個被避開的詞，而「意思」屬於「只是比較鬆散的同義詞」這一類——沒有第二個東西可以混淆、也不會誤導，不值得為它把英文扭成 `Gloss`。逐條理由見 [.scratch/i18n/spec.md](../../.scratch/i18n/spec.md) 決定一。**除此之外 29 則的定義段落一個字都沒改。**
 
 順帶記下一個已知缺口：這 29 則的 `_Avoid_` 全是 AI 產生的，維護者不清楚各項在避什麼，因此清單裡可能還有其他多餘或寫錯的項目。整份重審尚未開票。
 
@@ -79,6 +79,6 @@
 
 **PWA manifest 從此是英文的。** `vite.config.ts` 的 `description` 與 `lang` 改成英文與 `en`。中文使用者在網頁版的「加到主畫面」提示會看到英文描述。iOS 上架版走 `Info.plist` 不受影響。
 
-**`APP_NAME` 仍是單一字串，沒有多語言化。** 這是刻意的，理由見 `.scratch/app-name/issues/02-rename.md`：拉丁字母的名字三語通用，中文名字會讓英文使用者的主畫面出現看不懂的字。若日後決定名稱也要跟著切，`ADR-0012` 與 `app-name.test.ts` 那整套要重做，而且 iOS 端要加 `InfoPlist.strings`。
+**`APP_NAME` 仍是單一字串，沒有多語言化。** 這是刻意的，理由見 [.scratch/app-name/issues/02-rename.md](../../.scratch/app-name/issues/02-rename.md)：拉丁字母的名字三語通用，中文名字會讓英文使用者的主畫面出現看不懂的字。若日後決定名稱也要跟著切，`ADR-0012` 與 `app-name.test.ts` 那整套要重做，而且 iOS 端要加 `InfoPlist.strings`。
 
 **日文介面與日文學習內容的視覺衝突尚未解決。** 這是已知的開放項，`.scratch/i18n/issues/08` 是那張驗證票。若英日翻譯完成後沒人執行它，實質結果等於「接受、不處理」。
