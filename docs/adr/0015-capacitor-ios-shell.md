@@ -5,6 +5,10 @@
 > 它回答的是「像不像原生」，而 `ADR-0017` 問的是另一題「跟不跟得上 iOS 26」。本份留著不改寫，
 > 是歷史。底下對 React Native 列的三個技術障礙，兩個已有現成解、一個已驗過做得出來，逐條重看見
 > `ADR-0017`。
+>
+> **2026-09-04，Capacitor 那一整套已從 repo 移除（票 `rn-rewrite 21`）**：`ios/` 目錄、
+> `capacitor.config.ts`、七個 `@capacitor/*` 相依、以及 `src/lib/` 底下那批接線都刪了。
+> 底下提到的**保險副本連程式碼一起消失**，`CONTEXT.md` 的詞條也拿掉了。
 
 要上架 App Store 的 iOS 版與網頁版共用同一份 `src/`。現有的 web 程式碼原封不動跑在 Capacitor 的 WKWebView 裡，靠 build 參數切出兩個產物（網頁版的 `base` 是 `/va-practice/`，iOS 版是 `/`），不複製第二份設定檔，也不維護第二份畫面碼。
 

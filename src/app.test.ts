@@ -46,7 +46,7 @@ function boot(): HTMLElement {
   const root = document.createElement('div');
   document.body.append(root);
   // 雲端備份記暱稱密碼的地方。網頁版遞的就是 localStorage（見 main.ts）。
-  start(root, localStorage);
+  start(root);
   return root;
 }
 
@@ -151,13 +151,7 @@ function seed(dues: (string | null)[]): void {
   );
 }
 
-/**
- * 演一次「app 回到前景」。
- *
- * 原生那條訊號在這裡送不出來——node 上 `Capacitor.isNativePlatform()` 是 false，
- * 接線那一側因此什麼都沒掛。但兩條訊號打到的是同一支檢查，所以這裡驗到的
- * 就是原生那條也會走的那一段。
- */
+/** 演一次「分頁切回來」。 */
 function foreground(): void {
   document.dispatchEvent(new Event('visibilitychange'));
 }

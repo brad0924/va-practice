@@ -5,9 +5,8 @@
  * 本模組只做三件事：把那份預估翻成一批要登記的通知、記住這台裝置有沒有開提醒、
  * 以及在資料變動時把整批重排出去。
  *
- * 不碰任何原生 API：通知怎麼登記一律由呼叫端遞進來，與 `safety-copy.ts`、
- * `keychain.ts` 同一個立場。接上 Capacitor 那一端的接線在 `daily-reminder-native.ts`。
- * 網頁版完全沒有這條支線。
+ * 不碰任何原生 API：通知怎麼登記一律由呼叫端遞進來，與 `keychain.ts` 同一個立場。
+ * 接上原生那一端的接線在 `mobile/lib/daily-reminder-native.ts`。網頁版完全沒有這條支線。
  */
 import { t } from '../i18n';
 import { dueCountToday, forecastDueCounts, type DueForecast } from './reminders';
@@ -176,12 +175,9 @@ export function planReminders(cards: readonly Card[], now: Date, time: string): 
 
 export function createDailyReminder({ native, storage, plan }: DailyReminderHooks): DailyReminder {
   /**
-   * 沿用 `safety-copy.ts` 的「一份待辦 ＋ 一個進行中」模式，不用計時器：同時只排一批，
-   * 重排期間進來的變動一律覆蓋成「待排的最新那一批」，上一趟回來後若 `pending`
-   * 已換人就再排一次。送出去的永遠是整批，被合併掉的中間那幾批沒有任何意義。
-   *
-   * 這道閘門刻意與保險副本各自一份：兩者寫的是不同的原生 API，共用一道閘門會讓
-   * 其中一邊變慢時卡住另一邊（見 spec 決定二十一）。
+   * 「一份待辦 ＋ 一個進行中」，不用計時器：同時只排一批，重排期間進來的變動一律
+   * 覆蓋成「待排的最新那一批」，上一趟回來後若 `pending` 已換人就再排一次。
+   * 送出去的永遠是整批，被合併掉的中間那幾批沒有任何意義。
    */
   let pending: readonly ScheduledReminder[] | null = null;
   let scheduling = false;
@@ -197,7 +193,7 @@ export function createDailyReminder({ native, storage, plan }: DailyReminderHook
         if (pending === latest) pending = null;
       }
     } catch {
-      // 少幾則提醒不值得打斷複習，與雲端推送、保險副本同一個立場。
+      // 少幾則提醒不值得打斷複習，與雲端推送同一個立場。
       // 待排的那批留著，下次資料變動會再排一趟。
     } finally {
       scheduling = false;

@@ -16,6 +16,8 @@
 >
 > 上面那則 2026-08-18 的補充只對 Capacitor 版成立。**React Native 版沒有保險副本**：它防的是 iOS 清掉 WebView 那一層的網站資料，而 MMKV 存的是 app 文件夾底下的檔，系統不清那個位置。**`.scratch/rn-rewrite/issues/07` 已於 2026-08-27 拍板不留**，理由就是這個威脅不存在了；Capacitor 版那一份原封不動。
 
+> **補充（2026-09-04，`.scratch/rn-rewrite/issues/21`）**：Capacitor 那一整套已從 repo 移除，**保險副本連同程式碼一起消失**（`core/lib/safety-copy.ts` 與接線都刪了），〈保險副本〉那則詞條也從 `CONTEXT.md` 拿掉。上面 2026-08-18 那則補充從此純屬歷史：現在這個 app 裡，`persist()` 寫完那一格就結束了。**本 ADR 的立場依然不變**，而且比當初更字面成立。
+
 > **補充（2026-08-27，`.scratch/rn-rewrite/issues/07`）**：MMKV 那一格明訂 `recoveryStrategy: 'recover-on-error'`。**這不是第二個真相來源，本 ADR 的立場一樣不變**——它管的是**同一格**壞掉時怎麼讀回來，不是多開一格。不設的話 MMKV 的預設是整格丟掉，app 會開起來像剛裝好的。機制與上游溯源（附行號）寫在 `mobile/lib/storage-mmkv.ts` 的 JSDoc，那份是正本。
 
 ## Considered Options

@@ -14,9 +14,9 @@
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。
   樣式直接內嵌，色票抄自 src/styles.css，好讓它跟 app 看起來是同一家的。
 
-  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts、
-  gemini-reading-native.ts——這頁寫的每一句都是那幾支程式實際的行為，不是宣示。
-  最後那一支只有 iOS build 載入，「Gemini 讀音預填」那一節因此按平台分岔
+  內容改動請對照 core/lib/ 的 cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts，
+  以及 mobile/lib/ 的 keychain-native.ts 與 gemini-reading-native.ts——這頁寫的每一句都是那幾支
+  程式實際的行為，不是宣示。最後那兩支只有 iOS 版載入，「Gemini 讀音預填」那一節因此按平台分岔
   （.scratch/fixed-gemini-key/spec.md 決定十八）。刻意不寫 localStorage 的鍵名之類的實作細節：
   對讀者沒幫助，改名了也沒有任何測試會抓到這頁過期。
 -->

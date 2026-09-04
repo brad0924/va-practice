@@ -176,8 +176,8 @@ export function promptFor(term: string, instructions: string): string {
  * 回傳的是去掉頭尾空白的值——模型名字前後多一個換行就會變成 404，判準那一段
  * 去掉頭尾空白則不影響任何事。
  *
- * 只有 iOS 那條路用得到（`gemini-reading-native.ts`），放在這裡是因為這裡測得動：
- * 那支檔案 import 了 Capacitor 外掛，在 node 底下根本載不起來。程式碼裡那兩份預設值
+ * 只有 iOS 那條路用得到（`mobile/lib/gemini-reading-native.ts`），放在這裡是因為這裡測得動：
+ * 那支檔案 import 了原生模組，在 node 底下根本載不起來。程式碼裡那兩份預設值
  * （`MODEL`、`INSTRUCTIONS`）本來也就住在這個模組。
  */
 export function remoteOrDefault(remote: string, fallback: string): string {

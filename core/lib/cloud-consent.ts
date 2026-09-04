@@ -20,8 +20,8 @@
  * `Promise.resolve()` 就接得上（票 `17`）。反過來在手機那端自己組一套 callback 的話，
  * 「該不該問」的判斷會被重寫第二份，兩份日後各自漂走。
  *
- * 本模組不碰畫面：怎麼問由呼叫端遞進來，與 `safety-copy.ts`、`keychain.ts` 同一個立場。
- * 接上實際那個對話框的接線在 `cloud-consent-native.ts`。網頁版完全沒有這條支線——
+ * 本模組不碰畫面：怎麼問由呼叫端遞進來，與 `keychain.ts` 同一個立場。
+ * 接上實際那個對話框的接線在 `mobile/lib/cloud-consent-native.ts`。網頁版完全沒有這條支線——
  * 那裡沒有 Keychain，密碼不會憑空出現在一台新裝置上。
  */
 import type { StorageLike } from './storage';

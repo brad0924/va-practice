@@ -386,23 +386,11 @@ export function editorView(app: App, card: Card | null, back: () => void): HTMLE
 }
 
 /**
- * 去問讀音的那支函式，兩條路在這裡分岔（spec 決定一、二）。
+ * 去問讀音的那支函式。
  *
- * 網頁版走使用者自備的金鑰直接打 Gemini，沒設金鑰就回 null、讀音預填全程不發生；
- * iOS 走固定金鑰與 Firebase AI Logic，沒有「金鑰」這回事，因此一律回得出一支。
- *
- * `import.meta.env.MODE` 在打包時就換成字面值，另一條整段是死碼，連帶那個動態 import
- * 的 chunk 也不會產出——firebase 不會進網頁版產物（spec 決定十六）。動態 import 而不是
- * 頂端的 import：後者無論如何都會被打包進來。
+ * 走使用者自備的金鑰直接打 Gemini，沒設金鑰就回 null、讀音預填全程不發生（spec 決定一、二）。
  */
 function createAsk(app: App): Ask | null {
-  if (import.meta.env.MODE === 'ios') {
-    const native = import('../lib/gemini-reading-native');
-    // 先去排憑證的隊，不等它。使用者接下來要打詞條，那幾秒剛好夠 App Attest 跑完。
-    void native.then((module) => module.prepare());
-    return (term, onAttempt) => native.then((module) => module.askReadingNative(term, onAttempt));
-  }
-
   const key = app.gemini.read();
   // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
   return key === null

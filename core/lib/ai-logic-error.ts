@@ -1,8 +1,8 @@
 /**
  * Firebase AI Logic 那條路的純邏輯：把 SDK 丟出來的錯翻回**與網頁版同一組** key。
  *
- * 單獨一支檔案而不是併進 `gemini-reading-native.ts`，理由只有一個：那支檔案 import 了
- * Capacitor 外掛與 firebase 執行期程式碼，在 node 底下根本載不起來，測不到。這裡一行
+ * 單獨一支檔案而不是併進 `mobile/lib/gemini-reading-native.ts`，理由只有一個：那支檔案
+ * import 了原生模組與 firebase 執行期程式碼，在 node 底下根本載不起來，測不到。這裡一行
  * 執行期的 firebase 都不 import，因此 `ai-logic-error.test.ts` 跑得動——而「各種失敗
  * 變成一條說得出原因的 key」正是兩條路徑最需要被守住的地方（spec 測試決定）。
  */

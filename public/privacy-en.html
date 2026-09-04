@@ -14,9 +14,9 @@
   跟中文版一樣刻意放在 public/ 而不是多開一個 Vite 進入點：它跟 app 沒有任何往來，
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。樣式與中文版逐字相同。
 
-  內容改動請對照 src/lib/cloud-backup.ts、cloud-crypto.ts、keychain-native.ts、gemini-key.ts、gemini-reading.ts、
-  gemini-reading-native.ts——這頁寫的每一句都是那幾支程式實際的行為，不是宣示。
-  最後那一支只有 iOS build 載入，「Gemini reading prefill」那一節因此按平台分岔（.scratch/fixed-gemini-key/spec.md 決定十八）。
+  內容改動請對照 core/lib/ 的 cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts，
+  以及 mobile/lib/ 的 keychain-native.ts 與 gemini-reading-native.ts——這頁寫的每一句都是那幾支
+  程式實際的行為，不是宣示。最後那兩支只有 iOS 版載入，「Gemini reading prefill」那一節因此按平台分岔（.scratch/fixed-gemini-key/spec.md 決定十八）。
   領域詞彙照 docs/glossary.md 的英文欄，
   畫面上的按鈕名稱照 src/i18n/en.ts（例如「匯入單字」在英文介面叫 Import words）。
 

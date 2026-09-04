@@ -1,17 +1,14 @@
 import type { App } from '../app';
 import { lang, t, type LangChoice } from '@core/i18n';
-import { APP_NAME } from '@core/lib/app-name';
 import { toMessage } from '@core/lib/app-error';
 import { toDateKey } from '@core/lib/review';
 import { el, button, download } from './dom';
 import { booksSection } from './books-section';
 
 /**
- * 這一頁七段常駐的說明文字都搬進翻譯檔了，各自為什麼非講不可仍記在這裡：
+ * 這一頁五段常駐的說明文字都搬進翻譯檔了，各自為什麼非講不可仍記在這裡：
  *
- * - `data.langHint`：語言的選擇與提醒開關是同一類東西——只留在這台裝置，不進雲端也不進
- *   備份檔（見 spec 決定五）。措辭刻意照抄底下 `data.reminderHint` 的後半句，同一件事
- *   不要有兩種講法。
+ * - `data.langHint`：語言的選擇只留在這台裝置，不進雲端也不進備份檔（見 spec 決定五）。
  * - `data.cloudHint`：最後一句不是客套話。密碼同時是加密金鑰，遺失即無法復原是機制
  *   決定的（見 ADR-0003）。iOS 上把密碼交給 iCloud 鑰匙圈保管降低了忘記的機率，但
  *   沒有消除它——使用者可能沒開鑰匙圈，或整個換掉 Apple ID。因此必須同時指出唯一
@@ -21,12 +18,8 @@ import { booksSection } from './books-section';
  * - `data.geminiHint`：「不要開計費」是這個設計唯一的保險。金鑰只存在本機、不上雲也
  *   不進匯出檔，但真的外洩時，沒綁卡的金鑰代價只是免費額度被別人用掉，不會生出帳單
  *   （見 issue 01 決定 7）。
- * - `data.reminderHint`：三件事講清楚——什麼時候會叫、什麼時候不叫、這個開關只管這一台。
- * - `data.reminderDenied`：權限被拒絕時說實話，不假裝提醒有在運作，也不再問第二次
- *   （見 spec 決定二十四）。`{app}` 代進去的是 iOS 設定 app 裡的項目名，也就是主畫面
- *   圖示底下那行字（短名）。
  *
- * 七段一律在畫的那一刻才查表。寫成模組層常數的話會在 `initI18n()` 之前就算完，
+ * 五段一律在畫的那一刻才查表。寫成模組層常數的話會在 `initI18n()` 之前就算完，
  * 而且切語言之後不會跟著換。
  */
 
@@ -44,16 +37,7 @@ export function dataView(app: App): HTMLElement {
   // 單字本擺最上面：它是這一頁的主角，其餘幾區都是設定好就很久不再碰的東西。
   // 介面語言排在那幾區之首：語言是「app 用什麼話跟你說」，比底下四區都基礎，
   // 而看不懂畫面的人來找語言選單時，越上面越容易找到（spec 決定十）。
-  // 提醒緊接在 Gemini 金鑰之後：兩者同樣是「只管這一台裝置」的偏好，擺在一起。
-  // iOS 上沒有金鑰那一區，提醒因此接在雲端備份之後。
-  main.append(booksSection(app), langSection(app), cloudSection(app));
-  // 金鑰區塊只長在網頁版。iOS 上讀音預填走固定金鑰、使用者什麼都不必設定，
-  // 這一區留著只會讓人以為自己還漏了一步（spec 決定二）。
-  // `import.meta.env.MODE` 在打包時就換成字面值，兩份產物各自只留下自己那一半。
-  if (import.meta.env.MODE !== 'ios') main.append(geminiSection(app));
-  const reminder = reminderSection(app);
-  if (reminder) main.append(reminder);
-  main.append(fileSection(app));
+  main.append(booksSection(app), langSection(app), cloudSection(app), geminiSection(app), fileSection(app));
 
   screen.append(header, main);
   return screen;
@@ -109,23 +93,6 @@ function cloudSection(app: App): HTMLElement {
   section.append(el('h2', 'section-title', t('data.cloudTitle')));
 
   const signedInAs = app.cloud.nickname();
-
-  // 拒絕過的裝置不能畫成「已登入」：暱稱與密碼確實還在（Keychain 那一筆刻意不刪），
-  // 但這台並沒有在備份。反悔的路留在這裡，按下去就接回來，一個字都不必打——
-  // 不留的話，改主意的代價是重新輸入一組可能一年沒打過的密碼（票 14）。
-  if (signedInAs !== null && app.cloudConsent?.declined() === true) {
-    section.append(
-      el('p', 'hint', t('data.declinedHint')),
-      button('primary', t('data.pullNow', { nickname: signedInAs }), () => {
-        app.cloudConsent?.grant();
-        // 與開機時同意的那條路走的是同一支，行為因此一致：比新舊、該拉就拉。
-        app.cloud.begin(app.data);
-        // 重畫成已登入的樣子。拉到雲端資料的話那一側會再重畫一次，內容相同。
-        app.showData();
-      }),
-    );
-    return section;
-  }
 
   if (signedInAs !== null) {
     section.append(
@@ -186,8 +153,6 @@ function cloudSection(app: App): HTMLElement {
           restore();
           return;
         }
-        // 在這台裝置上親手打完密碼就是同意了——下次開 app 再問一次是在羞辱他（票 14）。
-        app.cloudConsent?.grant();
         // 重畫成已登入的樣子。拉到雲端資料的情形下這裡是第二次重畫，內容相同。
         app.showData();
       })
@@ -296,109 +261,6 @@ function geminiSection(app: App): HTMLElement {
   });
 
   section.append(form);
-  return section;
-}
-
-/**
- * 每日提醒的開關。**只有原生殼裡才長出這一區**——網頁版 `app.reminder` 為 null，
- * 這裡直接回 null，「資料」畫面上一個字都不會多。
- *
- * 開起來要先過通知權限那一關，因此不像其他幾區按了就重畫：就地把勾回彈、
- * 把原因寫在底下，使用者才看得懂剛剛發生了什麼事。
- */
-function reminderSection(app: App): HTMLElement | null {
-  const reminder = app.reminder;
-  if (reminder === null) return null;
-
-  const check = el('input', 'toggle-check');
-  check.type = 'checkbox';
-  check.checked = reminder.enabled();
-
-  // 原生的時間欄位：iOS 上叫出來的是系統那個滾輪，長得跟其他 app 裡的一樣，
-  // 也自動跟著系統的 12／24 小時制走。自己做一個只會比它差（見票 18）。
-  const time = el('input', 'field time');
-  time.type = 'time';
-  time.value = reminder.time();
-
-  // 「提醒時間」與時間格是開關那句話的後半，讀起來是一句：
-  // 「每天提醒我，提醒時間 08:00」。刻意不塞進開關那個 <label> 裡——
-  // 塞進去的話點時間格會順手把開關關掉。
-  const timeRow = el('label', 'reminder-time', el('span', 'toggle-label', t('data.reminderTime')), time);
-
-  /**
-   * 時間欄位跟著開關走：關著的時候那一格沒有意義，長在那裡只會讓人以為關著也會叫
-   * （見票 18）。四條路（初次畫、關掉、開起來、被拒絕）都呼叫這一支而不是各自
-   * 設一次——漏掉其中一條就會出現「關著卻看得到時間欄位」。
-   */
-  function syncTimeRow(): void {
-    timeRow.hidden = !check.checked;
-  }
-
-  syncTimeRow();
-
-  const status = el('p', 'status');
-
-  function deny(): void {
-    check.checked = false;
-    syncTimeRow();
-    status.textContent = t('data.reminderDenied', { app: APP_NAME.short });
-    status.classList.add('error');
-  }
-
-  // 先照記著的狀態畫，再去問通知權限還在不在——使用者可能剛從系統設定把它關掉，
-  // 而一個亮著卻收不到提醒的開關正是決定二十四禁止的假象。
-  if (check.checked) {
-    void reminder.verify().then((live) => {
-      if (!live) deny();
-    });
-  }
-
-  check.addEventListener('change', () => {
-    status.textContent = '';
-    status.classList.remove('error');
-    if (!check.checked) {
-      syncTimeRow();
-      reminder.disable();
-      return;
-    }
-
-    // 系統對話框跳出來的期間先鎖住，免得連點兩下變成兩次請求。
-    check.disabled = true;
-    void reminder.enable().then((granted) => {
-      check.disabled = false;
-      // 被拒絕時勾自己彈回去：使用者寧可看到「你關掉了通知權限」，
-      // 也不要以為提醒在運作卻永遠收不到。
-      if (!granted) {
-        deny();
-        return;
-      }
-      syncTimeRow();
-    });
-  });
-
-  time.addEventListener('change', () => {
-    // 時間欄位是可以被清空的（值變成空字串）。那不是一個時刻，不能存進去——
-    // 把記著的那個填回去，畫面與存的東西才不會各說各話。
-    if (time.value === '') {
-      time.value = reminder.time();
-      return;
-    }
-    reminder.setTime(time.value);
-  });
-
-  const section = el('section', 'section');
-  section.append(
-    el('h2', 'section-title', t('data.reminderTitle')),
-    // 兩塊並排成一句話。逗號留在開關那半，換行時斷在它後面才讀得順。
-    el(
-      'div',
-      'reminder-line',
-      el('label', 'toggle', check, el('span', 'toggle-label', t('data.reminderToggle'))),
-      timeRow,
-    ),
-    el('p', 'hint', t('data.reminderHint')),
-    status,
-  );
   return section;
 }
 

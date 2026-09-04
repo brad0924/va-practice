@@ -22,7 +22,7 @@ function dueIn(days: number, now = NOW): Card {
   return card(`+${days}`, { interval: 3, due });
 }
 
-/** 一台裝置的本機儲存。沿用 safety-copy.test.ts 的寫法，只存一個鍵，不必分辨。 */
+/** 一台裝置的本機儲存。只存一個鍵，不必分辨。 */
 function fakeStorage(): StorageLike {
   const kept = new Map<string, string>();
   return {
@@ -626,7 +626,7 @@ describe('資料一變就整批重排', () => {
     await native.fail();
 
     expect(native.applied).toEqual([]);
-    // 失敗後把機會留給下一次變動，與雲端推送、保險副本同一個立場。
+    // 失敗後把機會留給下一次變動，與雲端推送同一個立場。
     expect(native.outstanding()).toBe(0);
   });
 

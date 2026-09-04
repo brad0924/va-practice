@@ -2,8 +2,8 @@
  * Firebase AI Logic 那條路上的兩支碼表：重試迴圈與憑證的預算。純邏輯，
  * **一行執行期的 firebase 都不 import**。
  *
- * 單獨一支檔案而不是併進 `gemini-reading-native.ts`，理由與 `ai-logic-error.ts` 相同：
- * 那支 import 了 Capacitor 外掛與 firebase 執行期程式碼，在 node 底下載不起來、測不到。
+ * 單獨一支檔案而不是併進 `mobile/lib/gemini-reading-native.ts`，理由與 `ai-logic-error.ts`
+ * 相同：那支 import 了原生模組與 firebase 執行期程式碼，在 node 底下載不起來、測不到。
  * 迴圈只收一個「做一次事」的 callback，它不知道底下是 SDK 還是假貨，因此測得動（票 09）。
  *
  * 網頁版的 `askReading()` 有自己一套已經上線的重試，**刻意不共用**：兩邊的碼表機制不同

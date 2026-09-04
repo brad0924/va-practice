@@ -10,8 +10,8 @@
  * 這也是 `cloud-backup.ts` 一行都不必改的原因：`CloudBackupHooks.storage` 本來就是
  * 外部遞進來的 `StorageLike`，iOS 版改遞這一個即可（見 spec 決定十一）。
  *
- * 本模組不碰任何原生 API：讀寫的方式一律由呼叫端遞進來，與 `safety-copy.ts` 同一個
- * 立場。接上 Capacitor 那一端的接線在 `keychain-native.ts`。網頁版完全沒有這條支線。
+ * 本模組不碰任何原生 API：讀寫的方式一律由呼叫端遞進來。接上原生那一端的接線在
+ * `mobile/lib/keychain-native.ts`。網頁版完全沒有這條支線。
  */
 import { CREDENTIALS_KEY } from './cloud-backup';
 import type { StorageLike } from './storage';
@@ -26,8 +26,8 @@ export interface KeychainLike {
 /**
  * 啟動時先把暱稱與密碼那一筆讀出來，回傳一個此後都同步作答的 `StorageLike`。
  *
- * 進得了 Keychain 的只有那一個鍵，與 `withSafetyCopy` 同樣寫死——雲端備份目前也只用
- * 這一個鍵，但寫死比較誠實：哪天多出第二個鍵時，這裡不會默默把別人的東西也塞進去。
+ * 進得了 Keychain 的只有那一個鍵，寫死的——雲端備份目前也只用這一個鍵，但寫死比較
+ * 誠實：哪天多出第二個鍵時，這裡不會默默把別人的東西也塞進去。
  */
 export async function loadKeychainStorage(keychain: KeychainLike): Promise<StorageLike> {
   const memory = new Map<string, string>();
@@ -36,7 +36,7 @@ export async function loadKeychainStorage(keychain: KeychainLike): Promise<Stora
     if (preloaded !== null) memory.set(CREDENTIALS_KEY, preloaded);
   } catch {
     // 讀不出來就當作沒登入過：使用者重新輸入一次暱稱與密碼就好，本機的卡片與進度
-    // 一張都不會少，比整個 app 倒在啟動畫面好——與保險副本的還原同一個立場。
+    // 一張都不會少，比整個 app 倒在啟動畫面好。
   }
 
   /**

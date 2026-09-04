@@ -17,34 +17,15 @@ import { dataView } from './data-view';
 import { setLang, t, type LangChoice } from '@core/i18n';
 
 /**
- * 每日提醒那一區只有原生殼裡才長得出來。關著的狀態最單純：畫的當下不會去問權限，
- * 因此不必假造任何非同步的答案。
- */
-const OFF_REMINDER = {
-  enabled: () => false,
-  time: () => '08:00',
-  disable: () => {},
-  enable: () => Promise.resolve(true),
-  setTime: () => {},
-  verify: () => Promise.resolve(true),
-  refresh: () => {},
-};
-
-/**
  * 掛一張資料畫面到 document.body。
  *
  * 零本零卡是最單純的狀態，語言那一段跟使用者有多少卡片無關。
- * `reminder` 預設給 null（＝網頁版），要驗到「每日提醒」那一段時才遞一份進來。
  */
-function mountData(
-  onSetLang: (choice: LangChoice) => void = () => {},
-  reminder: unknown = null,
-): HTMLElement {
+function mountData(onSetLang: (choice: LangChoice) => void = () => {}): HTMLElement {
   const app = {
     data: { version: 3, books: [], cards: [], scopes: { review: [], list: [], stats: [] }, updatedAt: 0 },
     cloud: { nickname: () => null },
     gemini: { read: () => null },
-    reminder,
     setLang: onSetLang,
   } as unknown as App;
 
@@ -71,17 +52,6 @@ describe('介面語言那一段', () => {
       t('data.langTitle'),
       t('data.cloudTitle'),
       t('data.geminiTitle'),
-      t('data.fileTitle'),
-    ]);
-  });
-
-  it('原生殼裡多一段每日提醒，它的位置也沒被推開', () => {
-    expect(sectionTitles(mountData(() => {}, OFF_REMINDER))).toEqual([
-      t('books.sectionTitle'),
-      t('data.langTitle'),
-      t('data.cloudTitle'),
-      t('data.geminiTitle'),
-      t('data.reminderTitle'),
       t('data.fileTitle'),
     ]);
   });

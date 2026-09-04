@@ -68,7 +68,7 @@ function boot(lang: Lang): HTMLElement {
   const root = document.createElement('div');
   document.body.append(root);
   // 雲端備份記暱稱密碼的地方。網頁版遞的就是 localStorage（見 main.ts）；沒登入就一個請求都不發。
-  start(root, localStorage);
+  start(root);
   return root;
 }
 
