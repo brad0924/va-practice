@@ -42,10 +42,9 @@ export interface Change {
  * 去問 AI（Artificial Intelligence，人工智慧）讀音的那支函式。回的是還沒被信任的原始
  * 回覆——收不收由 `acceptPrefill`（`reading.ts`）決定，這裡只負責把它拿回來。
  *
- * 誰去問由畫面那一側決定，這一層三條都不認識：網頁版是使用者自備金鑰打 Gemini
- * （`src/ui/editor-view.ts` 的 `createAsk()`），Capacitor 版 iOS 與 React Native 版都是
- * 固定金鑰走 Firebase AI Logic（`src/lib/gemini-reading-native.ts`、
- * `mobile/lib/gemini-reading-native.ts`）。
+ * 誰去問由畫面那一側決定，這一層兩條都不認識：網頁版是使用者自備金鑰打 Gemini
+ * （`src/ui/editor-view.ts` 的 `createAsk()`），iOS 版是固定金鑰走 Firebase AI Logic
+ * （`mobile/lib/gemini-reading-native.ts`）。
  *
  * `onAttempt` 是問的那一方回報「開始第 N 次嘗試」的管道，N 從 2 起算——伺服器那端出事時
  * 會自動再問（迴圈在 `reading-retry.ts`）。不接這個參數也合法。

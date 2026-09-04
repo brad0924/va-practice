@@ -35,7 +35,7 @@ export function dataView(app: App): HTMLElement {
 
   const main = el('main', 'panel');
   // 單字本擺最上面：它是這一頁的主角，其餘幾區都是設定好就很久不再碰的東西。
-  // 介面語言排在那幾區之首：語言是「app 用什麼話跟你說」，比底下四區都基礎，
+  // 介面語言排在那幾區之首：語言是「app 用什麼話跟你說」，比底下三區都基礎，
   // 而看不懂畫面的人來找語言選單時，越上面越容易找到（spec 決定十）。
   main.append(booksSection(app), langSection(app), cloudSection(app), geminiSection(app), fileSection(app));
 

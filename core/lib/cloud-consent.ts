@@ -14,9 +14,9 @@
  * 使用者所有的裝置——拿「這台不要接」當理由去刪一筆全域的密碼，代價完全不成比例。
  * 因此拒絕只做兩件事：這次不 `begin()`、在本機記下來不再問。
  *
- * **問的方式一律是非同步的。** 網頁版那條支線用 `confirm()`，它在 WKWebView 裡會擋住
- * 整條執行緒，答案當場就有；React Native 上沒有這種對話框，`Alert.alert` 是 callback。
- * 遷就比較慢的那一邊：`ask()` 與 `wantsPull()` 都回 `Promise`，`confirm()` 那端包一層
+ * **問的方式一律是非同步的。** React Native 上沒有 `confirm()` 那種擋住整條執行緒、
+ * 當場給答案的對話框，`Alert.alert` 是 callback。介面因此遷就比較慢的那一邊：
+ * `ask()` 與 `wantsPull()` 都回 `Promise`，`confirm()` 那種同步的答案包一層
  * `Promise.resolve()` 就接得上（票 `17`）。反過來在手機那端自己組一套 callback 的話，
  * 「該不該問」的判斷會被重寫第二份，兩份日後各自漂走。
  *

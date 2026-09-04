@@ -3,9 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { download } from './dom';
 
 /**
- * 這個檔案只守一件事：**網頁版的匯出行為不因為 iOS 而改變**（見 issue 12）。
- * `download()` 從此有兩條路，原生那條在 node 環境下不存在、也不該在這裡假造；
- * 這裡測的是沒有原生存檔手段時走的那條，也就是網頁版唯一會走的那條。
+ * 這個檔案只守一件事：**匯出走的是隱形連結那條路，而且從不報失敗**（見 issue 12）。
  *
  * 需要 jsdom（見檔頂那行）：整件事就是在造一個真的 `<a>` 並按它。
  * `URL.createObjectURL` jsdom 沒有實作，只能自己接上去。

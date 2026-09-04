@@ -45,7 +45,6 @@ beforeEach(() => {
 function boot(): HTMLElement {
   const root = document.createElement('div');
   document.body.append(root);
-  // 雲端備份記暱稱密碼的地方。網頁版遞的就是 localStorage（見 main.ts）。
   start(root);
   return root;
 }

@@ -1,10 +1,12 @@
 # 21 — 把 Capacitor 那一整套移除
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: ~~20~~（**2026-09-03 解除**：run 22 出了 TestFlight build，維護者實機裝起來驗過）
 
 決策背景見 `../spec.md` 的〈路線〉。
+
+**做完了（2026-09-04）。** 兩個 commit：`a92bdab` 刪檔、`9fc9857` 動程式碼。驗收 15 條全過。
 
 **規格談完了（2026-09-04 一輪 `/grill-with-docs`）。** 開票當天列的〈要你拍板的〉五條
 已全部有答案，另外兩條是動工前重新盤查才浮出來的。底下〈決定〉那七條是那一輪談定的，
@@ -125,59 +127,120 @@ Blocked by: ~~20~~（**2026-09-03 解除**：run 22 出了 TestFlight build，�
 
 同一張票做完，但分兩批送：
 
-1. **刪檔那批**——相依、`ios/`、`capacitor.config.ts`、`tsconfig.json` 的 include、
-   `vite.config.ts` 的 ios 分支、`inject-signing`、圖示產生器。零風險。
-2. **動網頁版程式碼那批**——10 個 `*-native.ts`、五個呼叫端、`core/lib/safety-copy.ts`、
-   CONTEXT 與 glossary。有讓網頁版出錯的風險。
+1. **刪檔那批**——`ios/`、`capacitor.config.ts`、`tsconfig.json` 的 include、
+   `vite.config.ts` 的 ios 分支、`inject-signing`、圖示產生器、`package.json` 的
+   `build:ios` 與 `sync:ios`。零風險。
+2. **動網頁版程式碼那批**——10 個 `*-native.ts`、五個呼叫端、七個 `@capacitor/*` 相依、
+   `core/lib/safety-copy.ts`、CONTEXT 與 glossary。有讓網頁版出錯的風險。
 
 分開的理由：出事時 `git revert` 拆得開。
 
-### 七、兩處註解裡的斷掉指標順手修掉
+**訂正（2026-09-04，動工時）：七個相依從第一批移到第二批。** 開票時把相依算進「刪檔那批」，
+順序是反的——`src/lib/*-native.ts` 還在 `import` 那七個套件，先拔相依會讓 `npm run typecheck`
+當場紅燈。相依必須與讀它的那批程式碼同一個 commit 走。
 
-刪檔會讓兩段註解指向不存在的東西。**只改那幾個字，不動它們解釋的程式碼**：
+代價是第一批不再是「全部的刪檔」，只是「沒有人讀的那些檔」。兩批各自仍然自成一體、
+各自 typecheck 與測試全綠，`git revert` 照樣拆得開。
 
-- `.github/workflows/ios-testflight.yml` 第 204 行指著 `scripts/inject-signing.mjs`。
-  那段在解釋「這一版為什麼可以把簽章設定全部從指令列傳」，論述本身仍然成立，
-  只是那個檔沒了。改成講清楚它已被移除。**這不是 build 段，票 `20` 的界線沒有被跨過。**
-- `src/styles.css` 第 28–30 行拿 Capacitor 的 `zoomEnabled: false` 當對照，說明
-  `touch-action: manipulation` 為什麼要掛在 `*` 上。那個 iOS app 不存在了，
-  括號裡「iOS app 的雙指本來就被 Capacitor 關掉了」整句拿掉，論述照舊。
+### 七、指向已刪檔案的註解一律修掉，純歷史行文一律不動
 
-`core/lib/`、`mobile/`、其餘 ADR 裡提到 Capacitor 的都是行文對照，指的是歷史上真的
-發生過的事，**不動**。
+**分界線是「照著這行字去找，找不找得到東西」**，不是那行字提不提到 Capacitor：
+
+- **指標斷了 → 修。** 只改那幾個字，不動它解釋的程式碼。
+- **只是拿當年的做法當對照 → 不動。** 那些寫的是歷史上真的發生過的事。
+
+#### 要修的（動工時清出來的完整清單）
+
+| 位置 | 斷在哪 |
+| --- | --- |
+| `.github/workflows/ios-testflight.yml` | 指著 `scripts/inject-signing.mjs` |
+| `src/styles.css` | 拿一個不存在的 iOS app 的雙指行為當對照 |
+| `core/lib/` 八支檔 | 指著 `safety-copy.ts`、`src/lib/*-native.ts` 或 `ios/App/App/Info.plist` |
+| `src/app.test.ts`、`src/ui/dom.test.ts` | 講「兩條訊號」「兩條路」，現在各只剩一條 |
+| `public/privacy.html`、`privacy-en.html` | 檔頭那份對照清單的路徑 |
+| `docs/adr/0002`、`docs/adr/0012` | 見底下 |
+
+workflow 那一處只改註解，**build 段一行不動，票 `20` 的界線沒有被跨過**。
+
+#### 兩份 ADR 各補一則日期註記，正文一字不改
+
+這兩份不是「提到 Capacitor」而已，是**整份的前提被這次移除改掉了**：
+
+- **`ADR-0002`**（localStorage 為唯一來源）有一則 2026-08-18 的補充在講保險副本。
+  那個東西現在連程式碼都沒了，那則補充從此純屬歷史。
+- **`ADR-0012`**（顯示名稱）列著 app 名字寫在七個地方，其中三個被這次移除掉了
+  （`capacitor.config.ts`、`ios/App/App/Info.plist`、`src/ui/data-view.ts`）。
+
+**兩份都只在開頭或結尾補一則帶日期的註記，正文一個字不改**——比照 `ADR-0015`
+自己開頭那一段的寫法。這是這個 repo 處理「被後來的事實推翻」的既有慣例，`0002`、`0008`、
+`0012` 都是這樣。
+
+#### 不動的
+
+`core/lib/storage.ts`、`cloud-crypto.ts`、`gemini-reading.ts`、`reading-retry.ts` 裡
+「網頁版與 Capacitor 版⋯⋯」「兩條 Firebase 路徑（Capacitor 版 iOS 與 React Native 版）」
+那類句子，以及 `scripts/hooks/privacy-signals.mjs` 舉 `@capacitor-firebase/app-check`
+當例子那一行——都是行文對照，指的是歷史上真的發生過的事。
+
+**`mobile/` 底下六處指向 `src/lib/*-native.ts` 與 `ios/App/App/*.swift` 的註解也不動**，
+即使那是斷掉的指標。理由是〈驗收〉那條「`mobile/` 零改動」是這張票最硬的一道守門，
+不值得為六行註解換掉。另開一張票處理。
+
+### 八、`data-view.ts` 那兩段永遠畫不出來的 UI 也拆掉
+
+**（2026-09-04 動工時追加，維護者當場拍板。）**
+
+拆掉接線之後，`App` 介面的 `reminder` 與 `cloudConsent` 在網頁版永遠是 `null`。
+它們各撐著「資料」畫面上的一段 UI：
+
+- 每日提醒那一整區（106 行），外面包著 `if (reminder === null) return null`
+- 「這台裝置拒絕過雲端、按這裡接回來」那一塊，外面包著 `app.cloudConsent?.declined() === true`
+
+**兩個判斷式在網頁版恆為 false，那兩段從來沒有被畫出來過。** 連同 `App` 介面那兩個欄位
+與 `data-view.test.ts` 針對它們的四個測試一起拆。
+
+〈決定〉第一條點名的是五個呼叫端，`data-view.ts` 不在裡面——它不 `import` 任何
+`*-native.ts`，是隔一層讀 `app.reminder`。因此另外問過。
+
+拆掉不損失任何守門：那一區的行為在 iPhone 上由 `mobile/ui/data-screen.tsx` 負責，
+它有自己完整的測試（`mobile/ui/data-screen.test.tsx`）。`data.reminder*` 那批 i18n 字串
+**留著不動**，`mobile/` 還在用同一批鍵。
 
 ## 這張票不做的事
 
-- **不動 `mobile/` 底下任何東西**
+- **不動 `mobile/` 底下任何東西**（含那六處斷掉的註解指標，另開票）
 - **不改網頁版的行為。** 拆掉的是走不到的路徑，使用者看得到的東西一個都不變
 - **不碰 `.github/workflows/ios-testflight.yml` 的 build 段。** 那是票 `20`
 - **不刪 `scripts/icon.svg`**，它是圖案的唯一來源
-- **不改其他 ADR 裡提到 Capacitor 的行文**
+- **不改 ADR 的正文。** `ADR-0002`、`ADR-0012`、`ADR-0015` 都只在外圍補一則帶日期的註記
 
 ## 驗收
 
-第一批（刪檔）：
+第一批（刪檔，commit `a92bdab`）：
 
-- [ ] `package.json` 沒有任何 `@capacitor` 開頭的相依，也沒有 `build:ios` 與 `sync:ios`
-- [ ] `ios/` 目錄、`capacitor.config.ts`、`scripts/inject-signing.mjs` 與它的測試都不存在
-- [ ] `tsconfig.json` 的 `include` 不再列 `capacitor.config.ts`
-- [ ] `vite.config.ts` 沒有 `mode === 'ios'` 分支
-- [ ] `npm run icons` 只寫出四個檔，最後一個是 `mobile/assets/icon.png`；
+- [x] `package.json` 沒有 `build:ios` 與 `sync:ios`
+- [x] `ios/` 目錄、`capacitor.config.ts`、`scripts/inject-signing.mjs` 與它的測試都不存在
+- [x] `tsconfig.json` 的 `include` 不再列 `capacitor.config.ts`
+- [x] `vite.config.ts` 沒有 `mode === 'ios'` 分支
+- [x] `npm run icons` 只寫出四個檔，最後一個是 `mobile/assets/icon.png`；
       重跑之後 `git status` 乾淨（圖案沒有漂移）
-- [ ] `npm run typecheck` 與 `npm test` 全綠
+- [x] `npm run typecheck` 與 `npm test` 全綠
 
-第二批（動程式碼）：
+第二批（動程式碼，commit `9fc9857` 起）：
 
-- [ ] `src/lib/` 底下沒有任何 `*-native.ts`
-- [ ] `core/lib/safety-copy.ts` 與它的測試不存在
-- [ ] 全 repo 搜 `@capacitor` 只剩 `package-lock.json` 之外零筆
-      （`core/`、`mobile/`、ADR 裡的行文對照不算，那是歷史）
-- [ ] `CONTEXT.md` 與 `docs/glossary.md` 都沒有〈保險副本〉，`src/lib/glossary.test.ts` 綠燈
-- [ ] `npm run typecheck` 與 `npm test` 全綠
-- [ ] `npm run build` 出得了包
-- [ ] **`mobile/` 零改動**（`git diff --stat mobile/` 是空的）
-- [ ] `mobile/` 的 jest 全綠（確認沒有波及共用的 `core/`）
-- [ ] `ADR-0015` 開頭多一行移除日期，其餘一字未動
+- [x] `package.json` 沒有任何 `@capacitor` 開頭的相依，`package-lock.json` 也清乾淨
+- [x] `src/lib/` 底下沒有任何 `*-native.ts`
+- [x] `core/lib/safety-copy.ts` 與它的測試不存在
+- [x] 全 repo 搜 `@capacitor` 只剩行文對照
+      （`mobile/lib/share-file-native.ts`、`scripts/hooks/privacy-signals.mjs`、
+      `docs/adr/`、`.scratch/` 的舊票，以及 `scripts/hooks/fixtures/*.diff` 那兩份錄下來的舊 diff）
+- [x] `CONTEXT.md` 與 `docs/glossary.md` 都沒有〈保險副本〉，`src/lib/glossary.test.ts` 綠燈
+- [x] `src/ui/data-view.ts` 沒有 `reminderSection`，`App` 介面沒有 `reminder` 與 `cloudConsent`
+- [x] `npm run typecheck` 與 `npm test` 全綠
+- [x] `npm run build` 出得了包
+- [x] **`mobile/` 零改動**（`git diff --stat mobile/` 是空的）
+- [x] `mobile/` 的 jest 全綠（確認沒有波及共用的 `core/`）
+- [x] `ADR-0002`、`ADR-0012`、`ADR-0015` 各多一則帶日期的註記，三份的正文都一字未動
 
 ## Comments
 
@@ -206,3 +269,32 @@ Blocked by: ~~20~~（**2026-09-03 解除**：run 22 出了 TestFlight build，�
 
 〈決定〉第七條是這一輪多出來的範圍：兩段註解會指向被刪掉的東西。決定順手修掉，
 但界線畫得很緊——只改那幾個字，`.github/workflows/` 的 build 段一行不動。
+
+### 2026-09-04 — 做完，驗收全過
+
+兩個 commit：`a92bdab`（刪檔）、`9fc9857`（動網頁版程式碼）。78 個檔，刪 3983 行、加 131 行。
+跑完 `/code-review`，Standards 與 Spec 兩軸各出一份。
+
+**票面被改了三處，都是追認實作。** 這三處在 review 時被 Spec 軸點名為 scope creep，
+維護者裁示「把實際做了什麼寫進票」：
+
+1. **決定六的批次順序訂正。** 七個相依非得跟讀它們的那批程式碼同一個 commit 走，
+   否則第一批的 typecheck 當場紅燈。開票時沒想到這一層。
+2. **決定七整條改寫。** 原本寫「`core/lib/`、`mobile/`、其餘 ADR⋯⋯不動」，那條界線劃錯了地方——
+   它按「有沒有提到 Capacitor」分，但真正該分的是**「照著這行字去找，找不找得到東西」**。
+   刪掉 `safety-copy.ts` 與 `ios/` 之後，`core/lib/` 八支檔、兩支測試、兩份隱私頁的檔頭
+   全都指向不存在的檔案。改成按「指標斷了就修，純歷史行文不動」分。
+3. **補上決定八。** `data-view.ts` 那兩段永遠畫不出來的 UI，是動工中途另外問維護者、
+   當場拍板「拆」的，開票時完全沒盤點到。
+
+**Standards 軸找到 11 條，9 條是真的。** 全部是同一個病灶——我改了程式碼、沒改它上面那句話。
+兩支測試的註解還在講被刪掉的參數、`data-view.ts` 的「四區」該是三區、`dom.ts` 與 `dom.test.ts`
+還在講「兩條路」、`cloud-consent.ts` 的檔頭跟自己下一段矛盾。都在同一個 commit 補掉了。
+
+剩下兩條：一條是誤判（CONTEXT 的〈複製〉寫「振假名靠疊字做」，那正是 React Native 版現在的做法，
+沒有過期）；一條是判斷題不採納（`dom.ts` 的 `download()` 保持 `async`，呼叫端都在 `await`，
+改成同步會漣漪出去、換不到東西，只把註解改掉）。
+
+**`mobile/` 底下六處斷掉的註解指標另開票。** 那六行寫著「與 `src/lib/haptics-native.ts` 同一個理由」
+這類話，指的檔案都被這張票刪了。不在這裡順手修，是因為〈驗收〉那條「`mobile/` 零改動」
+是確認沒弄壞手機版最硬的一道守門，不值得為六行註解換掉。

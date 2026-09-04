@@ -1,10 +1,17 @@
 # 顯示名稱：打包流程內的用 import，流程外的用測試守門
 
 > **2026-09-04，Capacitor 那一整套已從 repo 移除（票 `rn-rewrite 21`）。** 本份的兩套分法沒有被推翻，
-> 但底下點名的位置少了兩個：`capacitor.config.ts`（打包流程內）與 `ios/App/App/Info.plist`（流程外）。
-> iOS 版的名字現在寫在 `mobile/app.json` 的 `expo.name`，由 Expo 出包時寫進它自己產的 `Info.plist`，
-> 仍屬「打包流程外、靠 `core/lib/app-name.test.ts` 守門」那一套。位置總數從七個變成六個。
-> **底下正文一字不改**，記的是當時的狀況。
+> 但底下點名的七個位置只剩四個活著：
+>
+> - `capacitor.config.ts`（流程內）——檔案刪了
+> - `ios/App/App/Info.plist`（流程外）——`ios/` 整個刪了
+> - `src/ui/data-view.ts`（流程內）——那一區只有每日提醒的權限提示用得到短名，該區隨接線一起拆掉
+>
+> 補上這份 ADR 寫成之後才出現的兩個：`mobile/ui/data-screen.tsx` 直接 `import`（流程內），
+> `mobile/app.json` 的 `expo.name` 寫字面值、靠 `core/lib/app-name.test.ts` 守門（流程外）——
+> Expo 出包時把它寫進自己產的那份 `Info.plist`，落點與舊的那一處相同。
+>
+> 四加二，總數仍是**六個**。**底下正文一字不改**，記的是當時的狀況。
 
 app 的顯示名稱只有一份來源：`core/lib/app-name.ts`，含短名與全名兩欄。但它抵達七個位置的方式**刻意分成兩套**：
 

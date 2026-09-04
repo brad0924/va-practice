@@ -20,8 +20,8 @@ export function button(className: string, label: string, onClick: () => void): H
 /**
  * 把一段內容交到使用者手上：借一個隱形連結按下去，瀏覽器的老招數。
  *
- * 這條路**永遠不會丟**：按下去之後成敗如何，瀏覽器不告訴任何人。
- * 因此呼叫端的錯誤處理實際上走不到，回傳 Promise 只是為了讓呼叫端不必分辨。
+ * 它**永遠不會丟**：按下去之後成敗如何，瀏覽器不告訴任何人。回傳 Promise 是給呼叫端
+ * `await` 用的形狀，不代表這裡真的等待了什麼。
  */
 export async function download(content: string, filename: string, type: string): Promise<void> {
   const url = URL.createObjectURL(new Blob([content], { type }));
