@@ -1,6 +1,6 @@
 # 干擾假名挑濁音清音變體與同行鄰居，不要隨便抽
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 問題
