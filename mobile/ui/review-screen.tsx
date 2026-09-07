@@ -224,19 +224,20 @@ export function ReviewScreen({ session }: ReviewScreenProps) {
         onLayout={measure(setHeaderHeight)}
       >
         {/* **剩餘張數是一行字，不是一顆膠囊。** 它不能按，套上玻璃只會讓人以為按得下去；
-            標題列因此也從三顆等寬的膠囊變成「一行標題、右邊兩顆控制項」，看得出主從。 */}
+            標題列因此也從三顆等寬的膠囊變成「一行標題、右邊的控制項」，看得出主從。 */}
         <Text style={styles.remaining}>{t('review.remaining', { count: queue.length })}</Text>
-        {/* 左、中、右三段——真的導覽列就是這個結構（HIG `N-19`）。兩格彈簧把單字本推到中間。
-            塞不下換行時兩格都會收成 0，不會多出空隙。
+        {/* 左邊一行標題、右邊一顆控制項——真的導覽列就是這個結構（HIG `N-19`）。
+            複習範圍膠囊貼齊這一列的右緣，也就是卡片的右緣（兩者都內縮 `SCREEN_INSET`）。
+            靠右由 `header` 的 `justifyContent` 給，不用彈簧墊片——見下面那條。
 
-            **中間那顆只是「差不多」置中**：兩格彈簧一樣長，因此單字本的中心會落在
-            左右兩邊剩餘寬度的平均處，往右偏了「剩餘 N 張」那行字的一半。
-            要真的對準螢幕中心得改用絕對定位，那會讓大字級下的換行整個失效。
+            **右緣，不是置中。** 票 `09` 拆掉右邊那顆「探針」之後，原本兩格墊片推出來的
+            「差不多置中」偏移變明顯，維護者看過實機後決定乾脆靠右（票
+            `review-card-book-adjustment/02`，2026-09-07）。
 
-            > 票 `09` 拆掉右邊那顆「探針」之後這個偏移變明顯了——它以前在右邊佔著位置，
-            > 兩邊因此差不多一樣寬。換來的是標題列乾淨了，探針的入口改成導覽列上的
-            > 「資料」tab。偏移多少留給並排目測那把尺判。 */}
-        <View style={styles.headerSpacer} />
+            > 與 `ADR-0010`「標題列**中央**放一顆單字本開關」相牴觸，那份的
+            > Considered Options 還把「放右側」列為否決。翻掉的只有位置：它當年的否決理由是
+            > 「跟『卡片』導覽鈕並排會被當成跳頁鈕」，而那顆鈕在 RN 改寫時已移到 tab bar。
+            > 網頁版那一列中間還有東西、靠不了右，維持置中——兩邊從此刻意不同。 */}
         {!noBooks && (
           <BookScopeSheet
             books={data.books}
@@ -244,7 +245,6 @@ export function ReviewScreen({ session }: ReviewScreenProps) {
             onChange={(ids) => session.setReviewScope(ids)}
           />
         )}
-        <View style={styles.headerSpacer} />
       </GlassGroup>
 
       {/* 完成與零本兩種狀態底下沒有可按的東西，整條控制列就不出現——
@@ -386,19 +386,19 @@ const styles = StyleSheet.create({
     gap: BAR_GAP,
   },
   /**
-   * 標題列塞不下就換行。少了這一行，大字級下單字本開關與探針會被擠出螢幕右邊——
+   * `space-between` 把「剩餘 N 張」留在左邊、複習範圍膠囊推到右緣。這一列只有兩個東西，
+   * 因此不需要中間那顆看不見的彈簧墊片——少一顆 `View`，也少墊片自己那一份 `gap`。
+   *
+   * 塞不下就換行。少了 `flexWrap`，大字級下複習範圍膠囊會被擠出螢幕右邊——
    * 不是難看而已，是**按不到**，改不了複習範圍（真機踩到，2026-08-26）。
+   * 換行之後膠囊落在第二行最左，那時「靠右」自然不成立，但按得到，這是要的取捨。
    */
   header: {
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     flexWrap: 'wrap',
   },
   footer: {
     justifyContent: 'center',
-  },
-  /** 標題列的彈簧。用兩格把中間那顆推到中央；換行時它們收成 0，不會多出空隙。 */
-  headerSpacer: {
-    flexGrow: 1,
   },
   /** 四顆評分鈕排不下同一列時，整條列改成直的。 */
   footerStacked: {
