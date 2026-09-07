@@ -315,3 +315,89 @@ describe('評分鈕與「顯示答案」的顏色', () => {
     expect(StyleSheet.flatten(view.getByText('顯示答案').props.style).color).toBe(color.accent);
   });
 });
+
+/**
+ * 卡片左上角的**所屬單字本**——「這張卡住在哪一本」。它與標題列那顆膠囊（**複習範圍**，
+ * 「我今天要複習哪幾本」）是兩件事，同一個畫面上都會出現，不可混用。
+ */
+describe('所屬單字本', () => {
+  const 兩本 = seed(
+    [
+      { id: 'A', name: '甲本' },
+      { id: 'B', name: '乙本' },
+    ],
+    [{ id: 'c1', bookId: 'B', text: '一', meaning: '第一張', interval: null, ease: DEFAULT_EASE, due: null }],
+  );
+
+  it('蓋著答案時就看得到本名', async () => {
+    const view = await show(build(一張卡));
+    expect(view.getByText('甲本')).toBeTruthy();
+  });
+
+  it('掀開答案後本名還在', async () => {
+    const view = await show(build(一張卡));
+    await fireEvent.press(view.getByText('顯示答案'));
+    await view.redraw();
+    expect(view.getByText('甲本')).toBeTruthy();
+  });
+
+  it('印的是這張卡自己那一本，不是複習範圍', async () => {
+    const view = await show(build(兩本));
+    expect(view.getByText('乙本')).toBeTruthy();
+    expect(view.queryByText('甲本')).toBeNull();
+  });
+
+  it('複習範圍只勾一本時照樣顯示，不因為與膠囊重複就藏起來', async () => {
+    // 有兩本、只勾了乙本：標題列膠囊上是「乙本 ▾」，卡片左上角也是「乙本」。
+    // 這個重複是票上定的——換來只有一條規則、沒有例外。
+    const 只勾乙本 = { ...兩本, scopes: { review: ['B'], list: ['B'], stats: ['B'] } };
+    const view = await show(build(只勾乙本));
+    expect(view.getByText('乙本 ▾')).toBeTruthy();
+    expect(view.getByText('乙本')).toBeTruthy();
+  });
+
+  it('唸出來是「單字本：甲本」，光唸本名講不出它是什麼', async () => {
+    const view = await show(build(一張卡));
+    expect(view.getByLabelText('單字本：甲本')).toBeTruthy();
+  });
+
+  it('不能按，純粹顯示——搬家在編輯畫面裡做', async () => {
+    const view = await show(build(一張卡));
+    const label = view.getByText('甲本');
+    expect(label.props.onPress).toBeUndefined();
+    expect(label.props.accessibilityRole).toBeUndefined();
+  });
+
+  it('本名很長時截成一行，不換行也不把卡片撐寬', async () => {
+    const view = await show(build(一張卡));
+    expect(view.getByText('甲本').props.numberOfLines).toBe(1);
+  });
+
+  it('今日份完成時不顯示——那時候沒有卡片', async () => {
+    const view = await show(build(一張卡));
+    await fireEvent.press(view.getByText('顯示答案'));
+    await view.redraw();
+    await fireEvent.press(view.getByText('好'));
+    await view.redraw();
+
+    expect(view.getByText('今日份完成')).toBeTruthy();
+    expect(view.queryByText('甲本')).toBeNull();
+  });
+
+  it('零本畫面上不顯示', async () => {
+    const view = await show(build(seed([], [])));
+    // 不指名某一本——那時候一本都沒有，指名的話寫壞了也照樣過。
+    // 改成「整頁沒有任何東西唸得出『單字本：』」，連膠囊都不該在。
+    expect(view.queryByLabelText(/單字本：/)).toBeNull();
+  });
+
+  it('找不到那一本就不顯示，不填佔位字元', async () => {
+    const 沒有家 = {
+      ...一張卡,
+      cards: [{ ...一張卡.cards[0]!, bookId: '不存在' }],
+    };
+    const view = await show(build(沒有家));
+    expect(view.getByText('焦')).toBeTruthy();
+    expect(view.queryByText('甲本')).toBeNull();
+  });
+});

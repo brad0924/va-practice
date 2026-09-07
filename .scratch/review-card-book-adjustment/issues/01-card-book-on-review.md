@@ -1,6 +1,6 @@
 # 複習卡片左上角顯示所屬單字本
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 問題

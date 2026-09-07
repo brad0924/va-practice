@@ -109,6 +109,10 @@ export function ReviewScreen({ session }: ReviewScreenProps) {
   const complete = isComplete(queue);
   const card = currentCard(queue);
   const stackRatings = !ratingsFitOneRow(width, fontScale);
+  // 這張卡的**所屬單字本**——「它住在哪一本」。與標題列那顆膠囊的**複習範圍**
+  // （「我今天要複習哪幾本」）是兩件事，同一個畫面上都在，別混。找不到那本就不顯示，
+  // 與 `./cards-screen.tsx` 每一列的做法一致。
+  const bookName = card === undefined ? undefined : data.books.find((book) => book.id === card.bookId)?.name;
 
   return (
     // `key` 帶字級：使用者在 app 開著的時候到設定裡改字級，原生那一端不會自己重新量，
@@ -148,45 +152,68 @@ export function ReviewScreen({ session }: ReviewScreenProps) {
             ) : complete ? (
               <Notice mark="✓" title={t('review.doneTitle')} note={t('review.doneNote')} />
             ) : (
-              /**
-               * 詞條、分隔線、釋義、動作鈕**一疊由上而下**，每一段之間的距離都照同一個節奏。
-               *
-               * 原本是兩塊：詞條與「複製」一塊，釋義與「朗讀」另一塊，中間一條撐滿整張卡的
-               * 分隔線。改成一疊是票 `06` 定案 1a——兩顆鈕合成一排落到最下面，
-               * 分隔線縮短置中，整張卡因此只剩一條中軸線。
-               */
-              <View style={styles.face}>
-                <Term text={card!.text} showReading={revealed} />
-                {revealed && (
-                  <>
-                    {/* 分隔線不撐滿，置中一小段。撐滿的話它會把一張卡切成上下兩張，
-                        而詞條與釋義本來就是同一件事的兩面。 */}
-                    <View style={styles.divider} />
-                    {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
-                        這是詞條做不到、只有這裡補得回來的那一半。 */}
-                    <Text style={styles.meaning} selectable>
-                      {card!.meaning}
-                    </Text>
-                  </>
+              <>
+                {/**
+                 * 所屬單字本，浮在卡片左上角。**絕對定位、不佔一行**——排進 `face` 那一疊
+                 * 的話詞條會被往下推，掀答案時整疊還會再跳一次。
+                 *
+                 * 蓋著答案時就在，掀開後留在同一個位置。已知代價是本名有機會洩題
+                 * （單字本若叫「N2 動詞」，蓋著時就先知道詞性），維護者知情接受——
+                 * Anki 也是把卡片所屬的那一組一直擺在畫面上。
+                 *
+                 * 不接觸控：本名只顯示不可點，搬家在編輯畫面裡做（與 `./cards-screen.tsx`
+                 * 每一列的立場一致）。光唸本名講不出它是什麼，因此輔助使用讀的是整句
+                 * 「單字本：XXX」，借標題列那顆膠囊在用的同一條翻譯。
+                 */}
+                {bookName !== undefined && (
+                  <Text
+                    style={styles.cardBook}
+                    numberOfLines={1}
+                    accessibilityLabel={t('filter.blockLabel', { scope: bookName })}
+                  >
+                    {bookName}
+                  </Text>
                 )}
-                {/* 「複製」與「朗讀」並排在最底下。它們是輔助動作，因此讓開一段再出現，
-                    而那一段刻意等於詞條到釋義的距離——一疊東西只用同一個節奏。 */}
-                <View style={styles.actions}>
-                  {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
-                      留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
-                  <CopyButton key={card!.id} text={card!.text} />
-                  {revealed && voice !== null && (
-                    // 符號用 SF Symbols 的喇叭，不自己畫（`B-14`）。翻譯檔裡 `review.speak`
-                    // 那條是「🔊 朗讀」，帶著表情符號、是給文字鈕用的；圖示鈕改讀
-                    // `review.speakLabel`，那條本來就是唸給 VoiceOver 聽的整句話。
-                    <IconButton
-                      name="speaker.wave.2"
-                      accessibilityLabel={t('review.speakLabel')}
-                      onPress={() => speakTerm(card!.text, voice)}
-                    />
+                {/**
+                 * 詞條、分隔線、釋義、動作鈕**一疊由上而下**，每一段之間的距離都照同一個節奏。
+                 *
+                 * 原本是兩塊：詞條與「複製」一塊，釋義與「朗讀」另一塊，中間一條撐滿整張卡的
+                 * 分隔線。改成一疊是票 `06` 定案 1a——兩顆鈕合成一排落到最下面，
+                 * 分隔線縮短置中，整張卡因此只剩一條中軸線。
+                 */}
+                <View style={styles.face}>
+                  <Term text={card!.text} showReading={revealed} />
+                  {revealed && (
+                    <>
+                      {/* 分隔線不撐滿，置中一小段。撐滿的話它會把一張卡切成上下兩張，
+                          而詞條與釋義本來就是同一件事的兩面。 */}
+                      <View style={styles.divider} />
+                      {/* 釋義沒有振假名、是完整一段文字，因此長按選得起來——
+                          這是詞條做不到、只有這裡補得回來的那一半。 */}
+                      <Text style={styles.meaning} selectable>
+                        {card!.meaning}
+                      </Text>
+                    </>
                   )}
+                  {/* 「複製」與「朗讀」並排在最底下。它們是輔助動作，因此讓開一段再出現，
+                      而那一段刻意等於詞條到釋義的距離——一疊東西只用同一個節奏。 */}
+                  <View style={styles.actions}>
+                    {/* `key` 帶卡片編號：換下一張時整顆重建，上一張按出來的「已複製」才不會
+                        留在新的那顆按鈕上（它會停留一秒多，那段時間內評分是來得及的）。 */}
+                    <CopyButton key={card!.id} text={card!.text} />
+                    {revealed && voice !== null && (
+                      // 符號用 SF Symbols 的喇叭，不自己畫（`B-14`）。翻譯檔裡 `review.speak`
+                      // 那條是「🔊 朗讀」，帶著表情符號、是給文字鈕用的；圖示鈕改讀
+                      // `review.speakLabel`，那條本來就是唸給 VoiceOver 聽的整句話。
+                      <IconButton
+                        name="speaker.wave.2"
+                        accessibilityLabel={t('review.speakLabel')}
+                        onPress={() => speakTerm(card!.text, voice)}
+                      />
+                    )}
+                  </View>
                 </View>
-              </View>
+              </>
             )}
           </View>
         </ScrollView>
@@ -303,6 +330,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 28,
     justifyContent: 'center',
+  },
+  /**
+   * 所屬單字本那一行。**絕對定位**，因此不佔版面高度、詞條不會被往下推。
+   *
+   * 左右都釘住，長本名才有明確的上限——`numberOfLines={1}` 會把它截成一行加省略號，
+   * 不換行也不把卡片撐寬。位置對齊卡片內容的左邊緣（`card` 的 `paddingHorizontal`）。
+   *
+   * 樣式沿用卡片列表那一組（`./cards-screen.tsx` 的 `rowBook`）：它是中性的瀏覽資訊，
+   * 不與詞條搶注意。
+   */
+  cardBook: {
+    position: 'absolute',
+    top: SCREEN_INSET,
+    left: 20,
+    right: 20,
+    color: color.tertiaryLabel,
+    fontSize: fontSize.footnote,
   },
   /** 卡片裡那一疊：詞條、分隔線、釋義、動作鈕，全部對齊同一條中軸。 */
   face: {

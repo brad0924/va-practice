@@ -102,7 +102,21 @@ export function reviewView(app: App): HTMLElement {
       }
     }
 
+    // 這張卡的**所屬單字本**——「它住在哪一本」。與標題列那顆膠囊的**複習範圍**
+    // （「我今天要複習哪幾本」）是兩件事，同一個畫面上都在，別混。
+    //
+    // 浮在卡片左上角、不佔一行：排進 face 那一疊的話詞條會被往下推，掀答案時還會再跳
+    // 一次。右上角已經被「編輯」用同一種手法佔走，左上是對稱的空位。
+    //
+    // 蓋著答案時就在，掀開後留在同一個位置。已知代價是本名有機會洩題（單字本若叫
+    // 「N2 動詞」，蓋著時就先知道詞性），維護者知情接受——Anki 也是把卡片所屬的那一組
+    // 一直擺在畫面上。
+    //
+    // 找不到那本就不顯示、也不填佔位字元，與 list-view.ts 的 `if (book)` 一致。
+    const book = app.data.books.find((candidate) => candidate.id === card.bookId);
+
     main.replaceChildren(
+      ...(book ? [bookLabel(book.name)] : []),
       button('edit-here', t('review.edit'), () => app.showEditor(card, () => app.showReview())),
       face,
     );
@@ -149,6 +163,21 @@ export function reviewView(app: App): HTMLElement {
   refresh();
   screen.append(header, main, footer);
   return screen;
+}
+
+/**
+ * 卡片左上角那一行所屬單字本。**只顯示，不可點**——搬家在編輯畫面裡做，與
+ * `list-view.ts` 的 `.row-book` 同一個立場，因此這裡不接任何事件。
+ *
+ * 看得到的是本名，唸出來的是整句「單字本：XXX」——光唸本名講不出它是什麼。作法是把
+ * 整句話放進一段只給螢幕閱讀器的文字，看得到的那一段則對輔助使用隱形。**不在 span 上
+ * 掛 aria-label**：那條屬性在沒有 role 的元素上不保證被唸出來，各家瀏覽器做法不一。
+ * 借的是標題列那顆膠囊在用的同一條翻譯，不新增 key。
+ */
+function bookLabel(name: string): HTMLElement {
+  const shown = el('span', undefined, name);
+  shown.setAttribute('aria-hidden', 'true');
+  return el('span', 'card-book', el('span', 'sr-only', t('filter.blockLabel', { scope: name })), shown);
 }
 
 function noBooksView(app: App): HTMLElement {

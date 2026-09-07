@@ -173,6 +173,49 @@ button,
   color: var(--muted);
 }
 
+/*
+ * 卡片左上角的所屬單字本。與右上角的 .edit-here 對稱：同一個 top、同一組左右內距，
+ * 高度也對齊那顆鈕（0.5rem + 1.25rem + 0.5rem = 2.25rem），兩邊因此在同一條線上。
+ *
+ * 長本名截斷成一行加省略號，卡片不會被撐寬。max-width 是 9.5rem 而不是 .row-book 的
+ * 8rem，因為這裡多了左右各 0.75rem 的內距（box-sizing: border-box），扣掉之後
+ * 本名能佔的寬度剛好也是 8rem。顏色與字級直接比照 .row-book——它是中性的瀏覽資訊，
+ * 不與詞條搶注意。
+ */
+.card-book {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  max-width: 9.5rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 只唸給螢幕閱讀器聽的一段字：看不到、不佔版面，但留在輔助使用的樹裡。
+ *
+ * user-select: none 是必要的，不是點綴：這段字與看得到的那段內容重複，少了它，
+ * 使用者框選整張卡再複製會拿到「單字本：甲本甲本」。
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .face {
   display: flex;
   flex-direction: column;
