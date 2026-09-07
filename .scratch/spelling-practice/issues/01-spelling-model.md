@@ -1,6 +1,6 @@
 # 拼字的出題、作答與計分，收成一支不碰畫面的模組
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 問題
