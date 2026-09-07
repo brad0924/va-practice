@@ -95,6 +95,165 @@ function shuffle<T>(items: readonly T[], random: () => number): T[] {
   return shuffled;
 }
 
+// ── 干擾假名 ──────────────────────────────────────────────────────
+
+/** 正解之外固定再擺幾塊磚（spec 決定 15）。磚數＝正解假名數＋這個數。 */
+export const DECOY_COUNT = 6;
+
+/**
+ * 每一行在平假名區的最後一個字。**這是整支唯一手打的假名**（票 02 決定 2）。
+ *
+ * 假名在 Unicode 裡是一條連號的直線，不是一張表：`か` 後面緊接著 `が`，た行中間插了 `っ`，
+ * は行還多出半濁音那五個。每一行在那條線上佔 10、10、10、11、5、15、5、6、5、5、1 個位置，
+ * 沒有規律，「每五個切一刀」切不出正確的行。所以行的邊界只能給，其餘全部算得出來：
+ * 行的成員從上一道邊界數到這一道，濁音清音配對走 Unicode 正規化，片假名走固定碼位差。
+ */
+const ROW_ENDS = 'おごぞどのぽもよろをん';
+
+/** 平假名區的第一個字 `ぁ`，五十音表從這裡數起。 */
+const HIRAGANA_FIRST = 0x3041;
+
+/** 片假名與平假名同構，碼位固定差這麼多：`か` 加上它就是 `カ`。 */
+const KATAKANA_OFFSET = 0x60;
+
+/** 片假名區對得回平假名的頭尾（`ァ` 到 `ヶ`）。長音符 `ー` 落在外面，沒有對應的平假名。 */
+const KATAKANA_FIRST = 0x30a1;
+const KATAKANA_LAST = 0x30f6;
+
+/** 濁點與半濁點的組合字元。`が` 正規化拆開就是 `か` 加濁點。 */
+const DAKUTEN = '\u3099';
+const HANDAKUTEN = '\u309a';
+
+/** 從行尾把五十音表數出來，一列一行，含濁音、半濁音與小字。 */
+function buildRows(): string[][] {
+  const rows: string[][] = [];
+  let first = HIRAGANA_FIRST;
+  for (const end of ROW_ENDS) {
+    const last = end.codePointAt(0)!;
+    const row: string[] = [];
+    for (let code = first; code <= last; code += 1) row.push(String.fromCodePoint(code));
+    rows.push(row);
+    first = last + 1;
+  }
+  return rows;
+}
+
+/** 五十音表。只建一張平假名的，片假名查表前先換過來、查完再換回去。 */
+const ROWS: readonly string[][] = buildRows();
+
+function isKatakana(kana: string): boolean {
+  const code = kana.codePointAt(0) ?? 0;
+  return code >= KATAKANA_FIRST && code <= KATAKANA_LAST;
+}
+
+function toHiragana(kana: string): string {
+  return isKatakana(kana) ? String.fromCodePoint(kana.codePointAt(0)! - KATAKANA_OFFSET) : kana;
+}
+
+function toKatakana(kana: string): string {
+  return String.fromCodePoint(kana.codePointAt(0)! + KATAKANA_OFFSET);
+}
+
+/** 去掉濁點半濁點的底字：`が` → `か`、`ぱ` → `は`。本來就沒點的原樣回傳。 */
+function seionOf(kana: string): string {
+  return [...kana.normalize('NFD')][0] ?? kana;
+}
+
+/** 那個字身上的點：`が` 是濁點，`ぱ` 是半濁點，`か` 沒有。 */
+function markOf(kana: string): string {
+  return [...kana.normalize('NFD')][1] ?? '';
+}
+
+/** 底字加上點。合不成一個字就回 `null`——`か` 加不了半濁點。 */
+function markedWith(base: string, mark: string): string | null {
+  if (mark === '') return base;
+  const composed = (base + mark).normalize('NFC');
+  return [...composed].length === 1 ? composed : null;
+}
+
+/** 那個字排在第幾行。表上沒有（長音符 `ー`）回 −1。 */
+function rowIndexOf(hiragana: string): number {
+  return ROWS.findIndex((row) => row.includes(hiragana));
+}
+
+/**
+ * 這個假名自己拉出來的干擾：它的濁音／半濁音／清音變體，加上同一行的鄰居。
+ *
+ * **鄰居跟著原字身上的點走**：`が` 拉出 `ぎ`、`ぐ`、`げ`、`ご`，不是 `き`、`く`、`け`、`こ`。
+ * 小字與大字同一行，所以 `ゃ` 拉得出 `や`——大小分不清楚跟濁點一樣是常錯的地方。
+ * 片假名進、片假名出；長音符兩種都拉不出來，交給 `decoysFor()` 的備案。
+ */
+function variantsOf(kana: string): string[] {
+  const katakana = isKatakana(kana);
+  const plain = toHiragana(kana);
+  const base = seionOf(plain);
+  const mark = markOf(plain);
+
+  const voicings = [base, markedWith(base, DAKUTEN), markedWith(base, HANDAKUTEN)];
+  const neighbours = (ROWS[rowIndexOf(base)] ?? [])
+    .filter((member) => member !== base && markOf(member) === '')
+    .map((member) => markedWith(member, mark));
+
+  const pulled = [...voicings, ...neighbours].filter(
+    (one): one is string => one !== null && one !== plain,
+  );
+  return katakana ? pulled.map(toKatakana) : pulled;
+}
+
+/** 上面一行與下面一行的全部成員。候選不夠時的第一層備案（票 02 決定 6）。 */
+function adjacentRows(kana: string): string[] {
+  const katakana = isKatakana(kana);
+  const index = rowIndexOf(seionOf(toHiragana(kana)));
+  if (index === -1) return [];
+  const members = [...(ROWS[index - 1] ?? []), ...(ROWS[index + 1] ?? [])];
+  return katakana ? members.map(toKatakana) : members;
+}
+
+/** 整張表。備案的最後一層，補到滿為止。 */
+function wholeTable(inKatakana: boolean): string[] {
+  const members = ROWS.flat();
+  return inKatakana ? members.map(toKatakana) : members;
+}
+
+/**
+ * 那一題的干擾，固定 `DECOY_COUNT` 塊。
+ *
+ * **每個正解假名輪流拿**（票 02 決定 1）：洗過順序之後先各出一塊，再回頭拿第二塊。一口氣倒在一起
+ * 洗的話，排前面的假名會把額度吃光——`くしゃみ` 的 `ゃ` 就常常沒有 `や` 陪它，那正是這一題
+ * 最該練的對子。輪完還不滿再往外擴：先補相鄰行，再不夠就整張表（決定 6）。
+ * **短詞寧可往外擴也不讓磚變少**：磚數浮動會讓難度跟著浮動。
+ *
+ * 干擾不與正解重複，彼此也不重複。畫面上兩塊一樣的磚，使用者不知道該點哪一塊。
+ */
+function decoysFor(answer: readonly string[], random: () => number): string[] {
+  const taken = new Set(answer);
+  const decoys: string[] = [];
+  const isFull = () => decoys.length >= DECOY_COUNT;
+
+  const keep = (kana: string) => {
+    if (isFull() || taken.has(kana)) return;
+    decoys.push(kana);
+    taken.add(kana);
+  };
+
+  // 排隊順序也要洗。七個假名以上的詞，額度不夠分給每一個，照正解原順序輪的話
+  // 被犧牲的永遠是尾巴那幾個——`ありがとうございます` 的 `ます` 一輩子拿不到對手。
+  const pools = shuffle(answer, random).map((kana) => shuffle(variantsOf(kana), random));
+  const mostCandidates = pools.reduce((most, pool) => Math.max(most, pool.length), 0);
+  for (let depth = 0; depth < mostCandidates && !isFull(); depth += 1) {
+    for (const pool of pools) if (depth < pool.length) keep(pool[depth]!);
+  }
+
+  const topUpFrom = (candidates: readonly string[]) => {
+    if (isFull()) return;
+    const fresh = [...new Set(candidates)].filter((kana) => !taken.has(kana));
+    for (const kana of shuffle(fresh, random)) keep(kana);
+  };
+  topUpFrom(answer.flatMap(adjacentRows));
+  topUpFrom(wholeTable(answer.some(isKatakana)));
+  return decoys;
+}
+
 /**
  * 目前這一題每一格的內容，空格是空字串。
  * 畫面與結算都要問這個，因此開在外面，不要各算一次。
@@ -120,7 +279,7 @@ export function startRound(cards: readonly Card[], random: () => number): Round 
     return {
       card,
       answer,
-      tiles: shuffle(answer, random),
+      tiles: shuffle([...answer, ...decoysFor(answer, random)], random),
       limit: answer.length * SECONDS_PER_KANA,
     };
   });
