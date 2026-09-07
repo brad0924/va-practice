@@ -94,8 +94,8 @@ export interface ReadingDraft {
   runs: KanjiRun[];
 }
 
-/** 讀音允許的字元：平假名、片假名、長音符 ー。 */
-const KANA = /^[ぁ-ゖァ-ヺー]+$/;
+/** 讀音允許的字元：平假名、片假名、長音符 ー。拼字的出題資格共用這一條。 */
+export const KANA = /^[ぁ-ゖァ-ヺー]+$/;
 
 /**
  * 標記字串 → ReadingDraft。舊卡與貼上都走這裡。

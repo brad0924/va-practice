@@ -258,6 +258,7 @@ const en: typeof zhHant = {
   'gemini.unreadable': 'Gemini replied with something we cannot read',
   'gemini.emptyReply': 'Gemini replied with no content',
   'gemini.notJson': 'What Gemini replied is not JSON',
+  'spelling.roundOver': 'This round is over; there is nothing left to settle',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',
   'toast.close': 'Close',

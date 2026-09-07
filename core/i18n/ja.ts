@@ -245,6 +245,7 @@ const ja: typeof zhHant = {
   'gemini.unreadable': 'Gemini の応答を解釈できません',
   'gemini.emptyReply': 'Gemini の応答に内容がありません',
   'gemini.notJson': 'Gemini の応答が JSON ではありません',
+  'spelling.roundOver': 'このラウンドは終了しています。集計する問題がありません',
   'reminder.title': '復習の時間です',
   'reminder.body': '今日は{count}枚が期日です',
   'toast.close': '閉じる',

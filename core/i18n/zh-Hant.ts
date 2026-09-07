@@ -321,6 +321,9 @@ export default {
   'gemini.emptyReply': 'Gemini 沒有回覆內容',
   'gemini.notJson': 'Gemini 回的不是 JSON',
 
+  // ── 拼字 ──────────────────────────────────────────────────────
+  'spelling.roundOver': '這一輪已經結束，沒有可以結算的題目',
+
   // ── 每日提醒推到鎖定畫面上的那一則 ───────────────────────────
   'reminder.title': '該複習了',
   'reminder.body': '今天有 {count} 張到期',

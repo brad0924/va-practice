@@ -29,10 +29,12 @@ Type: enhancement
 
    ```ts
    /** 時限的前三成之內拼完給滿分，之後線性遞減到 1 分。拼錯與逾時 0 分。 */
-   export function score(elapsed: number, limit: number): number
+   export function points(elapsed: number, limit: number): number
    ```
 
-   `FULL_SCORE_RATIO` 初值 `0.3`、`MAX_POINTS` 初值 `10`，都是具名常數。邊界要有測試：`elapsed = 0.3 × limit` 剛好 10 分，`elapsed = limit` 剛好 1 分。
+   `FULL_POINTS_RATIO` 初值 `0.3`、`MAX_POINTS` 初值 `10`，都是具名常數。邊界要有測試：`elapsed = 0.3 × limit` 剛好 10 分，`elapsed = limit` 剛好 1 分。
+
+   **不叫 `score`**：`Score` 是「評分」（複習的四級自評）的避用詞，`docs/glossary.md` 把它一併列為「計分」的避用詞。這張票原本寫成 `score()`，與同一次談話定下的那條避用詞打架，實作時改掉了。
 
 6. **一輪的狀態機**：持有洗好的卡序、目前這一題、每一格填了哪一塊磚。對外至少要有
 
@@ -55,6 +57,8 @@ Type: enhancement
 11. **平均分 = 總分 ÷ 全部題數**，不是除以拼對的題數（spec 決定 23）。
 
 12. **不碰排程、不碰儲存。** 這支模組不 import `storage.ts`，也不回傳任何要寫進 `AppData` 的東西。
+
+13. **逾時一律不算拼對**，即使倒數歸零的那一瞬間剛好把最後一塊磚放對也一樣。實作時才發現的邊界：只比對格子內容的話，那一題會拿到「拼對＋0 分」，成績頁的「拼對 9 / 12」就會混進一題一分都沒拿的。維護者選定「時間到了就是沒過關」。剛好壓在時限上（`elapsed === limit`）仍算拼對，拿 1 分。
 
 ## 驗收
 
