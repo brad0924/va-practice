@@ -152,6 +152,30 @@ button,
   background: var(--surface-2);
 }
 
+/*
+ * 窄螢幕的標題列：複習頁那一條擠不下，這裡讓兩邊各退一步（票 06 實測）。
+ *
+ * 擠的原因不是總寬不夠，是**分不到**。三欄 `1fr auto 1fr` 裡，中間那顆膠囊是 `auto`，
+ * 會先照內容拿滿 `max-width` 的 144px；左右兩個 `1fr` 分剩下的，375px 下每邊只剩約 95px，
+ * 而兩顆 `.bar-action` 要 117px。膠囊自己帶著 `white-space: nowrap`，沒有變窄的機制，
+ * 只有變短（切字加省略號）的機制，而切字是在它拿到 144px 之後才發生——因此讓不出來。
+ *
+ * 兩邊各退一步而不是只砍膠囊：內距 12px → 8px 幾乎看不出來，兩顆省下的 16px 全部還給
+ * 膠囊，本名因此還看得到約 5 個字（只砍膠囊的話得砍到 80px，只剩 3 個字）。
+ *
+ * 界線取 27rem：再寬一點就分得夠了，144px 的膠囊配 117px 的鈕仍然排得下一行。
+ * 電腦上 `.screen` 封頂 30rem，永遠落在這條界線之外，這一段碰不到它。
+ */
+@media (max-width: 27rem) {
+  .bar-action {
+    padding: 0 0.5rem;
+  }
+
+  .bar .book-filter-toggle.pill {
+    max-width: 7rem;
+  }
+}
+
 .remaining {
   color: var(--muted);
   font-size: 0.95rem;
