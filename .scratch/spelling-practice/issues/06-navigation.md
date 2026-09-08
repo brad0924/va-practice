@@ -71,4 +71,17 @@ Type: enhancement
 
 3. **`nav.spelling` 三份翻譯在這張票補齊**，決定 8 照字面做不到：接上 `t('nav.spelling')` 之後，`en.ts` 與 `ja.ts` 的 `const en: typeof zhHant` 會逼著三份一起補，少一條就編譯錯。與票 `04`、`05` 的先例一致。票 `07` 的 Comments 已同步改掉，免得下一個人去補一條已經在的 key。
 
+### 決定 5 的算式對，前提錯了
+
+實機驗 375px 時發現：被壓窄的不是膠囊，是**兩顆導覽鈕**——兩個中文字被拆成上下兩行，標題列被撐高。
+
+決定 5 算的「右欄 116px、左欄跟著 116px、膠囊退到 103px」沒有錯，錯在它假設那兩顆鈕守得住 116px。守不住：`.bar-action` 當時沒有 `white-space: nowrap`，而旁邊的 `.book-filter-toggle.pill` 有。三欄搶不到位子時，瀏覽器挑不會抗議的那個下手，於是壓的是鈕不是膠囊。
+
+補了兩條 CSS（`src/styles.css` 的 `.bar-action` 與 `.bar-side`），決定 5 凍結的那一行 `grid-template-columns: 1fr auto 1fr` 仍然沒動：
+
+- `.bar-action` 加 `white-space: nowrap` —— 鈕不再拆字，擠壓轉回膠囊，決定 5 的算式這才成立。
+- `.bar-side` 加 `flex-wrap: wrap` 與 `justify-content: flex-end` —— 只在最大字級時才看得出來：兩顆鈕整顆上下疊、標題列變高，而不是推出畫面右邊。少了這一條，驗收 8 會被上一條直接撞爛（鈕既不能拆字也不能疊，只剩溢出一條路）。
+
+**這條 CSS 兩個畫面共用**：卡片畫面的「資料」＋「新增」也走 `.bar-side`，一起受惠。
+
 **還沒驗的兩條**（自動測試蓋不到，要實機或縮小視窗）：375px 寬度下複習標題列四樣東西都在畫面內、最大字級下換行而不溢出。

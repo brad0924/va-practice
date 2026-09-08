@@ -123,18 +123,29 @@ button,
   justify-self: center;
 }
 
+/* 同一邊擺兩顆鈕時的容器（複習頁的「拼字」＋「卡片」、卡片頁的「資料」＋「新增」）。
+   `flex-wrap: wrap` 是給最大字級用的：那時兩顆整個排不下，要能整顆換到下一行、
+   把標題列撐高，而不是推出畫面右邊（票 06 驗收 8）。正常字級下永遠排得下，不會換行。
+   `justify-content` 只在換行之後才看得出來：容器那時被拉到整欄寬，少了它第二行那顆會
+   靠左，與這一欄靠右貼齊的規矩對不上。沒換行時容器縮到內容寬，這一條沒有東西可分配。 */
 .bar-side {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
+/* `white-space: nowrap` 不可省。少了它，375px 下三欄搶不到位子時瀏覽器會挑好欺負的下手：
+   旁邊那顆膠囊自己帶著 nowrap，於是被壓的是這兩顆鈕，兩個中文字被拆成上下兩行。
+   票 06 決定 5 算的是「鈕守住 116px、膠囊退到 103px」，這一行才是那個前提成立的原因。 */
 .bar-action {
   min-height: 2.5rem;
   padding: 0 0.75rem;
   border-radius: 999px;
   color: var(--accent);
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 
 .bar-action:active {
