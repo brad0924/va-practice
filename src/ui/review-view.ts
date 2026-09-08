@@ -4,6 +4,7 @@ import { setScope } from '@core/lib/storage';
 import { currentCard, isComplete } from '@core/lib/review';
 import type { Rating } from '@core/lib/types';
 import { bookFilter } from './book-filter';
+import { bookLabel } from './book-label';
 import { el, button } from './dom';
 import { renderTerm } from './reading-html';
 import { hasJapaneseVoice, speak } from './speech';
@@ -163,21 +164,6 @@ export function reviewView(app: App): HTMLElement {
   refresh();
   screen.append(header, main, footer);
   return screen;
-}
-
-/**
- * 卡片左上角那一行所屬單字本。**只顯示，不可點**——搬家在編輯畫面裡做，與
- * `list-view.ts` 的 `.row-book` 同一個立場，因此這裡不接任何事件。
- *
- * 看得到的是本名，唸出來的是整句「單字本：XXX」——光唸本名講不出它是什麼。作法是把
- * 整句話放進一段只給螢幕閱讀器的文字，看得到的那一段則對輔助使用隱形。**不在 span 上
- * 掛 aria-label**：那條屬性在沒有 role 的元素上不保證被唸出來，各家瀏覽器做法不一。
- * 借的是標題列那顆膠囊在用的同一條翻譯，不新增 key。
- */
-function bookLabel(name: string): HTMLElement {
-  const shown = el('span', undefined, name);
-  shown.setAttribute('aria-hidden', 'true');
-  return el('span', 'card-book', el('span', 'sr-only', t('filter.blockLabel', { scope: name })), shown);
 }
 
 function noBooksView(app: App): HTMLElement {

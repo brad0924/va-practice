@@ -323,6 +323,12 @@ export default {
 
   // ── 拼字 ──────────────────────────────────────────────────────
   'spelling.roundOver': '這一輪已經結束，沒有可以結算的題目',
+  // 一題收尾時格子底下那一行。三種收尾各有自己的名字，不必靠辨色分辨（票 03 決定 8）。
+  // 三條同一個形狀、都吃 {points}：拼錯與逾時的分數必定是 0，但那條規則歸 `spelling.ts` 管，
+  // 寫死在句子裡等於在翻譯檔裡再抄一份，改了那邊這裡不會跟著動。
+  'spelling.settledCorrect': '拼對了 · {points} 分',
+  'spelling.settledWrong': '拼錯了 · {points} 分',
+  'spelling.settledTimeout': '時間到 · {points} 分',
 
   // ── 每日提醒推到鎖定畫面上的那一則 ───────────────────────────
   'reminder.title': '該複習了',

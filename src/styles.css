@@ -277,6 +277,242 @@ button,
   text-align: center;
 }
 
+/* ---------- 拼字畫面 ---------- */
+
+/*
+ * 上半：釋義、碼表、填格。**高度固定**（票 03 決定 9）——三個假名跟六個假名的題目
+ * 輪流出現時，畫面不該上下抽動。跟著內容長的話，每換一題整片磚都會被推上推下。
+ */
+.prompt {
+  position: relative;
+  flex: 0 0 13rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  background: var(--surface);
+  border-radius: 1rem;
+  padding: 1.75rem 1rem 1rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+/*
+ * 釋義。**自己一條規則，不借複習畫面的 .meaning**——那條有底線與上內距，借過來得一條條
+ * 拆掉，而且日後有人調複習那張卡就會遠端弄壞這一頁。
+ *
+ * 票 03 決定 2 寫的是「字級比照複習畫面的 .term」，那條是 clamp(2rem, 11vw, 3rem)。
+ * 這裡收小一級：.term 裝的是一兩個漢字，這裡裝的是中文句子，同樣的字級三行就把
+ * 決定 9 那個固定高度擠爆了。理由記在票的 ## Comments。長釋義自己捲，不推走碼表與填格。
+ */
+.prompt-meaning {
+  font-size: clamp(1.25rem, 6vw, 1.75rem);
+  font-weight: 500;
+  color: var(--text);
+  text-align: center;
+  overflow-y: auto;
+  max-height: 5.5rem;
+}
+
+/* 右上角的碼表。與左上角的所屬單字本對稱，兩邊都不佔一行。 */
+.clock {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 46px;
+  height: 46px;
+}
+
+/* 起點轉到十二點鐘方向，環才是從正上方開始縮。 */
+.clock svg {
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  stroke: var(--line);
+}
+
+.ring-run {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.1s linear, stroke 0.2s;
+}
+
+.clock.soon .ring-run {
+  stroke: var(--soon);
+}
+
+.clock.urgent .ring-run {
+  stroke: var(--again);
+}
+
+/*
+ * 秒數。tabular-nums 讓每個數字同寬，跳動時不會左右位移（票 03 決定 3）；
+ * 置中的方格則吸收掉「18 秒變 9 秒」那一次位數變化。
+ */
+.clock-num {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock.soon .clock-num {
+  color: var(--soon);
+}
+
+.clock.urgent .clock-num {
+  color: var(--again);
+}
+
+/* 填格。正解幾個假名就幾格，多的時候一起縮，不換行也不溢出。 */
+.slots {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.slot {
+  flex: 0 1 2.3rem;
+  min-width: 1.4rem;
+  height: 2.7rem;
+  padding: 0;
+  border: 1.5px dashed var(--line);
+  border-radius: 0.5rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  color: var(--text);
+}
+
+.slot.filled {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+/*
+ * 下一塊磚會補進去的那一格。只取消中間一格時，畫面上必須指得出「下一塊補去哪」，
+ * 否則使用者不知道自己在填哪裡（票 03 決定 4）。
+ *
+ * 掛的是 aria-current 而不是一個 class：那是「這一組裡的現在這個」的正名，
+ * 螢幕閱讀器唸得出來，樣式直接照它上色，看得到的與唸得出來的因此不可能各說各話。
+ */
+.slot[aria-current] {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.slot.done {
+  border-style: solid;
+}
+
+.slot.done.ok {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.slot.done.bad {
+  border-color: var(--again);
+  color: var(--again);
+}
+
+/* 逾時沒填到的那幾格。翻出正解，但用中性色——那不是「你答錯了」，是「你還沒填到」。 */
+.slot.done.missed {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+/*
+ * 收尾那一行字。**高度永遠留著**，收尾前是空的——跟著有無內容長高的話，
+ * 每一題結束都會把上面的填格往上頂一次。
+ */
+.verdict {
+  min-height: 1.4rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict.ok {
+  color: var(--good);
+}
+
+.verdict.bad {
+  color: var(--again);
+}
+
+.verdict.late {
+  color: var(--soon);
+}
+
+/*
+ * 下半：磚。撐滿剩下的高度，磚在裡面絕對定位。
+ *
+ * container-type: size 讓底下的磚問得到這一塊的寬與高（cqw／cqh）。少了它，磚只知道
+ * 自己那一格有多寬、不知道有多高，螢幕一矮就會被 overflow: hidden 裁掉一整排。
+ */
+.kana-field {
+  --cols: 3;
+  --rows: 3;
+  position: relative;
+  container-type: size;
+  flex: 1 1 auto;
+  min-height: 7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: radial-gradient(120% 90% at 50% 0%, #1a2030 0%, var(--bg) 70%);
+  overflow: hidden;
+}
+
+/*
+ * 一塊磚。left／top 是它那一格的中心，--dx／--dy 是格內的小幅偏移；
+ * 偏移量以磚自己的大小為單位（transform 的百分比就是這個意思），因此推不出格外。
+ *
+ * 大小同時被欄數與列數夾住：十二塊磚在 375px 下要排得進去，**排不進去就縮磚，
+ * 不讓磚跑出畫面外**（票 03 決定 11）。只夾寬度的話，手機橫著拿時上下兩排會被裁掉。
+ *
+ * 那個 1.5 是算出來的，不是喬出來的。一塊磚從中心量出去是自己的一半，再加上
+ * TILE_JITTER（磚的 20%）的格內偏移，也就是 0.7 個磚；要塞進半個格子就得滿足
+ * `0.7 × 磚 ≤ 邊長 ÷ 列數 ÷ 2`，換算出來除數至少要 1.4。取 1.5 留一點餘裕。
+ * **動 TILE_JITTER 就要跟著動這個數**，否則矮螢幕上磚會互相疊到。
+ *
+ * 寬與高都明寫成同一個 --tile，**不用 aspect-ratio**：那條會被裡面那個假名撐開，
+ * 矮螢幕上量出來是 24.5 × 33.8 而不是正方形，而 --dy 的百分比對照的正是高度，
+ * 偏移量因此比算好的大四成，上下兩排就疊在一起了。字級也跟著磚縮，否則磚小了字還在原地。
+ *
+ * 位移寫在 transform 裡，:active 那條必須把它整串再抄一次——只寫 scale() 會把
+ * translate 一起蓋掉，按下去的瞬間整塊磚會跳到格子的右下角。
+ */
+.kana-tile {
+  --tile: min(2.9rem, calc(100cqw / (var(--cols) * 1.5)), calc(100cqh / (var(--rows) * 1.5)));
+  position: absolute;
+  width: var(--tile);
+  height: var(--tile);
+  border-radius: 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: calc(var(--tile) * 0.46);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  transform: translate(calc(-50% + var(--dx, 0%)), calc(-50% + var(--dy, 0%)));
+  transition: transform 0.12s, opacity 0.2s;
+}
+
+.kana-tile:active:not(:disabled) {
+  transform: translate(calc(-50% + var(--dx, 0%)), calc(-50% + var(--dy, 0%))) scale(0.92);
+}
+
+/* 已經用掉的磚，以及收尾之後整批停用的磚。 */
+.kana-tile:disabled {
+  opacity: 0.22;
+  border-style: dashed;
+  cursor: default;
+}
+
 /* ---------- 底部動作 ---------- */
 
 .actions {
