@@ -14,7 +14,7 @@
  * - **顏色**。拼錯那一格是紅的、對應的正解是綠的，全是版面，`ADR-0014` 明文不斷言，
  *   jsdom 也沒有真的算色。改成測 `toneOf()`——那條規則離開 DOM 照樣成立，
  *   斷言得下去；顏色本身靠眼睛。
- * - **兩排上下對齊**。對齊是 `.missed` 那條兩欄格線的事，jsdom 量不出來。
+ * - **兩排上下對齊**。對齊是 `.missed-card` 那條兩欄格線的事，jsdom 量不出來。
  *   這裡只驗兩排的格數相同，那是對齊的前提。
  * - **錯十張時整塊可以捲**。同上，那是高度。
  */
@@ -100,7 +100,7 @@ const tileNums = (screen: HTMLElement) =>
   [...screen.querySelectorAll('.tile-num')].map((node) => node.textContent);
 const tileLabels = (screen: HTMLElement) =>
   [...screen.querySelectorAll('.tile-label')].map((node) => node.textContent);
-const blocks = (screen: HTMLElement) => [...screen.querySelectorAll<HTMLElement>('.missed')];
+const blocks = (screen: HTMLElement) => [...screen.querySelectorAll<HTMLElement>('.missed-card')];
 const rows = (block: HTMLElement) =>
   [...block.querySelectorAll<HTMLElement>('.slots')].map((row) =>
     [...row.querySelectorAll('.slot')].map((cell) => cell.textContent),
@@ -152,7 +152,7 @@ describe('逐格對照', () => {
   it('每一塊都有「你拼的」與「正解」兩排，兩排格數相同', () => {
     const screen = mount(twelveQuestions());
 
-    // 格數相同是上下對齊的前提；對齊本身是 `.missed` 那條兩欄格線的事，jsdom 量不出來。
+    // 格數相同是上下對齊的前提；對齊本身是 `.missed-card` 那條兩欄格線的事，jsdom 量不出來。
     for (const block of blocks(screen)) {
       const [typed, answer] = rows(block);
       expect(typed).toHaveLength(answer!.length);

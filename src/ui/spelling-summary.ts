@@ -59,7 +59,7 @@ function slotRow(result: Result, row: 'filled' | 'answer'): HTMLElement {
 function missedBlock(result: Result): HTMLElement {
   return el(
     'div',
-    'missed',
+    'missed-card',
     el('div', 'missed-meaning', result.card.meaning),
     el('span', 'missed-label', t('spelling.yourTry')),
     slotRow(result, 'filled'),

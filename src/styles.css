@@ -561,8 +561,12 @@ button,
  * 兩欄的格線是這一塊唯一的重點：標籤一欄、格子一欄，**兩排的格子因此吃同一條欄線**，
  * 上下必定對得齊。改成兩行各自 flex 的話，「你拼的」與「正解」在英日文下長度不同，
  * 兩排就會各自從不同的位置起跳，而「我把 が 拼成 か」正是靠對齊才一眼看得到。
+ *
+ * **名字不能只叫 `.missed`。** 上面那條 `.slot.done.missed`（答題畫面逾時沒填到的格子）
+ * 的元素身上就掛著 `missed` 這個 class，光寫 `.missed` 會連它一起選到，
+ * 把 11.2px 的內距與圓角灌進格子裡，字被推到貼著下框。實機驗收時抓到的。
  */
-.missed {
+.missed-card {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
