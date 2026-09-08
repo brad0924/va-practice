@@ -5,6 +5,24 @@ import { bookFilter } from './book-filter';
 import { el, button } from './dom';
 
 /**
+ * 用挑到的那幾本開一輪。挑到的本一張卡都拿不出來時，回傳的一輪一開始就是結束的
+ * （`isRoundOver()` 為真），由呼叫端決定要怎麼講那句話。
+ *
+ * 開在外面是因為成績頁的「再一輪」要用同一批單字本重來（票 05 決定 8），
+ * 走的必須是同一段程式——各抄一份的話，改了出題資格只有一邊會跟著動。
+ *
+ * **不借 `cardsInBooks()`。** 它住在 `storage.ts`，而拼字整條線一行都不 import 那支
+ * （`ADR-0021`，票 03 的測試有守門）。這個過濾只有一行，抄比破例划算。
+ */
+export function openRound(app: App, bookIds: readonly string[]): Round {
+  const wanted = new Set(bookIds);
+  return startRound(
+    app.data.cards.filter((card) => wanted.has(card.bookId)),
+    app.random,
+  );
+}
+
+/**
  * 拼字的首頁：挑要練哪幾本單字本。按複習畫面的「拼字」進來看到的是這一頁，不是題目。
  *
  * **一輪在這裡開。** 洗牌與挑干擾要亂數，而亂數在這個 app 裡只有 `app.ts` 碰得到
@@ -62,13 +80,7 @@ export function spellingBooksView(app: App, onStart: (round: Round) => void): HT
   }
 
   function begin(): void {
-    // 不借 `cardsInBooks()`：它住在 `storage.ts`，而拼字整條線一行都不 import 那支
-    // （`ADR-0021`，票 03 的測試有守門）。這個過濾只有一行，抄比破例划算。
-    const wanted = new Set(chosen);
-    const round = startRound(
-      app.data.cards.filter((card) => wanted.has(card.bookId)),
-      app.random,
-    );
+    const round = openRound(app, chosen);
 
     // 挑到的每一本都拿不出卡（本身是空的，或全是有漢字卻沒標讀音的卡）：不開始，
     // 把那一句話印出來，人留在這一頁改選（票 04 決定 8）。`startRound()` 已經濾過出題資格，

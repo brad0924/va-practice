@@ -340,6 +340,29 @@ export default {
   'spelling.noBooksTitle': '還沒有單字本',
   'spelling.noBooksNote': '先建一本並加幾張卡，就可以開始拼字。',
 
+  // 答題中途收工的那一顆（票 05 決定 1）。
+  'spelling.quit': '結束',
+
+  // 成績頁（票 05）。頂上三格各是一個數字加一個標籤——三個數字擺在一起時，
+  // 沒有標籤就得猜「6.3」是分還是秒。
+  //
+  // 「9 / 12」走參數而不是字串拼接：中文與日文的數字位置跟英文不一樣，拼接會在
+  // 某一種語言下讀不通（票 07 決定 4）。
+  'spelling.correctRatio': '{correct} / {total}',
+  'spelling.correctLabel': '拼對',
+  'spelling.pointsLabel': '總分',
+  'spelling.averageLabel': '平均',
+
+  // 逐格對照的兩排。兩排上下對齊，標籤因此要短。
+  'spelling.yourTry': '你拼的',
+  'spelling.answer': '正解',
+
+  // 一張都沒拼錯時主體那一句。不留空白（票 05 決定 7）。
+  'spelling.noMistakes': '這一輪全部拼對，沒有要對照的。',
+
+  'spelling.again': '再一輪',
+  'spelling.otherBooks': '換單字本',
+
   // ── 每日提醒推到鎖定畫面上的那一則 ───────────────────────────
   'reminder.title': '該複習了',
   'reminder.body': '今天有 {count} 張到期',

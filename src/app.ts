@@ -2,6 +2,7 @@ import { cardsInBooks, createStore, type ImportResult } from '@core/lib/storage'
 import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from '@core/lib/gemini-key';
 import { createSpellingBooks, type SpellingBooks } from '@core/lib/spelling-books';
+import type { Round } from '@core/lib/spelling';
 import { currentCard, rebuildQueue, rate as rateCard, toDateKey, type Queue } from '@core/lib/review';
 import type { AppData, Card, Rating } from '@core/lib/types';
 import { initI18n, setLang as switchLang, t, type LangChoice } from '@core/i18n';
@@ -27,6 +28,17 @@ export interface App {
   readonly gemini: GeminiKey;
   /** 拼字挑了哪幾本。同樣只留在這台裝置，不進 `AppData`、不上雲（`ADR-0021`）。 */
   readonly spellingBooks: SpellingBooks;
+  /**
+   * 上一輪拼字，沒有就是 null。
+   *
+   * **只活在記憶體裡**（spec 決定 26）：不寫 `AppData`、不進備份、不上雲端，重整頁面就沒了。
+   * 放在這一層而不是拼字那幾頁裡面，是因為畫面被 `root.replaceChildren()` 丟掉時沒有人
+   * 通知它——練到一半跳去卡片頁，那一輪要活得比畫面久，回拼字才看得到成績（spec 決定 12）。
+   *
+   * 寫成可變的欄位而不是一對 getter 加方法：它就是一格，沒有伴隨的副作用要守，
+   * 與 `keyHandler` 同一種形狀。誰在什麼時候換掉它，見 `ui/spelling-home.ts`。
+   */
+  spellingRound: Round | null;
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
@@ -146,6 +158,7 @@ export function start(root: HTMLElement): void {
     cloud,
     gemini: createGeminiKey(localStorage),
     spellingBooks: createSpellingBooks(localStorage),
+    spellingRound: null,
     now,
     random,
 

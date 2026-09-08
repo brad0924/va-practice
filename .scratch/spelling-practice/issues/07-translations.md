@@ -43,3 +43,11 @@ Type: enhancement
 - 「計分」的英文不是 `Score`。
 - 日文的導覽鈕是「スペル」。
 - 根目錄 `npm test` 與 `npx tsc --noEmit` 全過。
+
+## Comments
+
+票 `05` 實作時已經照票 `04` 的先例，把成績頁與「結束」用到的字三份都補上了：`spelling.quit`、`spelling.correctRatio`、`spelling.correctLabel`、`spelling.pointsLabel`、`spelling.averageLabel`、`spelling.yourTry`、`spelling.answer`、`spelling.noMistakes`、`spelling.again`、`spelling.otherBooks`。這張票對它們的工作是**看翻得對不對**，不是重加一次。
+
+三則已經照決定做掉的：「9 / 12」走的是 `spelling.correctRatio` 的兩個參數，不是字串拼接；`spelling.pointsLabel` 的英文是 `Points` 不是 `Score`；日文的頂上那一格是 `正解数`，逐格對照那一行是 `正解`——同一個畫面上兩個都在，刻意分成兩個詞。
+
+還沒做的仍然是決定 2（`nav.spelling` 與 `zh-Hant.ts` 開頭那句「四個畫面」改五個）與決定 5（冒煙測試加拼字三個狀態）。後者要等票 `06` 把入口接上，那支測試是從 `start()` 開機照使用者的走法按過去的，按不到「拼字」就走不進拼字。

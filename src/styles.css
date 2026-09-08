@@ -513,6 +513,116 @@ button,
   cursor: default;
 }
 
+/*
+ * 中途收工那一顆，浮在上半部的右下角（票 05 決定 1，維護者看過三個位置之後選的）。
+ *
+ * 浮著而不是排進那一疊：排進去的話它會把釋義與填格往上推，而上半部是固定高度的
+ * （票 03 決定 9），推一下就有東西被擠出去。左下角是空的，但右下角離慣用手近。
+ *
+ * 顏色比照 `.edit-here`——兩顆都是「這個畫面的次要出口」，不與正在進行的事搶注意。
+ * 收尾到進下一題那一段會被 disabled 關掉，理由見 `spelling-view.ts` 的 refresh()。
+ */
+.end-round {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.end-round:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.end-round:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---------- 拼字成績畫面 ---------- */
+
+/*
+ * 逐格對照：每一張沒拼對的卡一塊。**高度是固定的**，錯十張就是捲（票 05 決定 10）——
+ * 壓縮格子的話，這一頁唯一的用途（看清楚自己錯在哪一格）就沒了。捲的是整個 `.panel`。
+ */
+.missed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+/*
+ * 一塊：釋義佔滿一行，底下「你拼的」與「正解」各一列。
+ *
+ * 兩欄的格線是這一塊唯一的重點：標籤一欄、格子一欄，**兩排的格子因此吃同一條欄線**，
+ * 上下必定對得齊。改成兩行各自 flex 的話，「你拼的」與「正解」在英日文下長度不同，
+ * 兩排就會各自從不同的位置起跳，而「我把 が 拼成 か」正是靠對齊才一眼看得到。
+ */
+.missed {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  background: var(--surface);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.8rem;
+}
+
+.missed-meaning {
+  grid-column: 1 / -1;
+  margin-bottom: 0.15rem;
+  font-size: 0.95rem;
+}
+
+.missed-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+/* 對照用的格子比答題時小一號：那裡要點得到，這裡只要看得清楚。 */
+.slots.compact {
+  justify-content: flex-start;
+}
+
+.slots.compact .slot {
+  flex: 0 1 1.75rem;
+  min-width: 1.1rem;
+  height: 2rem;
+  font-size: 1.05rem;
+}
+
+/* 拼錯的那一格。與答題時收尾的紅是同一個顏色，兩個畫面看到的是同一件事。 */
+.slot.done.wrong {
+  border-color: var(--again);
+  color: var(--again);
+}
+
+/* 對應的正解。 */
+.slot.done.right {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+/* 兩排都拼對的那幾格。中性，不與上面那兩種搶注意。 */
+.slot.done.plain {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* 一張都沒拼錯時的那一句。主體不留一塊空白（票 05 決定 7）。 */
+.missed-none {
+  margin: 2.5rem 0 0;
+  padding: 0 1rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.7;
+}
+
 /* ---------- 底部動作 ---------- */
 
 .actions {
@@ -1432,6 +1542,9 @@ button,
 
 /* ---------- 統計畫面 ---------- */
 
+/* 底下的 `.tiles` / `.tile` 不只統計畫面在用：拼字成績頁頂上那三格也借它
+   （`src/ui/spelling-summary.ts` 的 `tile()`，理由記在那支的 docblock）。
+   借的前提是「一排數字在這個 app 裡只有一種樣子」，動這幾條時兩個畫面一起看。 */
 .tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

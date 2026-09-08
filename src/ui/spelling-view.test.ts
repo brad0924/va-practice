@@ -67,17 +67,26 @@ const TABEMONO = question('食[た]べ物[もの]です', '是食物', ['た', '
   'た', 'べ', 'も', 'の', 'で', 'す', 'だ', 'ぺ', 'ま', 'ぬ', 'て', 'ず',
 ]);
 
+/** 交給 onDone 的那幾份：這一輪收工時（出完，或按了「結束」）報一次。 */
 let finished: Round[] = [];
+/** 交給 onSettled 的那幾份：每結算一題報一次，中途跳走時的封存靠它。 */
+let settledAt: Round[] = [];
 
 function mount(round: Round, books: Book[] = BOOKS): { screen: HTMLElement; app: App } {
   finished = [];
+  settledAt = [];
   const app = {
     data: { version: 3, books, cards: [], scopes: { review: [], list: [], stats: [] }, updatedAt: 0 },
     now: () => new Date(),
     keyHandler: (() => {}) as App['keyHandler'],
   } as unknown as App;
 
-  const screen = spellingView(app, round, (done) => finished.push(done));
+  const screen = spellingView(
+    app,
+    round,
+    (progress) => settledAt.push(progress),
+    (done) => finished.push(done),
+  );
   document.body.replaceChildren(screen);
   return { screen, app };
 }
@@ -294,6 +303,92 @@ describe('收尾', () => {
     expect(finished).toHaveLength(1);
     expect(finished[0]!.results).toHaveLength(1);
     expect(finished[0]!.results[0]!.correct).toBe(true);
+  });
+});
+
+describe('每結算一題就往外報一次', () => {
+  it('拼完一題當下就報，不等停留那 1.6 秒過完', () => {
+    const { screen } = mount(roundOf(KOGASU, TABEMONO));
+
+    tap(screen, 0); // こ
+    tap(screen, 2); // が
+    tap(screen, 5); // す
+
+    // 這一頁在停留期間照樣可能被換掉，而被換掉時沒有人通知它。晚報的話，
+    // 剛剛拼完的那一題會從封存的成績裡消失（spec 決定 12）。
+    expect(settledAt).toHaveLength(1);
+    expect(settledAt[0]!.results).toHaveLength(1);
+    expect(finished).toHaveLength(0);
+  });
+
+  it('逾時那一題也報', () => {
+    mount(roundOf(KOGASU, TABEMONO));
+
+    vi.advanceTimersByTime(9100);
+
+    expect(settledAt).toHaveLength(1);
+    expect(settledAt[0]!.results[0]!.correct).toBe(false);
+  });
+
+  it('最後一題兩支都會被呼叫，收工那一支拿到的題數不比進度那一支少', () => {
+    const { screen } = mount(roundOf(KOGASU));
+
+    tap(screen, 0);
+    tap(screen, 2);
+    tap(screen, 5);
+    vi.advanceTimersByTime(2000);
+
+    expect(settledAt).toHaveLength(1);
+    expect(finished).toHaveLength(1);
+    expect(finished[0]!.results).toHaveLength(settledAt[0]!.results.length);
+  });
+});
+
+describe('中途按「結束」', () => {
+  const quit = (screen: HTMLElement) => screen.querySelector<HTMLButtonElement>('.end-round')!;
+
+  it('把整輪交出去，不等剩下那幾題', () => {
+    const { screen } = mount(roundOf(KOGASU, TABEMONO));
+    tap(screen, 0); // こ
+
+    quit(screen).click();
+
+    expect(finished).toHaveLength(1);
+    // 正在拼的那一題不判：它沒被拼錯，只是還沒發生（票 05 決定 1）。
+    // 補判一次的話，中途收工的平均分會被一題硬生生的 0 分拉下來。
+    expect(finished[0]!.results).toHaveLength(0);
+  });
+
+  it('已經拼完的那幾題留著，一題都不掉', () => {
+    const { screen } = mount(roundOf(KOGASU, TABEMONO));
+    tap(screen, 0); // こ
+    tap(screen, 2); // が
+    tap(screen, 5); // す
+    vi.advanceTimersByTime(2000);
+
+    quit(screen).click();
+
+    expect(finished[0]!.results).toHaveLength(1);
+    expect(finished[0]!.results[0]!.correct).toBe(true);
+  });
+
+  it('收尾到進下一題那一段按不動', () => {
+    const { screen } = mount(roundOf(KOGASU, TABEMONO));
+
+    vi.advanceTimersByTime(9100);
+
+    // 那一段裡剛判好的結果還在 finishQuestion() 手上，交出去會把那一題弄丟。
+    expect(quit(screen).disabled).toBe(true);
+  });
+
+  it('按下去之後碼表就停了，不會在背景一直跑', () => {
+    const { screen } = mount(roundOf(KOGASU, TABEMONO));
+
+    quit(screen).click();
+    const stopped = clock(screen);
+    vi.advanceTimersByTime(3000);
+
+    expect(clock(screen)).toBe(stopped);
   });
 });
 

@@ -64,12 +64,25 @@ type Outcome = keyof typeof OUTCOMES;
  *
  * **一輪是端進來的，不在這裡開。** 洗牌與挑干擾要亂數，而亂數在這個 app 裡只有 `app.ts`
  * 碰得到；挑單字本那一頁（票 04）洗好再遞進來，這支因此完全不需要亂數，測試也可以直接
- * 手捏一輪丟進去。`onFinish` 在最後一題結算完之後被呼叫，成績頁（票 05）接手。
+ * 手捏一輪丟進去。交出去的地方有兩個，都收同一份東西：
+ *
+ * - `onSettled` 每結算一題就報一次。**這一頁隨時可能被換掉而不收到任何通知**
+ *   （`root.replaceChildren()` 不出聲），練到一半跳去別的畫面時那一輪要照樣封存
+ *   （spec 決定 12），因此進度得一路往外遞，不能只在最後交一次。
+ * - `onDone` 在這一輪收工時報一次：每一題都出過了，或使用者按了「結束」。
+ *   兩條路的差別只有「還剩幾題沒出」，接的人不必分辨是哪一種。
+ *
+ * 最後一題結算時兩支都會被呼叫，`onSettled` 先。
  *
  * 狀態變化一律走 `refresh()`，不整頁重建——碼表每 0.1 秒跳一次，整頁重建會把它一起砍掉重生。
  * 碼表自己另有一支 `paintClock()`，只碰數字與那一圈，不動別的。
  */
-export function spellingView(app: App, round: Round, onFinish: (round: Round) => void): HTMLElement {
+export function spellingView(
+  app: App,
+  round: Round,
+  onSettled: (round: Round) => void,
+  onDone: (round: Round) => void,
+): HTMLElement {
   const screen = el('div', 'screen');
 
   // 左右兩顆導覽鈕是票 06 的事，這裡只先把那一條的位置留出來。
@@ -84,6 +97,7 @@ export function spellingView(app: App, round: Round, onFinish: (round: Round) =>
   const clockNumber = el('span', 'clock-num');
   const { svg, run: ring } = clockRing();
   const clock = el('div', 'clock', svg, clockNumber);
+  const quit = button('end-round', t('spelling.quit'), endRound);
 
   /** 目前這一輪。每一次動作換上新的一份，不就地改——與 `spelling.ts` 那幾支純函式同一種形狀。 */
   let current = round;
@@ -234,7 +248,18 @@ export function spellingView(app: App, round: Round, onFinish: (round: Round) =>
       tile.disabled = settled !== null || current.slots.includes(index);
     });
 
-    main.replaceChildren(...(owner ? [bookLabel(owner.name)] : []), clock, meaning, slots, verdict);
+    // 收尾那一下到進下一題之間也按不動。那一段裡剛判好的結果還在 `finishQuestion()` 手上，
+    // 沒有換進 `current`；此時交出去會把那一題弄丟。理由與磚被關掉是同一個時機。
+    quit.disabled = settled !== null;
+
+    main.replaceChildren(
+      ...(owner ? [bookLabel(owner.name)] : []),
+      clock,
+      meaning,
+      slots,
+      verdict,
+      quit,
+    );
   }
 
   /**
@@ -268,6 +293,10 @@ export function spellingView(app: App, round: Round, onFinish: (round: Round) =>
 
     const judged = settle(current, elapsed());
     settled = judged.result;
+    // **推進的那一份立刻往外報**，不等停留那 1.6 秒結束：這一頁在那段期間照樣可能被換掉，
+    // 而被換掉時沒有人通知它（`root.replaceChildren()` 不出聲）。晚報的話，
+    // 剛剛拼完的那一題就會從封存的成績裡消失。
+    onSettled(judged.round);
     // 逾時一律不算拼對，即使最後一塊剛好放對也一樣——那條規則在 `spelling.ts` 裡，
     // 這裡只是把它的判定翻成畫面上的三選一。
     outcome = settled.correct ? 'correct' : reason === 'timeout' ? 'timeout' : 'wrong';
@@ -284,11 +313,23 @@ export function spellingView(app: App, round: Round, onFinish: (round: Round) =>
       current = judged.round;
       settled = null;
       if (isRoundOver(current)) {
-        onFinish(current);
+        onDone(current);
         return;
       }
       startQuestion();
     }, SETTLE_PAUSE_MS);
+  }
+
+  /**
+   * 中途收工（票 05 決定 1）：停住碼表，把這一輪原樣交出去，成績頁接手。
+   *
+   * **正在拼的那一題不判。** 它沒被拼錯，只是還沒發生——與「按下結束時還沒出到的那幾題」
+   * 同一個立場，`summary()` 的算法本來就只數已經結算過的（spec 決定 23）。
+   * 若在這裡補判一次，中途收工的平均分會被一題硬生生的 0 分拉下來。
+   */
+  function endRound(): void {
+    stopTimers();
+    onDone(current);
   }
 
   /**

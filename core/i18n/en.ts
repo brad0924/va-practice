@@ -269,6 +269,18 @@ const en: typeof zhHant = {
     'The books you picked cannot make any questions: they hold no cards, or every card has kanji with no reading. Pick different ones and start again.',
   'spelling.noBooksTitle': 'No vocabulary books yet',
   'spelling.noBooksNote': 'Create one, add a few cards, and you can start spelling.',
+  'spelling.quit': 'End round',
+  'spelling.correctRatio': '{correct} / {total}',
+  'spelling.correctLabel': 'Correct',
+  // 「計分」不能翻成 Score：那是複習那邊四級自評的避用詞，兩邊都用會把兩件事攪在一起
+  // （票 07 的用詞那一節）。
+  'spelling.pointsLabel': 'Points',
+  'spelling.averageLabel': 'Average',
+  'spelling.yourTry': 'You typed',
+  'spelling.answer': 'Answer',
+  'spelling.noMistakes': 'Every word in this round was correct; there is nothing to compare.',
+  'spelling.again': 'Another round',
+  'spelling.otherBooks': 'Change books',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',
   'toast.close': 'Close',
