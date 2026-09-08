@@ -249,6 +249,13 @@ const ja: typeof zhHant = {
   'spelling.settledCorrect': '正解・{points}ポイント',
   'spelling.settledWrong': '不正解・{points}ポイント',
   'spelling.settledTimeout': '時間切れ・{points}ポイント',
+  'spelling.pickHint':
+    '練習する単語帳を選んでから始めてください。この選択はこの端末だけに残るので、スマホとパソコンで違っていてかまいません。',
+  'spelling.start': '始める',
+  'spelling.noCards':
+    '選んだ単語帳では問題をつくれません。カードが1枚もないか、どのカードも漢字に読みがついていません。別の単語帳を選んでから始めてください。',
+  'spelling.noBooksTitle': '単語帳がまだありません',
+  'spelling.noBooksNote': '1冊つくってカードを何枚か追加すれば、スペルを始められます。',
   'reminder.title': '復習の時間です',
   'reminder.body': '今日は{count}枚が期日です',
   'toast.close': '閉じる',

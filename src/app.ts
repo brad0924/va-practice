@@ -1,6 +1,7 @@
 import { cardsInBooks, createStore, type ImportResult } from '@core/lib/storage';
 import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from '@core/lib/gemini-key';
+import { createSpellingBooks, type SpellingBooks } from '@core/lib/spelling-books';
 import { currentCard, rebuildQueue, rate as rateCard, toDateKey, type Queue } from '@core/lib/review';
 import type { AppData, Card, Rating } from '@core/lib/types';
 import { initI18n, setLang as switchLang, t, type LangChoice } from '@core/i18n';
@@ -24,9 +25,16 @@ export interface App {
   readonly cloud: CloudBackup;
   /** 使用者自備的 Gemini 金鑰。只留在這台裝置，不上雲也不進匯出檔。 */
   readonly gemini: GeminiKey;
+  /** 拼字挑了哪幾本。同樣只留在這台裝置，不進 `AppData`、不上雲（`ADR-0021`）。 */
+  readonly spellingBooks: SpellingBooks;
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
+  /**
+   * 亂數。與 `now()` 同一個立場：真實世界在這一層才第一次被碰到，
+   * 三個核心模組仍然是純的。拼字挑書那一頁要它來洗一輪（`startRound()`）。
+   */
+  random(): number;
   reveal(): void;
   /** 對目前卡片評分並前進到下一張。 */
   rate(rating: Rating): void;
@@ -137,7 +145,9 @@ export function start(root: HTMLElement): void {
     },
     cloud,
     gemini: createGeminiKey(localStorage),
+    spellingBooks: createSpellingBooks(localStorage),
     now,
+    random,
 
     reveal() {
       revealed = true;

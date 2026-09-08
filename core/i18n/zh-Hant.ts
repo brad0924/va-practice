@@ -330,6 +330,16 @@ export default {
   'spelling.settledWrong': '拼錯了 · {points} 分',
   'spelling.settledTimeout': '時間到 · {points} 分',
 
+  // 挑單字本那一頁（票 04）。挑到的那幾本只記在這台裝置，因此那一句話寫在畫面上——
+  // 手機與電腦不一樣是想要的行為，不講的話會被當成同步壞掉。
+  'spelling.pickHint': '挑好要練哪幾本再開始。這個選擇只記在這台裝置，手機與電腦可以不一樣。',
+  'spelling.start': '開始',
+  // 挑到的那幾本一題都出不了時的那一句。空的單字本與「卡都有漢字卻沒標讀音」共用這一句，
+  // 不另寫一種提示（spec 決定 17）。
+  'spelling.noCards': '挑到的單字本出不了題：裡面沒有卡，或卡都有漢字卻沒標讀音。換幾本再開始。',
+  'spelling.noBooksTitle': '還沒有單字本',
+  'spelling.noBooksNote': '先建一本並加幾張卡，就可以開始拼字。',
+
   // ── 每日提醒推到鎖定畫面上的那一則 ───────────────────────────
   'reminder.title': '該複習了',
   'reminder.body': '今天有 {count} 張到期',

@@ -262,6 +262,13 @@ const en: typeof zhHant = {
   'spelling.settledCorrect': 'Correct · Points {points}',
   'spelling.settledWrong': 'Wrong · Points {points}',
   'spelling.settledTimeout': "Time's up · Points {points}",
+  'spelling.pickHint':
+    'Pick the vocabulary books to practise, then start. This choice stays on this device only, so your phone and your computer can differ.',
+  'spelling.start': 'Start',
+  'spelling.noCards':
+    'The books you picked cannot make any questions: they hold no cards, or every card has kanji with no reading. Pick different ones and start again.',
+  'spelling.noBooksTitle': 'No vocabulary books yet',
+  'spelling.noBooksNote': 'Create one, add a few cards, and you can start spelling.',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',
   'toast.close': 'Close',

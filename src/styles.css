@@ -538,6 +538,13 @@ button,
   background: var(--surface-2);
 }
 
+/* 目前只有拼字挑書那頁的「開始」按得到這一條：一本都沒挑時開始不了（票 04 決定 5）。
+   與 .kana-tile:disabled 同一種處理，只靠 disabled，不另掛一個 class。 */
+.actions > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .actions > button:active {
   filter: brightness(0.88);
 }
