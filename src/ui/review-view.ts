@@ -22,6 +22,25 @@ const RATING_BUTTONS: { rating: Rating; label: Key; key: string }[] = [
 ];
 
 /**
+ * 複習畫面標題列右側那兩顆：往拼字、往卡片。
+ *
+ * 導覽本來是一條線、每個畫面左右各一顆接到隔壁，但拼字排進「複習 → 拼字 → 卡片」之後，
+ * 複習右邊要接的就有兩個去處（票 06 決定 2）。兩顆用 `.bar-side` 併成一格塞進最右欄，
+ * `.bar-centered` 的 `1fr auto 1fr` 因此一行都不必改。
+ *
+ * 已知代價：右欄變寬，左欄跟著等寬變寬，中央那顆複習範圍膠囊被壓窄，名字長一點就
+ * 收成省略號（票 06 決定 5，維護者知情接受）。零本那個版本共用這一支，兩個狀態才長一樣。
+ */
+function navRight(app: App): HTMLElement {
+  return el(
+    'div',
+    'bar-side',
+    button('bar-action', t('nav.spelling'), () => app.showSpelling()),
+    button('bar-action', t('nav.cards'), () => app.showList()),
+  );
+}
+
+/**
  * 複習畫面。標題列中央有一顆單字本開關，改的是複習範圍那一組；資料頁單字本區
  * 每一列的勾選框是同一組範圍的另一個入口，兩邊改的是同一個東西。
  *
@@ -57,7 +76,7 @@ export function reviewView(app: App): HTMLElement {
   });
 
   const header = el('header', 'bar bar-centered');
-  header.append(remaining, books, button('bar-action', t('nav.cards'), () => app.showList()));
+  header.append(remaining, books, navRight(app));
 
   const main = el('main', 'card');
   const footer = el('footer', 'actions');
@@ -169,10 +188,7 @@ export function reviewView(app: App): HTMLElement {
 function noBooksView(app: App): HTMLElement {
   const screen = el('div', 'screen');
   const header = el('header', 'bar');
-  header.append(
-    el('span', 'remaining', t('review.remaining', { count: 0 })),
-    button('bar-action', t('nav.cards'), () => app.showList()),
-  );
+  header.append(el('span', 'remaining', t('review.remaining', { count: 0 })), navRight(app));
 
   const main = el('main', 'card done');
   main.append(

@@ -10,6 +10,7 @@ import { initSpeech } from './ui/speech';
 import { createSyncStatus } from './ui/sync-status';
 import { askChoice } from './ui/choice-modal';
 import { reviewView } from './ui/review-view';
+import { spellingHome } from './ui/spelling-home';
 import { listView } from './ui/list-view';
 import { dataView } from './ui/data-view';
 import { statsView } from './ui/stats-view';
@@ -68,6 +69,11 @@ export interface App {
   /** 目前這份資料的備份內容，交給畫面決定檔名與怎麼存。 */
   exportBackup(): string;
   showReview(): void;
+  /**
+   * 拼字。落在哪一頁不由這裡決定——`ui/spelling-home.ts` 自己判斷「有上一輪就給成績頁、
+   * 沒有就給挑書頁」，拼字三頁之間換頁也不經過這一層。這裡只是那座島的唯一一道門。
+   */
+  showSpelling(): void;
   showList(): void;
   /** 只有卡片頁能進來，回去的目的地固定，不必傳 back。 */
   showData(): void;
@@ -247,6 +253,10 @@ export function start(root: HTMLElement): void {
 
     showReview() {
       render = () => mount(() => reviewView(app));
+      render();
+    },
+    showSpelling() {
+      render = () => mount(() => spellingHome(app));
       render();
     },
     showList() {

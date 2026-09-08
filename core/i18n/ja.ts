@@ -20,6 +20,7 @@ import type zhHant from './zh-Hant';
 // 領域概念照 `docs/glossary.md` 的日本語欄。
 const ja: typeof zhHant = {
   'nav.review': '復習',
+  'nav.spelling': 'スペル',
   'nav.cards': 'カード',
   'nav.data': 'データ',
   'nav.stats': '統計',

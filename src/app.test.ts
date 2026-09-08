@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 
 /**
- * 從 `start()` 演起的兩件事。各畫面自己的行為都有各自的測試，不必從開機演；
+ * 從 `start()` 演起的三件事。各畫面自己的行為都有各自的測試，不必從開機演；
  * 收在這裡的是**跨了好幾段、中間任何一段斷掉都只有真的走一遍才看得出來**的那些：
  *
  * - 換語言之後畫面立刻變（票 04 驗收），也是 `app.setLang()` 唯一的覆蓋——
  *   那條接線是票 02 拉的，當時還沒有呼叫者（見票 02 的 Comments）。
  * - 跨過午夜之後佇列會重建（`.scratch/date-rollover/issues/01`）。那條路從
  *   「訊號進來」到「畫面上的數字變了」跨了訊號、檢查、重建、重畫四段。
+ * - 五個畫面之間的導覽（`.scratch/spelling-practice/issues/06`）。那幾顆鈕接的是
+ *   `app.ts` 的 `show*()`，而畫面被整片換掉這件事只有從開機演才演得出來——
+ *   「練到一半跳去卡片再回拼字，成績還在」就卡在那一下。
  *
  * 這裡不碰網路：沒登入的雲端備份一個請求都不發（`cloud.begin()` 在未登入時什麼都不做）。
  */
@@ -345,5 +348,194 @@ describe('跨過午夜', () => {
 
     expect(statsCount(root, 'today')).toBe(1);
     expect(statsCount(root, 'tomorrow')).toBe(0);
+  });
+});
+
+// ── 導覽 ──────────────────────────────────────────────────────
+
+/**
+ * 兩張純假名的卡。拼字只出得了「讀音拼得出來」的卡，而 `seed()` 那批詞條是
+ * `語1` 這種有漢字卻沒標讀音的，一題都出不了，按「開始」會留在挑書頁。
+ */
+function seedKana(): void {
+  const kana = (id: string, text: string, meaning: string) => ({
+    id,
+    bookId: BOOK.id,
+    text,
+    meaning,
+    interval: null,
+    ease: 2.5,
+    due: null,
+  });
+  localStorage.setItem(
+    'va-practice:data',
+    JSON.stringify({
+      version: 3,
+      books: [BOOK],
+      cards: [kana('k1', 'こがす', '燒焦'), kana('k2', 'とうげ', '山頂')],
+      scopes: { review: [BOOK.id], list: [BOOK.id], stats: [BOOK.id] },
+      updatedAt: 0,
+    }),
+  );
+}
+
+/** 標題列中央那個字。複習畫面中央放的是單字本開關而不是標題，因此是 null。 */
+function barTitle(root: HTMLElement): string | null {
+  return root.querySelector('.bar-title')?.textContent ?? null;
+}
+
+type Where =
+  | 'review'
+  | 'spelling-books'
+  | 'spelling-answer'
+  | 'spelling-summary'
+  | 'cards'
+  | 'data'
+  | 'stats';
+
+/** 現在停在哪一頁。拼字三頁的標題都是「拼字」，靠各自獨有的那樣東西再分一次。 */
+function where(root: HTMLElement): Where {
+  switch (barTitle(root)) {
+    case null:
+      return 'review';
+    case zhHant['nav.cards']:
+      return 'cards';
+    case zhHant['nav.data']:
+      return 'data';
+    case zhHant['nav.stats']:
+      return 'stats';
+  }
+  if (root.querySelector('.kana-field')) return 'spelling-answer';
+  // 成績頁借的是統計畫面那三格（`.tiles`），但統計畫面的標題不是「拼字」，上面已經分掉了。
+  if (root.querySelector('.tiles')) return 'spelling-summary';
+  return 'spelling-books';
+}
+
+/** 把手上這一題拼完，不管拼得對不對：照磚的順序點滿為止。與 `spelling-home.test.ts` 同一支。 */
+function fillSlots(root: HTMLElement): void {
+  for (const tile of root.querySelectorAll<HTMLButtonElement>('.kana-tile')) {
+    if (root.querySelectorAll('.slot:empty').length === 0) break;
+    if (!tile.disabled) tile.click();
+  }
+}
+
+describe('導覽', () => {
+  beforeEach(() => {
+    // 答題頁有碼表與收尾停留，那一條路要快轉得動。
+    vi.useFakeTimers();
+    localStorage.setItem('va-practice:lang', 'zh-Hant');
+    seedKana();
+  });
+
+  afterEach(() => {
+    // 先把畫面拆掉再收假時鐘：碼表靠 `isConnected` 自癒，脫離文件的那一下才停。
+    document.body.replaceChildren();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  it('複習畫面右側的「拼字」與「卡片」各自去對的地方', () => {
+    const root = boot();
+    expect(where(root)).toBe('review');
+
+    click(root, zhHant['nav.spelling']);
+    expect(where(root)).toBe('spelling-books');
+
+    click(root, zhHant['nav.review']);
+    click(root, zhHant['nav.cards']);
+    expect(where(root)).toBe('cards');
+  });
+
+  it('拼字畫面左邊回複習、右邊去卡片', () => {
+    const root = boot();
+    click(root, zhHant['nav.spelling']);
+
+    click(root, zhHant['nav.review']);
+    expect(where(root)).toBe('review');
+
+    click(root, zhHant['nav.spelling']);
+    click(root, zhHant['nav.cards']);
+    expect(where(root)).toBe('cards');
+  });
+
+  it('拼字三頁的標題列中央都印著「拼字」', () => {
+    const root = boot();
+    click(root, zhHant['nav.spelling']);
+    expect(barTitle(root)).toBe(zhHant['nav.spelling']);
+
+    click(root, zhHant['spelling.start']);
+    expect(where(root)).toBe('spelling-answer');
+    expect(barTitle(root)).toBe(zhHant['nav.spelling']);
+
+    click(root, zhHant['spelling.quit']);
+    expect(where(root)).toBe('spelling-summary');
+    expect(barTitle(root)).toBe(zhHant['nav.spelling']);
+  });
+
+  it('卡片畫面左上角的返回指向拼字', () => {
+    const root = boot();
+    click(root, zhHant['nav.cards']);
+
+    click(root, zhHant['nav.spelling']);
+
+    expect(where(root)).toBe('spelling-books');
+  });
+
+  it('資料與統計兩個畫面的按鈕一個字都沒動', () => {
+    const root = boot();
+    click(root, zhHant['nav.cards']);
+
+    click(root, zhHant['nav.data']);
+    expect(where(root)).toBe('data');
+    click(root, zhHant['nav.stats']);
+    expect(where(root)).toBe('stats');
+    click(root, zhHant['nav.data']);
+    expect(where(root)).toBe('data');
+    click(root, zhHant['nav.cards']);
+    expect(where(root)).toBe('cards');
+  });
+
+  it('一本單字本都沒有時，複習畫面右側仍然按得到「拼字」', () => {
+    localStorage.setItem(
+      'va-practice:data',
+      JSON.stringify({
+        version: 3,
+        books: [],
+        cards: [],
+        scopes: { review: [], list: [], stats: [] },
+        updatedAt: 0,
+      }),
+    );
+    const root = boot();
+
+    click(root, zhHant['nav.spelling']);
+
+    // 拼字自己的零本畫面：標題仍然在，主體換成那一句指路。
+    expect(barTitle(root)).toBe(zhHant['nav.spelling']);
+    expect(root.textContent).toContain(zhHant['spelling.noBooksTitle']);
+  });
+
+  it('練到一半跳去卡片再回拼字，剛才那一輪的成績還在；按「換單字本」才回挑書頁', () => {
+    const root = boot();
+    click(root, zhHant['nav.spelling']);
+    click(root, zhHant['spelling.start']);
+
+    // 先把第一題拼完，它才會被結算、被封存。兩張卡兩題，因此這時還停在答題頁。
+    fillSlots(root);
+    vi.advanceTimersByTime(2000);
+    expect(where(root)).toBe('spelling-answer');
+
+    click(root, zhHant['nav.cards']);
+    expect(where(root)).toBe('cards');
+
+    click(root, zhHant['nav.spelling']);
+
+    expect(where(root)).toBe('spelling-summary');
+    // 分母的 1 是重點：拼完的那一題在裡面。分子拼對沒有不影響這一條，
+    // 洗牌走的是真的亂數，`fillSlots()` 硬填有機會湊巧填對。
+    expect(root.querySelector('.tile-num')!.textContent).toMatch(/\/ 1$/);
+
+    click(root, zhHant['spelling.otherBooks']);
+    expect(where(root)).toBe('spelling-books');
   });
 });

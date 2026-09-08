@@ -13,7 +13,10 @@ export function listView(app: App): HTMLElement {
 
   const header = el('header', 'bar');
   header.append(
-    button('bar-action', t('nav.review'), () => app.showReview()),
+    // 導覽順序是 `複習 → 拼字 → 卡片 → 資料 → 統計`，因此左邊接的是拼字而不是複習。
+    // 已知代價：從複習直接按「卡片」跳過來、再按這一顆，會落在剛剛沒經過的拼字畫面
+    // （票 06 決定 4，維護者看過圖之後選的）。
+    button('bar-action', t('nav.spelling'), () => app.showSpelling()),
     el('span', 'bar-title', t('nav.cards')),
     el(
       'div',

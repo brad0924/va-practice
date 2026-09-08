@@ -12,6 +12,7 @@ import {
   type Round,
 } from '@core/lib/spelling';
 import { el, button } from './dom';
+import { spellingBar } from './spelling-bar';
 import { bookLabel } from './book-label';
 
 /**
@@ -85,8 +86,7 @@ export function spellingView(
 ): HTMLElement {
   const screen = el('div', 'screen');
 
-  // 左右兩顆導覽鈕是票 06 的事，這裡只先把那一條的位置留出來。
-  const header = el('header', 'bar');
+  const header = spellingBar(app);
   const main = el('main', 'prompt');
   // 磚排在 footer：複習畫面的 footer 放的是「你要按的那幾顆」，這一頁要按的就是磚。
   const footer = el('footer', 'kana-field');

@@ -3,6 +3,7 @@ import { t } from '@core/i18n';
 import { isRoundOver, startRound, type Round } from '@core/lib/spelling';
 import { bookFilter } from './book-filter';
 import { el, button } from './dom';
+import { spellingBar } from './spelling-bar';
 
 /**
  * 用挑到的那幾本開一輪。挑到的本一張卡都拿不出來時，回傳的一輪一開始就是結束的
@@ -37,9 +38,7 @@ export function spellingBooksView(app: App, onStart: (round: Round) => void): HT
 
   const screen = el('div', 'screen');
 
-  // 左右兩顆導覽鈕是票 06 的事，這裡只先把那一條的位置留出來，與 `spelling-view.ts` 一致。
-  // 標題也留給那張票：`.bar-title` 靠左右兩欄等寬才會落在正中間，單獨掛上去會偏到左邊那一格。
-  const header = el('header', 'bar');
+  const header = spellingBar(app);
 
   /** 目前勾了哪幾本。指不到的 id 與「沒挑過」都由 read() 收乾淨，這裡拿到的一定是現存的本。 */
   let chosen = app.spellingBooks.read(app.data.books);
@@ -109,7 +108,12 @@ export function spellingBooksView(app: App, onStart: (round: Round) => void): HT
 function noBooksView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
-  const header = el('header', 'bar');
+  // 與有本的版本同一條標題列：複習畫面右側那顆「拼字」在零本時也按得到，
+  // 進來看到的這一頁若少一排鈕，同一個位置的東西就會忽有忽無。
+  //
+  // 票 06 只講了有本的那個版本，零本這一版是實作時端給維護者選的，他選「兩個狀態長一樣」。
+  // 反面的選法是零本時複習畫面右邊只留「卡片」，代價是這一頁從此走不到（等於死路）。
+  const header = spellingBar(app);
 
   const main = el('main', 'card done');
   main.append(

@@ -2,6 +2,7 @@ import type { App } from '../app';
 import { t } from '@core/i18n';
 import { summary, type Result, type Round } from '@core/lib/spelling';
 import { el, button } from './dom';
+import { spellingBar } from './spelling-bar';
 
 /**
  * 一格格子在成績頁上的三種樣子。**不是顏色，是那一格的狀況**——顏色由 `styles.css` 決定，
@@ -92,7 +93,8 @@ function tile(num: string, label: string): HTMLElement {
  * （spec 決定 23），那條規則住在 `spelling.ts`，抄過來就會有兩份。
  *
  * 這一頁不落地（spec 決定 26）：不寫 `AppData`、不進備份，重整頁面就沒了。整輪的內容
- * 由呼叫端遞進來，因此它連 `app.data` 都不必讀——`app` 只被拿來解除上一個畫面的鍵盤處理器。
+ * 由呼叫端遞進來，因此它連 `app.data` 都不必讀——`app` 只被拿來解除上一個畫面的鍵盤處理器，
+ * 以及交給標題列上那兩顆導覽鈕（票 06）。
  * 與拼字另外兩頁同一個立場（`ADR-0021`）。
  */
 export function spellingSummaryView(
@@ -103,9 +105,7 @@ export function spellingSummaryView(
 ): HTMLElement {
   const screen = el('div', 'screen');
 
-  // 左右兩顆導覽鈕與中央的標題都是票 06 的事，這裡只先把那一條的位置留出來，
-  // 與 `spelling-view.ts`、`spelling-books.ts` 一致。
-  const header = el('header', 'bar');
+  const header = spellingBar(app);
 
   const scored = summary(round);
 

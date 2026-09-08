@@ -28,6 +28,7 @@ import type zhHant from './zh-Hant';
 // 領域概念照 `docs/glossary.md` 的英文欄：單字本是 Vocabulary Book，不是 Book。
 const en: typeof zhHant = {
   'nav.review': 'Review',
+  'nav.spelling': 'Spelling',
   'nav.cards': 'Cards',
   'nav.data': 'Data',
   'nav.stats': 'Stats',
