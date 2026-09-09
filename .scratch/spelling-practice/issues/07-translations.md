@@ -67,9 +67,18 @@ Type: enhancement
 
 **覆蓋是浮動的，不是全部**。`fillSlots()` 照磚的 DOM 順序硬點，拼對拼錯不受控，因此成績頁走進逐格對照還是 `spelling.noMistakes` 隨語言與洗牌而異。挑書頁的 `spelling.noBooksTitle` 與 `spelling.noCards` 兩個變體則從未渲染過。決定 5 只寫「三個狀態」，這樣算達成，但要知道它蓋不到那幾條。
 
-**還沒動的四條英日文用字**，是 code review 挑出來的（票上說「擋不住的是翻錯，那要人看」的那一項），等維護者裁示：
+### 翻譯校對：改了兩條，留了兩條
 
-- `en.ts` 三條 `spelling.settled*`：`'Correct · Points {points}'` 語序倒了，英文會寫 `9 points`。
-- `en.ts` 的 `spelling.yourTry`：`'You typed'`，但這一頁是點磚不是打字。
-- `en.ts` 的 `spelling.roundOver`：`'nothing left to settle'`，`settle` 在英文介面不作「結算」解。
-- `ja.ts` 的 `spelling.pointsLabel`：`'合計'`，而 `docs/glossary.md` 定的是 `ポイント`；與「正解数」「平均」並排時看不出是合計什麼。
+Code review 挑出四條英日文用字（票上說「擋不住的是翻錯，那要人看」的那一項），逐條端給維護者裁示。
+
+**改掉的兩條，都在 `en.ts`：**
+
+- 三條 `spelling.settled*` 從 `'Correct · Points {points}'` 改成 `'Correct · {points} points'`。數字在前、單位在後才是英文講數量的語序；原本那個寫法讀起來像儀表板欄位名，不像一句話。中文是「{points} 分」、日文是「{points}ポイント」，三邊各照自己的習慣擺——決定 4 走參數而不是字串拼接，為的就是這件事。
+- `spelling.yourTry` 從 `'You typed'` 改成 `'Your answer'`。這一頁是點磚，沒有鍵盤。右邊那排標籤已經是 `'Answer'`，兩排因此都帶到 answer 這個字，是知情下的取捨。
+
+**留著沒動的兩條：**
+
+- `ja.ts` 的 `spelling.pointsLabel` 維持 `'合計'`，維護者選定，不改成詞彙表的 `ポイント`。**`docs/glossary.md` 第 44 列這一則因此在成績頁上沒有被遵守**，知道而留著。
+- `en.ts` 的 `spelling.roundOver` 維持 `'nothing left to settle'`。追過之後確認**使用者看不到這句**：它只由 `core/lib/spelling.ts` 的 `settle()` 丟出，條件是「這一輪沒有題目了」，而全專案唯一的呼叫端 `spelling-view.ts:294` 在同一個條件下已經先 `return` 掉。那是寫給程式的防呆，`settle` 與函式同名反而好查。
+
+**衍生出一件超出這張票的事**：一題的分數是 0 到 10，1 分拿得到，因此英文會出現 `'1 points'`。`t()` 只做佔位符替換，沒有單複數機制。維護者選擇「讓翻譯檔支援單複數」而不是改寫字串閃過去，另開票處理。

@@ -260,9 +260,12 @@ const en: typeof zhHant = {
   'gemini.emptyReply': 'Gemini replied with no content',
   'gemini.notJson': 'What Gemini replied is not JSON',
   'spelling.roundOver': 'This round is over; there is nothing left to settle',
-  'spelling.settledCorrect': 'Correct · Points {points}',
-  'spelling.settledWrong': 'Wrong · Points {points}',
-  'spelling.settledTimeout': "Time's up · Points {points}",
+  // 數字在前、單位在後，那是英文講數量的語序（票 07 收工時維護者選定）。
+  // 中文那份是「{points} 分」、日文是「{points}ポイント」，三邊的位置各自照自己的習慣走
+  // ——決定 4 走參數而不是字串拼接，為的就是這件事。
+  'spelling.settledCorrect': 'Correct · {points} points',
+  'spelling.settledWrong': 'Wrong · {points} points',
+  'spelling.settledTimeout': "Time's up · {points} points",
   'spelling.pickHint':
     'Pick the vocabulary books to practise, then start. This choice stays on this device only, so your phone and your computer can differ.',
   'spelling.start': 'Start',
@@ -277,7 +280,9 @@ const en: typeof zhHant = {
   // （票 07 的用詞那一節）。
   'spelling.pointsLabel': 'Points',
   'spelling.averageLabel': 'Average',
-  'spelling.yourTry': 'You typed',
+  // 不寫 'You typed'：這一頁是點磚，沒有鍵盤（票 07 收工時維護者選定）。
+  // 右邊那排是 'Answer'，兩排因此都帶到 answer 這個字，是知情下的取捨。
+  'spelling.yourTry': 'Your answer',
   'spelling.answer': 'Answer',
   'spelling.noMistakes': 'Every word in this round was correct; there is nothing to compare.',
   'spelling.again': 'Another round',
