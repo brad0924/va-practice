@@ -260,12 +260,14 @@ const en: typeof zhHant = {
   'gemini.emptyReply': 'Gemini replied with no content',
   'gemini.notJson': 'What Gemini replied is not JSON',
   'spelling.roundOver': 'This round is over; there is nothing left to settle',
-  // 數字在前、單位在後，那是英文講數量的語序（票 07 收工時維護者選定）。
-  // 中文那份是「{points} 分」、日文是「{points}ポイント」，三邊的位置各自照自己的習慣走
-  // ——決定 4 走參數而不是字串拼接，為的就是這件事。
-  'spelling.settledCorrect': 'Correct · {points} points',
-  'spelling.settledWrong': 'Wrong · {points} points',
-  'spelling.settledTimeout': "Time's up · {points} points",
+  // 照檔頭那條「名詞在前、數字在後」：一題的分數是 0 到 10，**1 分拿得到**
+  // （`points()` 的下限），寫成 `{points} points` 的話畫面上會出現 `1 points`。
+  // 冒號是為了跟 `Cards: 12`、`Imported: 12` 同形。
+  // 中文那份是「{points} 分」、日文是「{points}ポイント」，兩種語言沒有單複數，
+  // 因此各自照自己的習慣把數字擺在前面——決定 4 走參數而不是字串拼接，為的就是這件事。
+  'spelling.settledCorrect': 'Correct · Points: {points}',
+  'spelling.settledWrong': 'Wrong · Points: {points}',
+  'spelling.settledTimeout': "Time's up · Points: {points}",
   'spelling.pickHint':
     'Pick the vocabulary books to practise, then start. This choice stays on this device only, so your phone and your computer can differ.',
   'spelling.start': 'Start',

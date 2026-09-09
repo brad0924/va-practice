@@ -73,7 +73,9 @@ Code review 挑出四條英日文用字（票上說「擋不住的是翻錯，�
 
 **改掉的兩條，都在 `en.ts`：**
 
-- 三條 `spelling.settled*` 從 `'Correct · Points {points}'` 改成 `'Correct · {points} points'`。數字在前、單位在後才是英文講數量的語序；原本那個寫法讀起來像儀表板欄位名，不像一句話。中文是「{points} 分」、日文是「{points}ポイント」，三邊各照自己的習慣擺——決定 4 走參數而不是字串拼接，為的就是這件事。
+- 三條 `spelling.settled*` 從 `'Correct · Points {points}'` 改成 `'Correct · Points: {points}'`，多一個冒號，與 `Cards: 12`、`Imported: 12` 同形。
+
+  **中途走錯過一次，記在這裡免得下次再犯。** 先改成了 `'Correct · {points} points'`（數字在前，英文講數量的自然語序），提交後才發現那違反 `core/i18n/en.ts` 檔頭第 24 行寫下的規矩：帶數量的英文一律「名詞在前、數字在後」，因為 `t()` 沒有單複數機制，寫成後者時 `1 points` 會直接漏到畫面上。出處是票 `i18n/06` 第 98 行的決定。一題的分數是 0 到 10 而 `points()` 的下限就是 1 分，所以那個 `1 points` 是真的會出現，不是理論上的。整份 `en.ts` 都在守這條（`Cards: {count}`、`Due today: {count}`、`{count} left`），拼字不該是唯一的例外。
 - `spelling.yourTry` 從 `'You typed'` 改成 `'Your answer'`。這一頁是點磚，沒有鍵盤。右邊那排標籤已經是 `'Answer'`，兩排因此都帶到 answer 這個字，是知情下的取捨。
 
 **留著沒動的兩條：**
