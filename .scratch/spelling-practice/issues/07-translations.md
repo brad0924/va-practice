@@ -1,6 +1,6 @@
 # 拼字的字全部進翻譯檔，三份都要
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 
 ## 問題
@@ -55,3 +55,21 @@ Type: enhancement
 原本寫的是「這條 key 由票 07 補齊」，但票 `06` 一接上 `t('nav.spelling')`，`en.ts` 與 `ja.ts` 的 `const en: typeof zhHant` 就會逼著三份一起補，否則 `tsc` 當場編譯錯——那條分工照字面做不到。與票 `04`、`05` 的先例一致：**用到那條 key 的票負責加，這張票負責看翻得對不對。**
 
 還沒做的只剩決定 5（冒煙測試加拼字三個狀態）。票 `06` 已經把入口接上了，`src/i18n/smoke.test.ts` 現在按得到「拼字」那顆鈕，走得進拼字三頁。
+
+### 收工：只做了決定 5，其餘逐條核過
+
+進來時只剩決定 5（冒煙測試補拼字三個狀態），其餘由票 04、05、06 做掉了。驗收十條逐條核過都成立，翻譯三份沒有再動一個字。
+
+冒煙測試那一段的兩個實作決定：
+
+- **整支檔案罩上假時鐘**（`vi.useFakeTimers()`）。答題頁有碼表，還有「收尾之後停留 1.6 秒才進下一題」，三種語言各真的等一次太貴。快轉用 `vi.runOnlyPendingTimers()` 而不是 `advanceTimersByTime(1600)`——收尾那一下碼表就停了，待辦的只剩那一支停留，因此 1.6 這個數字不必抄進測試裡，`SETTLE_PAUSE_MS` 改了這支不必跟著改。作法與 `app.test.ts` 的〈導覽〉一致。
+- **多一道「認人」的斷言**。原本的走法靠 `click()` 找不到鈕就爆來證明自己走對頁，但填磚那一段不同：`fillSlots()` 摸不到磚時會靜靜地什麼都不做，畫面上當然也抓不到 key，整段白走一趟卻照樣是綠的。因此答題頁認「結束」那顆、成績頁認「再一輪」那顆。
+
+**覆蓋是浮動的，不是全部**。`fillSlots()` 照磚的 DOM 順序硬點，拼對拼錯不受控，因此成績頁走進逐格對照還是 `spelling.noMistakes` 隨語言與洗牌而異。挑書頁的 `spelling.noBooksTitle` 與 `spelling.noCards` 兩個變體則從未渲染過。決定 5 只寫「三個狀態」，這樣算達成，但要知道它蓋不到那幾條。
+
+**還沒動的四條英日文用字**，是 code review 挑出來的（票上說「擋不住的是翻錯，那要人看」的那一項），等維護者裁示：
+
+- `en.ts` 三條 `spelling.settled*`：`'Correct · Points {points}'` 語序倒了，英文會寫 `9 points`。
+- `en.ts` 的 `spelling.yourTry`：`'You typed'`，但這一頁是點磚不是打字。
+- `en.ts` 的 `spelling.roundOver`：`'nothing left to settle'`，`settle` 在英文介面不作「結算」解。
+- `ja.ts` 的 `spelling.pointsLabel`：`'合計'`，而 `docs/glossary.md` 定的是 `ポイント`；與「正解数」「平均」並排時看不出是合計什麼。
