@@ -14,6 +14,7 @@ import {
 import { el, button } from './dom';
 import { spellingBar } from './spelling-bar';
 import { bookLabel } from './book-label';
+import { tileGrid } from './tile-grid';
 
 /**
  * 收尾之後正解在畫面上停留幾毫秒才進下一題（票 03 決定 8）。
@@ -186,28 +187,49 @@ export function spellingView(
   }
 
   /**
-   * 鋪磚：先算一張看不見的格線，再把每一塊放進自己那一格的中央、加上小幅偏移。
-   * **純亂數會疊在一起**，那是原型踩過的坑（票 03 決定 5）。
+   * 把現有的每一塊磚放進自己那一格的中央。**只改位置，不換磚**——磚是誰、偏移多少都不動。
    *
-   * 一題鋪一次。之後的重畫只改 class，位置不再動。
+   * 分成「鋪」與「擺」兩支，是因為這一支要跑第二次：手機轉個螢幕，場地從又矮又寬變成
+   * 又高又窄，同樣十二塊磚該從四欄三列改成三欄四列（票 08 決定 3）。重鋪一次的話
+   * 已經填好的格子與碼表會跟著整輪重來，那是決定 4 明文擋掉的事。
+   *
+   * 場地的兩個邊在這裡量、在這裡用完，欄列怎麼算交給 `tileGrid()`——那一支不碰 DOM，
+   * 因此測得動（`ADR-0014`）。格線的兩個邊長仍然只交給 CSS：磚的大小要同時被欄數與
+   * 列數夾住，否則螢幕一矮磚會被裁掉而不是縮小（票 03 決定 11）。
    */
-  function buildTiles(question: Question): void {
-    const cols = Math.ceil(Math.sqrt(question.tiles.length));
-    const rows = Math.ceil(question.tiles.length / cols);
-    // 格線的兩個邊長都交給 CSS：磚的大小要同時被欄數與列數夾住，
-    // 否則螢幕一矮（手機橫著拿）磚會被裁掉而不是縮小（票 03 決定 11）。
+  function layoutTiles(): void {
+    const { cols, rows } = tileGrid(tiles.length, footer.clientWidth, footer.clientHeight);
     footer.style.setProperty('--cols', String(cols));
     footer.style.setProperty('--rows', String(rows));
+    tiles.forEach((tile, index) => {
+      tile.style.left = `${(((index % cols) + 0.5) / cols) * 100}%`;
+      tile.style.top = `${((Math.floor(index / cols) + 0.5) / rows) * 100}%`;
+    });
+  }
+
+  /**
+   * 鋪磚：做出這一題的十二塊，各自帶著自己的格內偏移，再擺進格線。
+   * **純亂數會疊在一起**，那是原型踩過的坑（票 03 決定 5）。
+   *
+   * 一題鋪一次。之後的重畫只改 class，磚不再重做。
+   */
+  function buildTiles(question: Question): void {
     tiles = question.tiles.map((kana, index) => {
       const node = button('kana-tile', kana, () => pick(index));
       const [dx, dy] = jitterFor(kana, index);
-      node.style.left = `${(((index % cols) + 0.5) / cols) * 100}%`;
-      node.style.top = `${((Math.floor(index / cols) + 0.5) / rows) * 100}%`;
       node.style.setProperty('--dx', `${dx}%`);
       node.style.setProperty('--dy', `${dy}%`);
       return node;
     });
     footer.replaceChildren(...tiles);
+    layoutTiles();
+    // 第一題是在畫面接上文件**之前**鋪的：`spellingView()` 要先回傳，呼叫端才把它插進去。
+    // 那一下量到的場地是 0×0，`tileGrid()` 只能退回正方形的算法。微任務排在呼叫端插完
+    // 之後、瀏覽器繪製之前，補量一次——橫向的第一題因此不會先閃一格四欄三列。
+    //
+    // **只有還沒接上文件時才補。** 第二題以後是在畫面上鋪的，剛才那一次就量得準了，
+    // 無條件排一次微任務等於每一題都白排一遍。
+    if (!screen.isConnected) queueMicrotask(layoutTiles);
   }
 
   function refresh(): void {
@@ -345,6 +367,25 @@ export function spellingView(
     paintClock(question.limit);
     ticker = window.setInterval(tick, TICK_MS);
   }
+
+  /**
+   * 轉螢幕之後把磚重擺一次（票 08 決定 4）。
+   *
+   * **只重擺，不重開一輪**：已經填好的格子留著，碼表也不歸零——`layoutTiles()` 一個
+   * 狀態都不碰，只改磚的座標。
+   *
+   * 掛在 `window` 上，走成對註冊加 `isConnected` 自癒（`ADR-0011`）。這一頁沒有拆卸時機
+   * ——`root.replaceChildren()` 把整棵樹丟掉，不通知任何人——所以每一次醒來都先看一眼
+   * 自己還在不在文件上，脫離了就自己解除。同一頁的碼表就是這樣做的。
+   */
+  function relayoutOnResize(): void {
+    if (!screen.isConnected) {
+      window.removeEventListener('resize', relayoutOnResize);
+      return;
+    }
+    layoutTiles();
+  }
+  window.addEventListener('resize', relayoutOnResize);
 
   // 磚是散落的，沒有自然的鍵盤順序可以對應，因此這一頁完全不做鍵盤操作（spec 決定 25）。
   // 明寫成 null 而不是留白：留白會讓上一個畫面的處理器活到這一頁來。

@@ -392,6 +392,84 @@ describe('中途按「結束」', () => {
   });
 });
 
+describe('轉螢幕', () => {
+  /**
+   * jsdom 沒有排版，`clientWidth` 永遠回 0。塞一個假的場地尺寸進去，才問得出「量到之後
+   * 怎麼算、有沒有交出去」——這一整段測的是接線，不是版面。
+   *
+   * 場地真的長多寬、磚有沒有疊到，`ADR-0014` 明文不在這裡驗，那是實機的事；
+   * 欄列的算術本身住在 `tile-grid.test.ts`，也不在這裡重測一遍。
+   */
+  function sizeField(screen: HTMLElement, width: number, height: number): void {
+    const field = screen.querySelector('.kana-field')!;
+    Object.defineProperty(field, 'clientWidth', { value: width, configurable: true });
+    Object.defineProperty(field, 'clientHeight', { value: height, configurable: true });
+  }
+
+  /**
+   * 這一頁交給 CSS 的欄數。
+   *
+   * **底下一律只比「變了沒有」，不比它等於幾。** 幾欄幾列是 `tileGrid()` 的算術，
+   * 那條已經被 `tile-grid.test.ts` 逐一釘住；在這裡再寫一次期望值等於把同一組數字抄兩份，
+   * 而且會把版面的實際數值搬進畫面測試裡，那是 `ADR-0014` 不要的東西。
+   * 這一段問的只有一句：轉螢幕的事件有沒有真的走到重排。
+   */
+  const cols = (screen: HTMLElement) =>
+    screen.querySelector<HTMLElement>('.kana-field')!.style.getPropertyValue('--cols');
+
+  it('場地從寬變成窄高之後，磚重排過，不留在轉之前的格線上', () => {
+    const { screen } = mount(roundOf(TABEMONO));
+
+    // 直握：375×667 時量到的場地。
+    sizeField(screen, 351, 379);
+    window.dispatchEvent(new Event('resize'));
+    const upright = cols(screen);
+
+    // 橫握切成兩欄之後，右半邊那塊。同樣十二塊磚，場地換了形狀，格線就該跟著換。
+    sizeField(screen, 222, 307);
+    window.dispatchEvent(new Event('resize'));
+
+    expect(cols(screen)).not.toBe(upright);
+  });
+
+  it('已經填好的格子不會消失，碼表也不歸零', () => {
+    const { screen } = mount(roundOf(TABEMONO));
+    tap(screen, 0);
+    tap(screen, 1);
+    vi.advanceTimersByTime(2000);
+    const before = { slots: slotText(screen), clock: clock(screen) };
+
+    sizeField(screen, 222, 307);
+    window.dispatchEvent(new Event('resize'));
+
+    expect(slotText(screen)).toEqual(before.slots);
+    expect(clock(screen)).toBe(before.clock);
+  });
+
+  it('用掉的那幾塊磚仍然點不動，沒有被重鋪回可點的狀態', () => {
+    const { screen } = mount(roundOf(TABEMONO));
+    tap(screen, 0);
+
+    sizeField(screen, 222, 307);
+    window.dispatchEvent(new Event('resize'));
+
+    expect(tiles(screen)[0]!.disabled).toBe(true);
+  });
+
+  it('離開畫面之後再轉螢幕，這一頁不再被動到', () => {
+    const { screen } = mount(roundOf(TABEMONO));
+    sizeField(screen, 351, 379);
+    window.dispatchEvent(new Event('resize'));
+    const before = cols(screen);
+
+    document.body.replaceChildren();
+    sizeField(screen, 222, 307);
+    window.dispatchEvent(new Event('resize'));
+
+    expect(cols(screen)).toBe(before);
+  });
+});
+
 describe('這一頁碰不到的東西', () => {
   // 走專案根目錄的相對路徑，不走 `import.meta.url`：jsdom 底下那個值不是 file: 開頭，
   // `readFileSync` 會直接丟「The URL must be of scheme file」。node 環境的

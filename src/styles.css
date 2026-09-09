@@ -577,6 +577,50 @@ button,
   cursor: default;
 }
 
+/*
+ * 手機橫著拿：上下疊改成左右兩欄，左邊題目、右邊磚（票 08）。
+ *
+ * 橫向缺的是高度、多的是寬度。一直排的話 375px 高要塞下標題列、13rem 的上半與整片磚，
+ * 磚會縮到 24.5px，手指點不準（票 03 實機量的）。切成兩欄之後磚回到 46px。
+ *
+ * **門檻看高度不看方向。** 31rem 是從磚的大小公式反推的：磚封頂 2.9rem，三列要撐得住
+ * 就得有 `2.9 × 1.5 × 3` 的場地，加上標題列與上半，視窗矮於 31rem 磚才會開始縮。
+ * 寫成 `orientation: landscape` 的話平板橫著拿也會被切成兩欄，那邊高度其實夠，
+ * 切了反而讓磚變小。電腦把視窗壓扁也吃得到這一條，那是對的——它跟橫握是同一個處境。
+ *
+ * `:has(> .kana-field)` 只挑到拼字答題那一頁。`.screen` 是五個畫面共用的 class，
+ * 不加限定會把複習、卡片、資料、統計一起改掉。
+ */
+@media (max-height: 31rem) {
+  .screen:has(> .kana-field) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 0.75rem;
+  }
+
+  /* 標題列橫跨上方。橫向的高度本來就緊，但這 3rem 照現況留著（票 08 決定 7）。 */
+  .screen:has(> .kana-field) > .bar {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * 兩欄各自撐滿那一列。
+   *
+   * `.prompt` 那條 `flex: 0 0 13rem` 在 grid 裡自動失效——決定 2 要的「橫向時不再寫死
+   * 13rem」因此不必寫任何覆蓋。防抽動改由左欄寬度來擋：`1fr 1fr` 的左欄永遠是一半，
+   * 不跟著題目三個假名還是六個假名跑。兩種版面各守同一件事，用的是不同的邊。
+   *
+   * `min-height: 0` 不能省。grid 的項目預設不肯縮到內容以下，少了它 `.kana-field`
+   * 會被自己那條 `min-height: 7rem` 頂出格線外，磚就跑到畫面下方看不見的地方。
+   */
+  .screen:has(> .kana-field) > .prompt,
+  .screen:has(> .kana-field) > .kana-field {
+    min-height: 0;
+    margin: 0.25rem 0 0;
+  }
+}
+
 /* ---------- 拼字成績畫面 ---------- */
 
 /*
