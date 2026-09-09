@@ -42,6 +42,14 @@ const KAMERA = card('kamera', 'カメラ', '相機');
 const KEEKI = card('keeki', 'ケーキ', '蛋糕');
 /** 同一個長音符在正解裡出現兩次。 */
 const KOOHII = card('koohii', 'コーヒー', '咖啡');
+/** 讀音含 `わ`：わ 行的鄰居會排在候選最前面。 */
+const DENWA = card('denwa', '電[でん]話[わ]', '電話');
+/** 讀音含片假名 `ワ`。 */
+const WAIN = card('wain', 'ワイン', '葡萄酒');
+/** 讀音是廢棄假名 `ゐ` 的卡。舊文獻與人名裡還看得到。 */
+const WI = card('wi', 'ゐ', '舊假名的 wi');
+/** 撥音自己一個字：同行沒有鄰居，相鄰行只有わ行三個，六塊干擾一定得從整張表補。 */
+const N = card('n', 'ん', '撥音');
 
 /** 開一輪只有這張卡的題目，省去洗牌的不確定。 */
 function roundOf(target: Card): Round {
@@ -78,6 +86,13 @@ describe('出題資格', () => {
   it('一批卡裡只濾掉拿不出正解的那幾張', () => {
     const round = startRound([KOGASU, BARE, KUSHAMI], fixedRandom(0));
     expect(round.questions.map((question) => question.card.id).sort()).toEqual(['kogasu', 'kushami']);
+  });
+
+  it('讀音是廢棄假名的卡照樣出得了題', () => {
+    // ゐ 不再當干擾，但出題資格看的是 reading.ts 的假名正則，跟干擾表無關（票 09 決定 5）。
+    const question = currentQuestion(roundOf(WI))!;
+    expect(question.answer).toEqual(['ゐ']);
+    expect(question.tiles).toContain('ゐ');
   });
 });
 
@@ -468,6 +483,37 @@ describe('干擾', () => {
     // ケーキ 只拉得出五個候選（ゲ、カ、ク、コ、ギ），第六塊一定來自相鄰行。
     expect(everyDecoyOf(KEEKI).length).toBeGreaterThan(5);
     expect(currentQuestion(roundOf(KEEKI))!.tiles).toHaveLength(3 + DECOY_COUNT);
+  });
+
+  it('わ 行只剩三個字，廢棄的 ゐ ゑ 不在表裡', () => {
+    // ん 的干擾幾乎全部走「從整張表補」那條備案，因此這一掃掃得到表上絕大多數的字。
+    // わ 行是 ゐ ゑ 唯一住得下的地方（`ゎ` 到 `を` 這一段碼位），比對那一段只剩哪三個字就夠。
+    // 兩個方向都不會靜靜地綠：ゐ 回到表裡就多一個字，抽樣抽不到 わ 行就少三個，都會紅。
+    const inWaRow = everyDecoyOf(N).filter((kana) => kana >= 'ゎ' && kana <= 'を');
+    expect(inWaRow).toEqual(['ゎ', 'わ', 'を']);
+  });
+
+  it('讀音含 わ 的詞，磚上沒有 ゐ ゑ，ゎ 與 を 照樣拉得出來', () => {
+    const seen = everyDecoyOf(DENWA);
+    expect(seen).not.toContain('ゐ');
+    expect(seen).not.toContain('ゑ');
+    expect(seen).toContain('ゎ');
+    expect(seen).toContain('を');
+  });
+
+  it('讀音含片假名 ワ 的詞，磚上沒有 ヰ ヱ', () => {
+    const seen = everyDecoyOf(WAIN);
+    expect(seen).not.toContain('ヰ');
+    expect(seen).not.toContain('ヱ');
+    expect(seen).toContain('ヮ');
+    expect(seen).toContain('ヲ');
+  });
+
+  it('わ 行少了兩個候選，磚數照樣是正解加六', () => {
+    const question = currentQuestion(roundOf(DENWA))!;
+    expect(question.answer).toEqual(['で', 'ん', 'わ']);
+    expect(question.tiles).toHaveLength(3 + DECOY_COUNT);
+    expect(new Set(question.tiles).size).toBe(question.tiles.length);
   });
 
   it('同一組亂數種子跑兩次，磚的內容與順序完全一樣', () => {

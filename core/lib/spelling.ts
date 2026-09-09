@@ -104,8 +104,9 @@ export const DECOY_COUNT = 6;
  * 每一行在平假名區的最後一個字。**這是整支唯一手打的假名**（票 02 決定 2）。
  *
  * 假名在 Unicode 裡是一條連號的直線，不是一張表：`か` 後面緊接著 `が`，た行中間插了 `っ`，
- * は行還多出半濁音那五個。每一行在那條線上佔 10、10、10、11、5、15、5、6、5、5、1 個位置，
- * 沒有規律，「每五個切一刀」切不出正確的行。所以行的邊界只能給，其餘全部算得出來：
+ * は行還多出半濁音那五個。數完之後每一行是 10、10、10、11、5、15、5、6、5、3、1 個字
+ * （わ 行那 3 是扣掉 `OBSOLETE_KANA_CODES` 之後的），沒有規律，「每五個切一刀」切不出正確的行。
+ * 所以行的邊界只能給，其餘全部算得出來：
  * 行的成員從上一道邊界數到這一道，濁音清音配對走 Unicode 正規化，片假名走固定碼位差。
  */
 const ROW_ENDS = 'おごぞどのぽもよろをん';
@@ -120,6 +121,17 @@ const KATAKANA_OFFSET = 0x60;
 const KATAKANA_FIRST = 0x30a1;
 const KATAKANA_LAST = 0x30f6;
 
+/**
+ * 廢棄的歷史假名 `ゐ`(U+3090) 與 `ゑ`(U+3091)，數表時跳過不收（票 09）。
+ *
+ * 它們住在 `わ` 跟 `を` 中間，照碼位數下來一定會被數進來。現代日文一百年前就不用了，
+ * JLPT 不考，使用者沒見過——擺上磚會被當成畫面壞掉，不是被當成難一點的干擾。
+ * 片假名的 `ヰ`／`ヱ` 跟著一起不見：那邊是加 `KATAKANA_OFFSET` 換過去的，表裡沒有就換不出來。
+ *
+ * 常數寫碼位不寫字，`ROW_ENDS` 才仍然是整支唯一手打的那一串假名（票 02 決定 2）。
+ */
+const OBSOLETE_KANA_CODES: readonly number[] = [0x3090, 0x3091];
+
 /** 濁點與半濁點的組合字元。`が` 正規化拆開就是 `か` 加濁點。 */
 const DAKUTEN = '\u3099';
 const HANDAKUTEN = '\u309a';
@@ -131,7 +143,10 @@ function buildRows(): string[][] {
   for (const end of ROW_ENDS) {
     const last = end.codePointAt(0)!;
     const row: string[] = [];
-    for (let code = first; code <= last; code += 1) row.push(String.fromCodePoint(code));
+    for (let code = first; code <= last; code += 1) {
+      if (OBSOLETE_KANA_CODES.includes(code)) continue;
+      row.push(String.fromCodePoint(code));
+    }
     rows.push(row);
     first = last + 1;
   }
