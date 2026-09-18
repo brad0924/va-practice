@@ -306,6 +306,10 @@ const en: typeof zhHant = {
     'All your cards together do not have four different meanings, and Gemini could not fill in the options this time. Try again later, or add a few more cards.',
   'quiz.preparing': 'Asking Gemini for options…',
   'quiz.quit': 'End round',
+  // 與 `spelling.settled*` 同字同形，理由見那三條。
+  'quiz.settledCorrect': 'Correct · Points: {points}',
+  'quiz.settledWrong': 'Wrong · Points: {points}',
+  'quiz.settledTimeout': "Time's up · Points: {points}",
   'quiz.correctRatio': '{correct} / {total}',
   // 與拼字那一格同字。`Score` 同樣不能用，理由見 `spelling.pointsLabel`。
   'quiz.correctLabel': 'Correct',

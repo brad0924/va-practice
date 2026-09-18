@@ -396,6 +396,13 @@ export default {
   // 答題中途收工的那一顆，比照拼字。
   'quiz.quit': '結束',
 
+  // 答完那一刻詞條底下那一行（票 07），比照 `spelling.settled*`：三條都吃 {points}，
+  // 答錯與逾時必定是 0 分，但那條規則歸 `quiz.ts` 管，不寫死在句子裡。
+  // 不借拼字那三條：拼字講「拼對」，這裡是「答對」。逾時寫「逾時」，與 `quiz.timedOut` 一致。
+  'quiz.settledCorrect': '答對了 · {points} 分',
+  'quiz.settledWrong': '答錯了 · {points} 分',
+  'quiz.settledTimeout': '逾時 · {points} 分',
+
   // 成績頁頂上三格（spec 實作決定八）。與拼字那三格同一種寫法，但拼字寫的是「拼對」，
   // 這裡是「答對」，因此各自一組 key。
   'quiz.correctRatio': '{correct} / {total}',

@@ -8,7 +8,9 @@
  * （`ADR-0014`）。對錯與幾分住在 `core/lib/quiz.ts`，由 `quiz.test.ts` 釘住，這裡不重測。
  *
  * 刻意不測的：
- * - **顏色**。正解轉綠、點錯轉紅、碼表轉黃轉紅，全是版面，`ADR-0014` 明文不斷言。靠實機驗收。
+ * - **顏色**。正解轉綠、點錯轉紅、碼表轉黃轉紅、答完那一行的三種顏色（票 07），全是版面，
+ *   `ADR-0014` 明文不斷言。靠實機驗收。那一行的字與顏色查同一張表（`OUTCOMES`），
+ *   字對了顏色就不會挑錯，與拼字答題頁同一個立場。
  * - **選項直排、佔滿整行、長釋義換行**。jsdom 沒有排版。
  * - **一輪怎麼開的**。洗牌與抽干擾在 `quiz.ts`，這一頁只吃洗好的那一份。
  */
@@ -189,6 +191,85 @@ describe('逾時', () => {
 
     expect(settledAt).toHaveLength(1);
     expect(settledAt[0]!.results[0]!.picked).toBe(1);
+  });
+});
+
+describe('答完那一行（票 07）', () => {
+  /** 詞條底下那一行。找它靠 class，斷言只看字（`ADR-0014`），與拼字答題頁同一種寫法。 */
+  const verdict = (screen: HTMLElement) => screen.querySelector('.verdict')!.textContent;
+
+  it('還沒點的時候是空的', () => {
+    const screen = mount(roundOf(KOGASU, TOUGE));
+
+    expect(verdict(screen)).toBe('');
+  });
+
+  it('點對：印「答對了」，幾分照這一題結算出來的', () => {
+    const screen = mount(roundOf(KOGASU, TOUGE));
+    vi.advanceTimersByTime(5_000);
+
+    option(screen, '燒焦').click();
+
+    const points = settledAt[0]!.results[0]!.points;
+    expect(points).toBeGreaterThan(0);
+    expect(verdict(screen)).toBe(`答對了 · ${points} 分`);
+  });
+
+  it('點錯：印「答錯了 · 0 分」', () => {
+    const screen = mount(roundOf(KOGASU, TOUGE));
+
+    option(screen, '山頂').click();
+
+    expect(verdict(screen)).toBe('答錯了 · 0 分');
+  });
+
+  it('逾時：印「逾時 · 0 分」', () => {
+    const screen = mount(roundOf(KOGASU, TOUGE));
+
+    vi.advanceTimersByTime(10_000);
+
+    expect(verdict(screen)).toBe('逾時 · 0 分');
+  });
+
+  it('過了時限才點到正解，照逾時印，不會出現「答對了 · 0 分」', () => {
+    const screen = mount(roundOf(KOGASU, TOUGE));
+    vi.setSystemTime(Date.now() + 10_050);
+
+    option(screen, '燒焦').click();
+
+    expect(verdict(screen)).toBe('逾時 · 0 分');
+  });
+
+  it('剛好第 10 秒點到正解：算在時限內拿 1 分，不會印成「答錯了 · 0 分」', () => {
+    // 每讀一次時鐘就往前走 1 毫秒：判斷算不算逾時與計分若各讀一次，兩次會落在時限兩邊，
+    // 前者說沒逾時、後者給 0 分，畫面就印出「答錯了」。只讀一次的話兩邊看的是同一個 10.000。
+    const app = {
+      data: {},
+      now: () => {
+        const at = new Date();
+        vi.setSystemTime(at.getTime() + 1);
+        return at;
+      },
+      keyHandler: null,
+    } as unknown as App;
+    const start = Date.now();
+    const screen = quizView(app, roundOf(KOGASU, TOUGE), () => {}, () => {});
+    document.body.replaceChildren(screen);
+    vi.setSystemTime(start + 10_000);
+
+    option(screen, '燒焦').click();
+
+    expect(verdict(screen)).toBe('答對了 · 1 分');
+  });
+
+  it('進下一題時清掉', () => {
+    const screen = mount(roundOf(KOGASU, TOUGE));
+    option(screen, '燒焦').click();
+
+    vi.advanceTimersByTime(SETTLE_PAUSE_MS);
+
+    expect(term(screen)).toContain('峠');
+    expect(verdict(screen)).toBe('');
   });
 });
 

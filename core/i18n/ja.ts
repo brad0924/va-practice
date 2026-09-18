@@ -284,6 +284,10 @@ const ja: typeof zhHant = {
     'すべてのカードを合わせても違う意味が4つそろわず、今回は Gemini による選択肢の補充もうまくいきませんでした。しばらくしてからもう一度試すか、カードを何枚か追加してください。',
   'quiz.preparing': 'Gemini に選択肢を頼んでいます…',
   'quiz.quit': '終了',
+  // 與 `spelling.settled*` 同字同形。
+  'quiz.settledCorrect': '正解・{points}ポイント',
+  'quiz.settledWrong': '不正解・{points}ポイント',
+  'quiz.settledTimeout': '時間切れ・{points}ポイント',
   'quiz.correctRatio': '{correct} / {total}',
   'quiz.correctLabel': '正解数',
   'quiz.pointsLabel': '合計',
