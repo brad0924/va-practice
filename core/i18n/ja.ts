@@ -268,6 +268,7 @@ const ja: typeof zhHant = {
   'spelling.noMistakes': 'このラウンドは全問正解です。見くらべるものはありません。',
   'spelling.again': 'もう1ラウンド',
   'spelling.otherBooks': '単語帳を変える',
+  'quiz.roundOver': 'このラウンドは終了しています。集計する問題がありません',
   'reminder.title': '復習の時間です',
   'reminder.body': '今日は{count}枚が期日です',
   'toast.close': '閉じる',

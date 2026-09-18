@@ -289,6 +289,7 @@ const en: typeof zhHant = {
   'spelling.noMistakes': 'Every word in this round was correct; there is nothing to compare.',
   'spelling.again': 'Another round',
   'spelling.otherBooks': 'Change books',
+  'quiz.roundOver': 'This round is over; there is nothing left to settle',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',
   'toast.close': 'Close',
