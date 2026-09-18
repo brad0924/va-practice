@@ -267,6 +267,7 @@ const ja: typeof zhHant = {
   'spelling.yourTry': '入力',
   'spelling.answer': '正解',
   'spelling.noMistakes': 'このラウンドは全問正解です。見くらべるものはありません。',
+  'spelling.nothingAnswered': 'このラウンドはまだ1問も解いていません。',
   'spelling.again': 'もう1ラウンド',
   'spelling.otherBooks': '単語帳を変える',
   'quiz.roundOver': 'このラウンドは終了しています。集計する問題がありません',
@@ -282,6 +283,10 @@ const ja: typeof zhHant = {
   'quiz.correctLabel': '正解数',
   'quiz.pointsLabel': '合計',
   'quiz.averageLabel': '平均',
+  // 與拼字答題頁那句逾時同字。
+  'quiz.timedOut': '時間切れ',
+  'quiz.noMistakes': 'このラウンドは全問正解です。覚え直すものはありません。',
+  'quiz.nothingAnswered': 'このラウンドはまだ1問も答えていません。',
   'quiz.again': 'もう1ラウンド',
   'reminder.title': '復習の時間です',
   'reminder.body': '今日は{count}枚が期日です',

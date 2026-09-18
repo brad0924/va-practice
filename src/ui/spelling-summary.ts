@@ -126,11 +126,14 @@ export function spellingSummaryView(
   );
 
   // 拼對的卡不列出來（票 05 決定 6）——這一頁只講沒拼對的。全對時主體換成一句話，
-  // 不留一塊空白（決定 7）。
+  // 不留一塊空白（決定 7）。一題都還沒拼就收工時換另一句：頂上是 `0 / 0`，
+  // 再說全部拼對就互相打架（問答票 03 時維護者選定兩頁一起改）。
   main.append(
-    scored.missed.length === 0
-      ? el('p', 'missed-none', t('spelling.noMistakes'))
-      : el('div', 'missed-list', ...scored.missed.map(missedBlock)),
+    scored.total === 0
+      ? el('p', 'missed-none', t('spelling.nothingAnswered'))
+      : scored.missed.length === 0
+        ? el('p', 'missed-none', t('spelling.noMistakes'))
+        : el('div', 'missed-list', ...scored.missed.map(missedBlock)),
   );
 
   const footer = el(

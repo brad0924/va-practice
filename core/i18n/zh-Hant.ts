@@ -363,6 +363,9 @@ export default {
 
   // 一張都沒拼錯時主體那一句。不留空白（票 05 決定 7）。
   'spelling.noMistakes': '這一輪全部拼對，沒有要對照的。',
+  // 一題都還沒拼就按「結束」時改印這一句。頂上已經是 `0 / 0`，再說全部拼對就互相打架
+  // （問答票 03 時維護者選定兩頁一起改）。
+  'spelling.nothingAnswered': '這一輪還沒拼任何一題。',
 
   'spelling.again': '再一輪',
   'spelling.otherBooks': '換單字本',
@@ -393,6 +396,15 @@ export default {
   'quiz.correctLabel': '答對',
   'quiz.pointsLabel': '總分',
   'quiz.averageLabel': '平均',
+
+  // 沒答對的清單裡，逾時那一列把這兩個字印在「使用者點的釋義」那個位置（spec 實作決定八）。
+  // 中文不借拼字答題頁那句「時間到」，用票與 spec 點名的「逾時」。英日兩份沿用拼字那句
+  // （`Time's up`／`時間切れ`）：要的只是與「點錯」分得出來，那兩個字已經做到。
+  'quiz.timedOut': '逾時',
+  // 一題都沒錯時主體那一句，比照 `spelling.noMistakes`：不留一塊空白。
+  'quiz.noMistakes': '這一輪全部答對，沒有要回頭記的。',
+  // 一題都還沒答就按「結束」時改印這一句，理由同 `spelling.nothingAnswered`。
+  'quiz.nothingAnswered': '這一輪還沒答任何一題。',
 
   'quiz.again': '再一輪',
 

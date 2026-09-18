@@ -184,6 +184,13 @@ describe('逐格對照', () => {
     expect(blocks(screen)).toHaveLength(0);
     expect(screen.querySelector('.missed-none')!.textContent).toContain('全部拼對');
   });
+
+  it('一題都還沒拼就收工時，印「還沒拼」而不是「全部拼對」', () => {
+    const screen = mount(roundOf());
+
+    // 頂上是 `0 / 0`，底下再說全部拼對就互相打架。問答票 03 時維護者選定兩頁一起改。
+    expect(screen.querySelector('.missed-none')!.textContent).toContain('還沒拼');
+  });
 });
 
 describe('哪一格該標起來', () => {

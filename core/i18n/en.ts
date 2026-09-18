@@ -288,6 +288,7 @@ const en: typeof zhHant = {
   'spelling.yourTry': 'Your answer',
   'spelling.answer': 'Answer',
   'spelling.noMistakes': 'Every word in this round was correct; there is nothing to compare.',
+  'spelling.nothingAnswered': 'You ended this round before spelling any cards.',
   'spelling.again': 'Another round',
   'spelling.otherBooks': 'Change books',
   'quiz.roundOver': 'This round is over; there is nothing left to settle',
@@ -304,6 +305,11 @@ const en: typeof zhHant = {
   'quiz.correctLabel': 'Correct',
   'quiz.pointsLabel': 'Points',
   'quiz.averageLabel': 'Average',
+  // 與拼字答題頁那句逾時同字。
+  'quiz.timedOut': "Time's up",
+  // 不寫 `Every question`：`Question` 是卡片的避用詞（glossary）。
+  'quiz.noMistakes': 'You answered every card in this round correctly; there is nothing to go back over.',
+  'quiz.nothingAnswered': 'You ended this round before answering any cards.',
   'quiz.again': 'Another round',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',

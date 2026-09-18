@@ -23,6 +23,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { start } from '../app';
 import { STORAGE_KEY } from '@core/lib/storage';
 import type { StorageLike } from '@core/lib/storage';
+import { TIME_LIMIT as QUIZ_TIME_LIMIT } from '@core/lib/quiz';
 import type { AppData } from '@core/lib/types';
 import type { Lang } from '@core/i18n';
 import zhHant from '@core/i18n/zh-Hant';
@@ -175,12 +176,20 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     expect(leakedKeys(root)).toEqual([]); // 問答：答題
 
     for (let asked = 0; asked < SEED.cards.length; asked += 1) {
-      // 點哪一個都行，這裡要的只是讓答完那一刻的畫面長出來。
-      root.querySelector<HTMLButtonElement>('footer button')!.click();
+      if (asked === 0) {
+        // 第一題放著讓它逾時：逾時必定沒答對，成績頁因此一定有沒答對的清單可以查（票 `quiz/03`）。
+        // 點錯哪一個是亂數決定的，靠不住。
+        vi.advanceTimersByTime(QUIZ_TIME_LIMIT * 1000);
+      } else {
+        // 點哪一個都行，這裡要的只是讓答完那一刻的畫面長出來。
+        root.querySelector<HTMLButtonElement>('footer button')!.click();
+      }
       expect(leakedKeys(root)).toEqual([]); // 問答：答題（已作答）
       vi.runOnlyPendingTimers();
     }
     expect(buttonLabels(root)).toContain(table['quiz.again']);
+    // 沒答對的清單在畫面上，逾時那一列的字也是這個語言的。
+    expect(root.textContent).toContain(table['quiz.timedOut']);
     expect(leakedKeys(root)).toEqual([]); // 問答：成績
 
     click(root, table['nav.cards']);

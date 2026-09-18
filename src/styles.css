@@ -769,6 +769,47 @@ button,
   color: var(--again);
 }
 
+/* ---------- 問答成績畫面 ---------- */
+
+/*
+ * 沒答對的一張卡：詞條（標讀音）一行，底下正解一行、點錯的（或「逾時」）一行。
+ * 外框的底色、圓角、內距與拼字成績頁的 `.missed-card` 相同，排法不同：那邊要兩欄格線
+ * 對齊逐格對照，這邊三行直排就好，長的釋義照常換行。
+ */
+.quiz-missed-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--surface);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.quiz-missed-term {
+  font-size: 1.15rem;
+  margin-bottom: 0.1rem;
+}
+
+.quiz-missed-line {
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+/* 正解綠、點錯紅，與答題畫面收尾時選項的綠與紅是同兩個顏色。 */
+.quiz-missed-line.right {
+  color: var(--good);
+}
+
+.quiz-missed-line.wrong {
+  color: var(--again);
+}
+
+/* 逾時不是「你點錯了」，是「你沒點到」，用中性色，與拼字逾時沒填到的格子同一個立場。 */
+.quiz-missed-line.timeout {
+  color: var(--muted);
+}
+
 /* ---------- 底部動作 ---------- */
 
 .actions {
