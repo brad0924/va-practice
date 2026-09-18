@@ -140,9 +140,9 @@ describe('點一個選項', () => {
     option(screen, '燒焦').click();
     vi.advanceTimersByTime(SETTLE_PAUSE_MS);
 
-    // 第二題出來 2.5 秒才點，還在前三成（3 秒）之內，拿滿分。停留那 1 秒被算進去的話
-    // 就是 3.5 秒，過了前三成，會掉到 9 分。
-    vi.advanceTimersByTime(2500);
+    // 第二題出來 1.5 秒才點，還在滿分區（前 2 秒）之內，拿滿分。停留那 1 秒被算進去的話
+    // 就是 2.5 秒，過了滿分區，會掉到 9 分。
+    vi.advanceTimersByTime(1500);
     option(screen, '山頂').click();
 
     expect(settledAt[1]!.results[1]!.points).toBe(10);

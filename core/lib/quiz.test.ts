@@ -7,11 +7,12 @@ import {
   settle,
   startRound,
   summary,
+  FULL_POINTS_SECONDS,
   OPTION_COUNT,
   TIME_LIMIT,
   type Round,
 } from './quiz';
-import { points, MAX_POINTS } from './spelling';
+import { MAX_POINTS } from './spelling';
 import type { Card } from './types';
 
 function card(id: string, text: string, meaning: string, bookId = 'picked'): Card {
@@ -234,13 +235,38 @@ describe('結算', () => {
     expect(TIME_LIMIT).toBe(10);
   });
 
-  it('點對拿到的分與拼字的算分函式在 10 秒時限下一致', () => {
-    for (const elapsed of [0, 3, 5, 7.5, 10]) {
-      const round = roundOf(KOGASU);
-      const { result } = settle(round, answerOf(round), elapsed);
-      expect(result.correct).toBe(true);
-      expect(result.points).toBe(points(elapsed, 10));
-    }
+  it('滿分區是前 2 秒', () => {
+    expect(FULL_POINTS_SECONDS).toBe(2);
+  });
+
+  // 票 08 的對應表：前 2 秒滿分，之後線性遞減到 1 分，無條件捨去。
+  // 每一段釘頭尾兩點；2.00 → 10、2.01 → 9、3.3 → 8、10 → 1 是票上點名要釘的。
+  it.each([
+    [0, 10],
+    [2, 10],
+    [2.01, 9],
+    [2.88, 9],
+    [2.89, 8],
+    [3.3, 8],
+    [3.77, 8],
+    [3.78, 7],
+    [4.66, 7],
+    [4.67, 6],
+    [5.55, 6],
+    [5.56, 5],
+    [6.44, 5],
+    [6.45, 4],
+    [7.33, 4],
+    [7.34, 3],
+    [8.22, 3],
+    [8.23, 2],
+    [9.11, 2],
+    [9.12, 1],
+    [10, 1],
+  ])('花 %s 秒點對拿 %s 分', (elapsed, expected) => {
+    const round = roundOf(KOGASU);
+    const { result } = settle(round, answerOf(round), elapsed);
+    expect(result).toMatchObject({ correct: true, points: expected });
   });
 
   it('點錯 0 分', () => {
@@ -341,10 +367,12 @@ describe('不碰排程與儲存', () => {
     expect(source).not.toMatch(/from '\.\/review'/);
   });
 
-  // 上面「分數與 points() 一致」那條擋不住抄一份一模一樣的曲線，所以另外釘 import（spec 實作決定二）。
+  // 上面那張對應表擋不住抄一份曲線，所以另外釘 import（spec 實作決定二）。
+  // 問答與拼字的曲線形狀相同、鬆緊不同：問答另外傳了滿分區多長、算出來的分怎麼取整數（票 08）。
   it('算分用的是拼字那支 points()，不是自己抄一份', () => {
     expect(source).toMatch(/import \{ points \} from '\.\/spelling'/);
     expect(source).not.toMatch(/function points\(/);
+    expect(source).toMatch(/points\(\s*elapsed,\s*TIME_LIMIT,\s*\{/);
   });
 
   it('不取用全域亂數，也不看時鐘', () => {

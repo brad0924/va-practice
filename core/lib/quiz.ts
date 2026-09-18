@@ -15,6 +15,12 @@ import type { Card } from './types';
 /** 一題的時限（秒）。實玩之後再調（spec 實作決定二）。 */
 export const TIME_LIMIT = 10;
 
+/**
+ * 前幾秒之內點對給滿分。實玩之後再調（票 08）。
+ * 比拼字的前三成短：問答點一下就答完，不必替點磚留緩衝。
+ */
+export const FULL_POINTS_SECONDS = 2;
+
 /** 一題擺幾個選項：一個正解加三個干擾。 */
 export const OPTION_COUNT = 4;
 
@@ -160,8 +166,10 @@ export function isRoundOver(round: Round): boolean {
  *
  * `picked` 是點了第幾個選項，逾時沒點傳 null。`elapsed` 是畫面量到的秒數。
  *
- * **算分直接呼叫拼字那支 `points()`**，只把時限換成 `TIME_LIMIT`（spec 實作決定二）。
+ * **算分直接呼叫拼字那支 `points()`**，時限換成 `TIME_LIMIT`（spec 實作決定二）。
  * 抄一份的話，日後調了拼字的曲線，問答不會跟著動，兩種練法就不再是同一把尺。
+ * 另外轉了兩個旋鈕（票 08）：滿分區只到 `FULL_POINTS_SECONDS`，算出來的分無條件捨去。
+ * 捨去是為了讓滿分區就是 2 秒整；四捨五入會把它悄悄延長到 2.44 秒。
  */
 export function settle(
   round: Round,
@@ -179,7 +187,7 @@ export function settle(
     answerIndex: question.answerIndex,
     picked,
     correct,
-    points: correct ? points(elapsed, TIME_LIMIT) : 0,
+    points: correct ? points(elapsed, TIME_LIMIT, { full: FULL_POINTS_SECONDS, rounding: Math.floor }) : 0,
   };
 
   return {

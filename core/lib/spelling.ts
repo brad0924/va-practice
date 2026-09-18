@@ -348,13 +348,22 @@ export function clearSlot(round: Round, slotIndex: number): Round {
  * 時限的前三成之內拼完給滿分，之後線性遞減到 1 分。逾時 0 分。
  *
  * 不用「純按剩餘秒數比例」：點三塊磚本身就要花一兩秒，滿分永遠拿不到。
+ *
+ * 問答也呼叫這一支（spec 實作決定二），只是轉了兩個旋鈕（票 08）：
+ * `full` 是滿分區到第幾秒，`rounding` 是算出來的分怎麼取整數。拼字不傳，走前三成、四捨五入。
  */
-export function points(elapsed: number, limit: number): number {
+export function points(
+  elapsed: number,
+  limit: number,
+  {
+    full = FULL_POINTS_RATIO * limit,
+    rounding = Math.round,
+  }: { full?: number; rounding?: (x: number) => number } = {},
+): number {
   if (elapsed > limit) return 0;
-  const full = FULL_POINTS_RATIO * limit;
   if (elapsed <= full) return MAX_POINTS;
   const decayed = MAX_POINTS - (MAX_POINTS - 1) * ((elapsed - full) / (limit - full));
-  return Math.max(1, Math.round(decayed));
+  return Math.max(1, rounding(decayed));
 }
 
 /**
