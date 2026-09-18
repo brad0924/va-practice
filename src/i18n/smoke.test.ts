@@ -6,7 +6,7 @@
  *
  * 拼字算三個畫面，不是一個：挑單字本、答題、成績各自查自己那一批字，
  * 漏走一個狀態就等於漏掉一整頁（票 `spelling-practice/07` 決定 5——與開頭那個「票 07」
- * 不是同一張，那是 `i18n/07`）。
+ * 不是同一張，那是 `i18n/07`）。問答比照走答題與成績兩頁（票 `quiz/02`）。
  *
  * 它抓的是**「程式某處拿顯示文字去做判斷」**：那種寫法在中文下會過，切到英文靜默失效，
  * TypeScript 型別擋不到，其餘測試也碰不到（它們固定跑繁體中文，見 `test-setup.ts`）。
@@ -34,7 +34,8 @@ import ja from '@core/i18n/ja';
  * 不可能長成 `區塊.名稱` 那種帶點的英數字串，底下的判斷式因此不必為誤判多寫任何一行。
  *
  * 兩張卡而不是一張：一張沒複習過（`interval` 為 null），一張早就到期，
- * 卡片列表與統計畫面的分桶才不會整片都是空的。
+ * 卡片列表與統計畫面的分桶才不會整片都是空的。另外兩張純假名的新卡是給問答的：
+ * 整個 app 要湊得出四個不同的釋義才出得了題。
  */
 const SEED = {
   version: 3,
@@ -42,6 +43,8 @@ const SEED = {
   cards: [
     { id: 'c1', bookId: 'b1', text: '焦[こ]がす', meaning: '烤焦', interval: null, ease: 2.5, due: null },
     { id: 'c2', bookId: 'b1', text: '峠[とうげ]', meaning: '山頂', interval: 4, ease: 2.5, due: '2020-01-01' },
+    { id: 'c3', bookId: 'b1', text: 'あめ', meaning: '雨', interval: null, ease: 2.5, due: null },
+    { id: 'c4', bookId: 'b1', text: 'みず', meaning: '水', interval: null, ease: 2.5, due: null },
   ],
   scopes: { review: ['b1'], list: ['b1'], stats: ['b1'] },
   updatedAt: 0,
@@ -77,8 +80,8 @@ afterEach(() => {
 });
 
 /** 用這種語言開一次 app，回傳它畫進去的那一格。 */
-function boot(lang: Lang): HTMLElement {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED));
+function boot(lang: Lang, data: AppData = SEED): HTMLElement {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   localStorage.setItem('va-practice:lang', lang);
   const root = document.createElement('div');
   document.body.append(root);
@@ -155,7 +158,7 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     expect(buttonLabels(root)).toContain(table['spelling.quit']);
     expect(leakedKeys(root)).toEqual([]); // 拼字：答題
 
-    // 兩張卡都出得了題，因此題數就是卡數；最後一題收完自動跳成績。
+    // 每一張卡都出得了題，因此題數就是卡數；最後一題收完自動跳成績。
     for (let asked = 0; asked < SEED.cards.length; asked += 1) {
       fillSlots(root);
       expect(leakedKeys(root)).toEqual([]); // 拼字：答題（已收尾）
@@ -165,6 +168,20 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     }
     expect(buttonLabels(root)).toContain(table['spelling.again']);
     expect(leakedKeys(root)).toEqual([]); // 拼字：成績
+
+    // 拼字標題列右邊那一顆是「問答」。進來沒有上一輪，直接開一輪（票 `quiz/02`）。
+    click(root, table['nav.quiz']);
+    expect(buttonLabels(root)).toContain(table['quiz.quit']);
+    expect(leakedKeys(root)).toEqual([]); // 問答：答題
+
+    for (let asked = 0; asked < SEED.cards.length; asked += 1) {
+      // 點哪一個都行，這裡要的只是讓答完那一刻的畫面長出來。
+      root.querySelector<HTMLButtonElement>('footer button')!.click();
+      expect(leakedKeys(root)).toEqual([]); // 問答：答題（已作答）
+      vi.runOnlyPendingTimers();
+    }
+    expect(buttonLabels(root)).toContain(table['quiz.again']);
+    expect(leakedKeys(root)).toEqual([]); // 問答：成績
 
     click(root, table['nav.cards']);
     expect(leakedKeys(root)).toEqual([]); // 卡片列表
@@ -178,5 +195,15 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
 
     click(root, table['nav.stats']);
     expect(leakedKeys(root)).toEqual([]); // 統計
+  });
+
+  it('問答出不了題的那一頁也畫得出來，沒有原始 key', () => {
+    // 這一頁的兩句是票 `quiz/02` 實作時才加的，其餘測試只用繁體中文走過它。
+    const root = boot(lang, { ...SEED, cards: [] });
+
+    click(root, table['nav.quiz']);
+
+    expect(root.textContent).toContain(table['quiz.noCardsTitle']);
+    expect(leakedKeys(root)).toEqual([]); // 問答：出不了題
   });
 });

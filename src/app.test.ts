@@ -8,9 +8,9 @@
  *   那條接線是票 02 拉的，當時還沒有呼叫者（見票 02 的 Comments）。
  * - 跨過午夜之後佇列會重建（`.scratch/date-rollover/issues/01`）。那條路從
  *   「訊號進來」到「畫面上的數字變了」跨了訊號、檢查、重建、重畫四段。
- * - 五個畫面之間的導覽（`.scratch/spelling-practice/issues/06`）。那幾顆鈕接的是
- *   `app.ts` 的 `show*()`，而畫面被整片換掉這件事只有從開機演才演得出來——
- *   「練到一半跳去卡片再回拼字，成績還在」就卡在那一下。
+ * - 六個畫面之間的導覽（`.scratch/spelling-practice/issues/06`，問答接進來是
+ *   `.scratch/quiz/issues/02`）。那幾顆鈕接的是 `app.ts` 的 `show*()`，而畫面被整片
+ *   換掉這件事只有從開機演才演得出來——「練到一半跳去別的畫面再回拼字，成績還在」就卡在那一下。
  *
  * 這裡不碰網路：沒登入的雲端備份一個請求都不發（`cloud.begin()` 在未登入時什麼都不做）。
  */
@@ -354,8 +354,9 @@ describe('跨過午夜', () => {
 // ── 導覽 ──────────────────────────────────────────────────────
 
 /**
- * 兩張純假名的卡。拼字只出得了「讀音拼得出來」的卡，而 `seed()` 那批詞條是
+ * 四張純假名的卡。拼字只出得了「讀音拼得出來」的卡，而 `seed()` 那批詞條是
  * `語1` 這種有漢字卻沒標讀音的，一題都出不了，按「開始」會留在挑書頁。
+ * 四張而不是兩張：問答要整個 app 湊得出四個不同的釋義才出得了題。
  */
 function seedKana(): void {
   const kana = (id: string, text: string, meaning: string) => ({
@@ -372,7 +373,12 @@ function seedKana(): void {
     JSON.stringify({
       version: 3,
       books: [BOOK],
-      cards: [kana('k1', 'こがす', '燒焦'), kana('k2', 'とうげ', '山頂')],
+      cards: [
+        kana('k1', 'こがす', '燒焦'),
+        kana('k2', 'とうげ', '山頂'),
+        kana('k3', 'あめ', '雨'),
+        kana('k4', 'みず', '水'),
+      ],
       scopes: { review: [BOOK.id], list: [BOOK.id], stats: [BOOK.id] },
       updatedAt: 0,
     }),
@@ -389,15 +395,27 @@ type Where =
   | 'spelling-books'
   | 'spelling-answer'
   | 'spelling-summary'
+  | 'quiz-answer'
+  | 'quiz-summary'
+  | 'quiz-empty'
   | 'cards'
   | 'data'
   | 'stats';
 
-/** 現在停在哪一頁。拼字三頁的標題都是「拼字」，靠各自獨有的那樣東西再分一次。 */
+/**
+ * 現在停在哪一頁。拼字三頁的標題都是「拼字」，靠各自獨有的那樣東西再分一次；
+ * 問答那幾頁的標題都是「問答」，靠畫面上的鈕分。
+ */
 function where(root: HTMLElement): Where {
   switch (barTitle(root)) {
     case null:
       return 'review';
+    case zhHant['nav.quiz']: {
+      const labels = [...root.querySelectorAll('button')].map((node) => node.textContent);
+      if (labels.includes(zhHant['quiz.quit'])) return 'quiz-answer';
+      if (labels.includes(zhHant['quiz.again'])) return 'quiz-summary';
+      return 'quiz-empty';
+    }
     case zhHant['nav.cards']:
       return 'cards';
     case zhHant['nav.data']:
@@ -434,7 +452,7 @@ describe('導覽', () => {
     vi.useRealTimers();
   });
 
-  it('複習畫面右側的「拼字」與「卡片」各自去對的地方', () => {
+  it('複習畫面右側的「拼字」「問答」「卡片」各自去對的地方', () => {
     const root = boot();
     expect(where(root)).toBe('review');
 
@@ -442,11 +460,16 @@ describe('導覽', () => {
     expect(where(root)).toBe('spelling-books');
 
     click(root, zhHant['nav.review']);
+    click(root, zhHant['nav.quiz']);
+    expect(where(root)).toBe('quiz-answer');
+
+    click(root, zhHant['nav.spelling']);
+    click(root, zhHant['nav.review']);
     click(root, zhHant['nav.cards']);
     expect(where(root)).toBe('cards');
   });
 
-  it('拼字畫面左邊回複習、右邊去卡片', () => {
+  it('拼字畫面左邊回複習、右邊去問答', () => {
     const root = boot();
     click(root, zhHant['nav.spelling']);
 
@@ -454,8 +477,31 @@ describe('導覽', () => {
     expect(where(root)).toBe('review');
 
     click(root, zhHant['nav.spelling']);
+    click(root, zhHant['nav.quiz']);
+    expect(where(root)).toBe('quiz-answer');
+  });
+
+  it('問答畫面左邊回拼字、右邊去卡片', () => {
+    const root = boot();
+    click(root, zhHant['nav.quiz']);
+
+    click(root, zhHant['nav.spelling']);
+    expect(where(root)).toBe('spelling-books');
+
+    click(root, zhHant['nav.quiz']);
     click(root, zhHant['nav.cards']);
     expect(where(root)).toBe('cards');
+  });
+
+  it('問答的答題頁與成績頁，標題列中央都印著「問答」', () => {
+    const root = boot();
+    click(root, zhHant['nav.quiz']);
+    expect(where(root)).toBe('quiz-answer');
+    expect(barTitle(root)).toBe(zhHant['nav.quiz']);
+
+    click(root, zhHant['quiz.quit']);
+    expect(where(root)).toBe('quiz-summary');
+    expect(barTitle(root)).toBe(zhHant['nav.quiz']);
   });
 
   it('拼字三頁的標題列中央都印著「拼字」', () => {
@@ -472,13 +518,13 @@ describe('導覽', () => {
     expect(barTitle(root)).toBe(zhHant['nav.spelling']);
   });
 
-  it('卡片畫面左上角的返回指向拼字', () => {
+  it('卡片畫面左上角的返回指向問答', () => {
     const root = boot();
     click(root, zhHant['nav.cards']);
 
-    click(root, zhHant['nav.spelling']);
+    click(root, zhHant['nav.quiz']);
 
-    expect(where(root)).toBe('spelling-books');
+    expect(where(root)).toBe('quiz-answer');
   });
 
   it('資料與統計兩個畫面的按鈕一個字都沒動', () => {
@@ -515,18 +561,19 @@ describe('導覽', () => {
     expect(root.textContent).toContain(zhHant['spelling.noBooksTitle']);
   });
 
-  it('練到一半跳去卡片再回拼字，剛才那一輪的成績還在；按「換單字本」才回挑書頁', () => {
+  it('練到一半跳去問答再回拼字，剛才那一輪的成績還在；按「換單字本」才回挑書頁', () => {
     const root = boot();
     click(root, zhHant['nav.spelling']);
     click(root, zhHant['spelling.start']);
 
-    // 先把第一題拼完，它才會被結算、被封存。兩張卡兩題，因此這時還停在答題頁。
+    // 先把第一題拼完，它才會被結算、被封存。四張卡四題，因此這時還停在答題頁。
     fillSlots(root);
     vi.advanceTimersByTime(2000);
     expect(where(root)).toBe('spelling-answer');
 
-    click(root, zhHant['nav.cards']);
-    expect(where(root)).toBe('cards');
+    // 拼字標題列右邊那一顆現在是「問答」。從那裡用左上角回來，也是整頁被丟掉再重建。
+    click(root, zhHant['nav.quiz']);
+    expect(where(root)).toBe('quiz-answer');
 
     click(root, zhHant['nav.spelling']);
 
@@ -537,5 +584,72 @@ describe('導覽', () => {
 
     click(root, zhHant['spelling.otherBooks']);
     expect(where(root)).toBe('spelling-books');
+  });
+});
+
+describe('導覽：問答', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    localStorage.setItem('va-practice:lang', 'zh-Hant');
+    seedKana();
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  it('答題途中跳去卡片再回問答，看到的是那一輪的成績頁', () => {
+    const root = boot();
+    click(root, zhHant['nav.quiz']);
+
+    // 先答完第一題，它才會被結算、被封存。四張卡四題，因此這時還停在答題頁。
+    root.querySelector<HTMLButtonElement>('footer button')!.click();
+    vi.advanceTimersByTime(2000);
+    expect(where(root)).toBe('quiz-answer');
+
+    click(root, zhHant['nav.cards']);
+    click(root, zhHant['nav.quiz']);
+
+    expect(where(root)).toBe('quiz-summary');
+    expect(root.querySelector('.tile-num')!.textContent).toMatch(/\/ 1$/);
+  });
+
+  it('在拼字與問答之間來回切換，兩邊的上一輪各自都還在', () => {
+    const root = boot();
+    click(root, zhHant['nav.spelling']);
+    click(root, zhHant['spelling.start']);
+    click(root, zhHant['spelling.quit']);
+    expect(where(root)).toBe('spelling-summary');
+
+    click(root, zhHant['nav.quiz']);
+    click(root, zhHant['quiz.quit']);
+    expect(where(root)).toBe('quiz-summary');
+
+    click(root, zhHant['nav.spelling']);
+    expect(where(root)).toBe('spelling-summary');
+
+    click(root, zhHant['nav.quiz']);
+    expect(where(root)).toBe('quiz-summary');
+  });
+
+  it('一本單字本都沒有時，複習畫面右側仍然按得到「問答」，進去看到出不了題那一頁', () => {
+    localStorage.setItem(
+      'va-practice:data',
+      JSON.stringify({
+        version: 3,
+        books: [],
+        cards: [],
+        scopes: { review: [], list: [], stats: [] },
+        updatedAt: 0,
+      }),
+    );
+    const root = boot();
+
+    click(root, zhHant['nav.quiz']);
+
+    expect(where(root)).toBe('quiz-empty');
+    expect(root.textContent).toContain(zhHant['quiz.noCardsTitle']);
   });
 });

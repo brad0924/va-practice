@@ -14,6 +14,7 @@ import {
 import { el, button } from './dom';
 import { spellingBar } from './spelling-bar';
 import { bookLabel } from './book-label';
+import { countdownClock } from './countdown-clock';
 import { tileGrid } from './tile-grid';
 
 /**
@@ -24,14 +25,6 @@ const SETTLE_PAUSE_MS = 1600;
 
 /** 碼表多久重畫一次。 */
 const TICK_MS = 100;
-
-/** 剩幾秒轉黃、剩幾秒轉紅（票 03 決定 3）。 */
-const SOON_SECONDS = 5;
-const URGENT_SECONDS = 3;
-
-/** 碼表那一圈的半徑與周長。周長算一次就好，dash 的兩個屬性都吃它。 */
-const RING_RADIUS = 19;
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
 /**
  * 磚在自己那一格裡最多偏移多少，單位是**磚自己的大小**的百分比。
@@ -77,7 +70,7 @@ type Outcome = keyof typeof OUTCOMES;
  * 最後一題結算時兩支都會被呼叫，`onSettled` 先。
  *
  * 狀態變化一律走 `refresh()`，不整頁重建——碼表每 0.1 秒跳一次，整頁重建會把它一起砍掉重生。
- * 碼表自己另有一支 `paintClock()`，只碰數字與那一圈，不動別的。
+ * 碼表自己另有一支 `paintClock()`，只碰數字與那一圈，不動別的（那一圈畫在 `countdown-clock.ts`）。
  */
 export function spellingView(
   app: App,
@@ -95,9 +88,7 @@ export function spellingView(
   const meaning = el('div', 'prompt-meaning');
   const slots = el('div', 'slots');
   const verdict = el('div', 'verdict');
-  const clockNumber = el('span', 'clock-num');
-  const { svg, run: ring } = clockRing();
-  const clock = el('div', 'clock', svg, clockNumber);
+  const { element: clock, paint: paintRing } = countdownClock();
   const quit = button('end-round', t('spelling.quit'), endRound);
 
   /** 目前這一輪。每一次動作換上新的一份，不就地改——與 `spelling.ts` 那幾支純函式同一種形狀。 */
@@ -143,11 +134,7 @@ export function spellingView(
   function paintClock(left: number): void {
     const question = currentQuestion(current);
     if (!question) return;
-    const safe = Math.max(0, left);
-    clockNumber.textContent = safe.toFixed(1);
-    ring.setAttribute('stroke-dashoffset', String(RING_LENGTH * (1 - safe / question.limit)));
-    clock.className =
-      'clock' + (safe <= URGENT_SECONDS ? ' urgent' : safe <= SOON_SECONDS ? ' soon' : '');
+    paintRing(left, question.limit);
   }
 
   function tick(): void {
@@ -397,37 +384,4 @@ export function spellingView(
 
   screen.append(header, main, footer);
   return screen;
-}
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-/**
- * 碼表那兩圈：固定的底，加上一圈會縮的。縮的那一圈由 `paintClock()` 改 `stroke-dashoffset`。
- *
- * `createElementNS` 不能省——SVG 不吃 `el()` 背後的 `createElement`，用錯的話瀏覽器
- * 會建出一顆長得像 SVG 的 HTML 元素，畫面上什麼都不會出現。
- */
-function clockRing(): { svg: SVGSVGElement; run: SVGCircleElement } {
-  const circle = (className: string): SVGCircleElement => {
-    const node = document.createElementNS(SVG_NS, 'circle');
-    node.setAttribute('class', className);
-    node.setAttribute('cx', '23');
-    node.setAttribute('cy', '23');
-    node.setAttribute('r', String(RING_RADIUS));
-    node.setAttribute('fill', 'none');
-    node.setAttribute('stroke-width', '3');
-    return node;
-  };
-
-  const run = circle('ring-run');
-  run.setAttribute('stroke-linecap', 'round');
-  run.setAttribute('stroke-dasharray', String(RING_LENGTH));
-  run.setAttribute('stroke-dashoffset', '0');
-
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 46 46');
-  svg.setAttribute('width', '46');
-  svg.setAttribute('height', '46');
-  svg.append(circle('ring-track'), run);
-  return { svg, run };
 }

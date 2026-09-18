@@ -3,6 +3,7 @@ import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from '@core/lib/gemini-key';
 import { createSpellingBooks, type SpellingBooks } from '@core/lib/spelling-books';
 import type { Round } from '@core/lib/spelling';
+import type { Round as QuizRound } from '@core/lib/quiz';
 import { currentCard, rebuildQueue, rate as rateCard, toDateKey, type Queue } from '@core/lib/review';
 import type { AppData, Card, Rating } from '@core/lib/types';
 import { initI18n, setLang as switchLang, t, type LangChoice } from '@core/i18n';
@@ -11,6 +12,7 @@ import { createSyncStatus } from './ui/sync-status';
 import { askChoice } from './ui/choice-modal';
 import { reviewView } from './ui/review-view';
 import { spellingHome } from './ui/spelling-home';
+import { quizHome } from './ui/quiz-home';
 import { listView } from './ui/list-view';
 import { dataView } from './ui/data-view';
 import { statsView } from './ui/stats-view';
@@ -40,6 +42,12 @@ export interface App {
    * 與 `keyHandler` 同一種形狀。誰在什麼時候換掉它，見 `ui/spelling-home.ts`。
    */
   spellingRound: Round | null;
+  /**
+   * 上一輪問答，沒有就是 null。與 `spellingRound` 同一個立場，理由也一樣：只活在記憶體裡，
+   * 要活得比畫面久。**兩格分開**，在拼字與問答之間來回切換時兩邊的上一輪各自都還在
+   * （問答 spec 實作決定五）。誰在什麼時候換掉它，見 `ui/quiz-home.ts`。
+   */
+  quizRound: QuizRound | null;
   /** 目前卡片是否已掀開答案。放在這裡，重畫畫面時才不會把答案蓋回去。 */
   readonly revealed: boolean;
   now(): Date;
@@ -74,6 +82,8 @@ export interface App {
    * 沒有就給挑書頁」，拼字三頁之間換頁也不經過這一層。這裡只是那座島的唯一一道門。
    */
   showSpelling(): void;
+  /** 問答。與 `showSpelling()` 同一種門：落在哪一頁由 `ui/quiz-home.ts` 自己判斷。 */
+  showQuiz(): void;
   showList(): void;
   /** 只有卡片頁能進來，回去的目的地固定，不必傳 back。 */
   showData(): void;
@@ -165,6 +175,7 @@ export function start(root: HTMLElement): void {
     gemini: createGeminiKey(localStorage),
     spellingBooks: createSpellingBooks(localStorage),
     spellingRound: null,
+    quizRound: null,
     now,
     random,
 
@@ -257,6 +268,10 @@ export function start(root: HTMLElement): void {
     },
     showSpelling() {
       render = () => mount(() => spellingHome(app));
+      render();
+    },
+    showQuiz() {
+      render = () => mount(() => quizHome(app));
       render();
     },
     showList() {

@@ -29,6 +29,7 @@ import type zhHant from './zh-Hant';
 const en: typeof zhHant = {
   'nav.review': 'Review',
   'nav.spelling': 'Spelling',
+  'nav.quiz': 'Quiz',
   'nav.cards': 'Cards',
   'nav.data': 'Data',
   'nav.stats': 'Stats',
@@ -290,6 +291,16 @@ const en: typeof zhHant = {
   'spelling.again': 'Another round',
   'spelling.otherBooks': 'Change books',
   'quiz.roundOver': 'This round is over; there is nothing left to settle',
+  'quiz.noCardsTitle': 'No questions to ask',
+  'quiz.noCardsNote':
+    'Your vocabulary books hold no cards, or all your cards together do not have four different meanings. Add a few more cards and come back.',
+  'quiz.quit': 'End round',
+  'quiz.correctRatio': '{correct} / {total}',
+  // 與拼字那一格同字。`Score` 同樣不能用，理由見 `spelling.pointsLabel`。
+  'quiz.correctLabel': 'Correct',
+  'quiz.pointsLabel': 'Points',
+  'quiz.averageLabel': 'Average',
+  'quiz.again': 'Another round',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',
   'toast.close': 'Close',

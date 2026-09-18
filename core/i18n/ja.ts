@@ -21,6 +21,7 @@ import type zhHant from './zh-Hant';
 const ja: typeof zhHant = {
   'nav.review': '復習',
   'nav.spelling': 'スペル',
+  'nav.quiz': 'クイズ',
   'nav.cards': 'カード',
   'nav.data': 'データ',
   'nav.stats': '統計',
@@ -269,6 +270,15 @@ const ja: typeof zhHant = {
   'spelling.again': 'もう1ラウンド',
   'spelling.otherBooks': '単語帳を変える',
   'quiz.roundOver': 'このラウンドは終了しています。集計する問題がありません',
+  'quiz.noCardsTitle': '問題をつくれません',
+  'quiz.noCardsNote':
+    '単語帳にカードがないか、すべてのカードを合わせても違う意味が4つそろいません。カードを何枚か追加してから、もう一度どうぞ。',
+  'quiz.quit': '終了',
+  'quiz.correctRatio': '{correct} / {total}',
+  'quiz.correctLabel': '正解数',
+  'quiz.pointsLabel': '合計',
+  'quiz.averageLabel': '平均',
+  'quiz.again': 'もう1ラウンド',
   'reminder.title': '復習の時間です',
   'reminder.body': '今日は{count}枚が期日です',
   'toast.close': '閉じる',

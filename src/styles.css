@@ -706,6 +706,69 @@ button,
   line-height: 1.7;
 }
 
+/* ---------- 問答畫面 ---------- */
+
+/*
+ * 上方借拼字的 `.prompt`（固定高度、右上角碼表、右下角「結束」），裡面只放一個詞條。
+ * 詞條借複習畫面的 `.term`：同一個詞在三個畫面長一樣大，讀音的 `rt` 也吃同一條。
+ * 長的詞條（文法句型）自己捲，不推走碼表。
+ */
+.quiz-term {
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: center;
+}
+
+/*
+ * 四個選項直排，每個佔滿整行寬度（spec 實作決定七）。長的釋義照常換行，
+ * 四個加起來放不下時整排捲，不縮字。
+ *
+ * `min-height: 0` 不能省：flex 的項目預設不肯縮到內容以下，少了它四個長釋義會把
+ * 整排頂出畫面底，而不是在自己的格子裡捲。
+ */
+.quiz-options {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+}
+
+.quiz-option {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.7rem 1rem;
+  border: 1.5px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  font-size: 1.05rem;
+  line-height: 1.45;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.quiz-option:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+/* 答完之後整排鎖住。字不淡掉：這 1 秒要看清楚的正是這幾行。 */
+.quiz-option:disabled {
+  cursor: default;
+}
+
+/* 正解轉綠、點錯的那一個轉紅。與拼字答題頁收尾時格子的綠與紅是同兩個顏色。 */
+.quiz-option.ok {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.quiz-option.bad {
+  border-color: var(--again);
+  color: var(--again);
+}
+
 /* ---------- 底部動作 ---------- */
 
 .actions {

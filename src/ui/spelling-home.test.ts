@@ -255,26 +255,50 @@ describe('成績頁底下那兩顆', () => {
   });
 });
 
-describe('這一條線碰不到的東西', () => {
-  const source = readFileSync('src/ui/spelling-home.ts', 'utf8');
+/**
+ * 從入口出發、順著 `./x` 一路 import 得到的每一支畫面檔（含入口自己）。
+ *
+ * 一路往下追而不是只看入口的鄰居：問答 spec 要的是「也不從別的畫面繞路 import 到」，
+ * 繞兩層才碰到 `storage.ts` 一樣是碰到。`../app` 那一行是 `import type`，
+ * 不在 `./` 底下，因此本來就不會被追進去。
+ */
+function reachable(entry: string): string[] {
+  const seen = new Set<string>([entry]);
+  const queue = [entry];
+  for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+    const source = readFileSync(`src/ui/${name}.ts`, 'utf8');
+    for (const hit of source.matchAll(/from '\.\/([a-z-]+)'/g)) {
+      if (seen.has(hit[1]!)) continue;
+      seen.add(hit[1]!);
+      queue.push(hit[1]!);
+    }
+  }
+  return [...seen];
+}
 
-  it('成績不落地：入口自己不 import storage.ts，接進來的三頁也沒有', () => {
-    // spec 決定 26 與 `ADR-0021`。三頁互相認得，只要有一頁破例，整條線就等於碰了排程。
-    expect(source).not.toMatch(/from '@core\/lib\/storage'/);
-
-    const imports = [...source.matchAll(/from '\.\/([a-z-]+)'/g)].map((hit) => hit[1]!);
-    const reached = imports.map((name) => readFileSync(`src/ui/${name}.ts`, 'utf8'));
-    expect(imports).not.toContain('review-view');
-    for (const neighbour of reached) {
-      expect(neighbour).not.toMatch(/from '@core\/lib\/storage'/);
+/**
+ * 拼字與問答兩條線共用這一道守門（問答票 02：擴充這一道，不另寫一道）。
+ * 兩種練法都不動排程、成績都不落地，理由同一份（`ADR-0021`）。
+ */
+describe.each([
+  ['拼字', 'spelling-home', ['spelling-home', 'spelling-summary', 'spelling-view']],
+  ['問答', 'quiz-home', ['quiz-home', 'quiz-summary', 'quiz-view']],
+])('%s這一條線碰不到的東西', (_, entry, pages) => {
+  it('成績不落地：入口與它一路接得到的每一支畫面，都不 import storage.ts', () => {
+    // spec 決定 26 與 `ADR-0021`。幾頁互相認得，只要有一頁破例，整條線就等於碰了排程。
+    const reached = reachable(entry);
+    expect(reached).toEqual(expect.arrayContaining(pages));
+    expect(reached).not.toContain('review-view');
+    for (const name of reached) {
+      expect(readFileSync(`src/ui/${name}.ts`, 'utf8'), name).not.toMatch(/from '@core\/lib\/storage'/);
     }
   });
 
   it('那一輪不寫進本機任何一格，重整之後就沒了', () => {
     // spec 決定 26。拼字這條線只有「挑了哪幾本」那一格會落地，而那一格走注入的
     // `app.spellingBooks`（票 04）；畫面自己一行都不該直接碰瀏覽器的儲存空間。
-    for (const name of ['spelling-home', 'spelling-summary', 'spelling-view']) {
-      expect(readFileSync(`src/ui/${name}.ts`, 'utf8')).not.toMatch(/localStorage|sessionStorage/);
+    for (const name of pages) {
+      expect(readFileSync(`src/ui/${name}.ts`, 'utf8'), name).not.toMatch(/localStorage|sessionStorage/);
     }
   });
 });
