@@ -1,6 +1,6 @@
 # 06: 釋義湊不到四個時，用 Gemini 生假釋義補滿
 
-Status: ready-for-agent
+Status: done
 Type: enhancement
 Blocked by: 02
 
@@ -63,7 +63,7 @@ Blocked by: 02
 - [x] 隱私權政策中英兩份照〈待決〉第 2 條定案的說法改好。
 - [x] 新增的畫面文字三份翻譯檔都補齊，動手前先讀每一份翻譯檔開頭的規矩。
 - [x] 問答那幾支畫面仍然不 import `storage.ts`（`spelling-home.test.ts` 那道守門照樣綠）。
-- [ ] 實機：只有一兩張卡、有設金鑰的狀態下，玩一輪看假選項像不像。
+- [x] 實機：只有一兩張卡、有設金鑰的狀態下，玩一輪看假選項像不像。
 
 ## 出處
 
@@ -71,3 +71,7 @@ Blocked by: 02
 - `public/privacy.html` 的「Gemini 讀音預填」一節。
 - `docs/adr/0005-remote-llm-reading-prefill.md`、`docs/adr/0016-fixed-key-via-firebase-ai-logic.md`。
 - 讀音預填的 Gemini 呼叫：`core/lib/gemini-reading.ts`（`askReading()`、`TIMEOUT_MS`、`TRANSIENT`）。
+
+## Comments
+
+- 2026-09-18 維護者實機測過（只有一兩張卡、有設金鑰），假選項的效果可以接受，驗收最後一條通過。票收工。
