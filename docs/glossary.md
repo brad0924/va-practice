@@ -38,8 +38,10 @@
 | 時間桶 | Time Bucket | 期日グループ | ~~Category~~、~~Status~~、~~Tag~~、~~Page~~ |
 | 提醒 | Reminder | リマインド | ~~Push notification~~（把手段寫進名字）、~~Notification~~（太泛）、~~Alarm~~ |
 | 提醒排程 | Reminder Schedule | リマインド予定 | ~~Forecast~~、~~Queue~~（會與複習佇列混淆）、~~Calendar~~ |
-| 拼字 | Spelling | スペル | ~~Quiz~~、~~Practice~~（太泛）、~~Spell the word~~（拼的是讀音不是詞條）、~~Review~~ |
-| 磚 | Tile | 仮名タイル | ~~Button~~、~~Option~~（會讓人以為是選一個完整答案）、~~Card~~ |
+| 拼字 | Spelling | スペル | ~~Quiz~~（那是問答）、~~Practice~~（太泛）、~~Spell the word~~（拼的是讀音不是詞條）、~~Review~~ |
+| 磚 | Tile | 仮名タイル | ~~Button~~、~~Option~~（那是問答的選項，一次選一個完整答案）、~~Card~~ |
+| 問答 | Quiz | クイズ | ~~Multiple Choice~~（把手段寫進名字）、~~Test~~、~~Practice~~（太泛）、~~Review~~、~~Spelling~~ |
+| 選項 | Option | 選択肢 | ~~Tile~~（那是拼字的磚）、~~Answer~~（四個裡只有一個是）、~~Definition~~ |
 | 一輪 | Round | ラウンド | ~~Session~~、~~Level~~、~~Scope~~（範圍專指那三組跟著備份走的選擇） |
 | 計分 | Points | ポイント | ~~Score~~（已是「評分」的避用詞，用它會把兩件事攪在一起）、~~Rating~~、~~XP~~ |
 | 備份 | Backup | バックアップ | ~~Snapshot~~、~~Sync~~、~~Export file~~ |
