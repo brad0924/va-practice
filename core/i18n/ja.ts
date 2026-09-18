@@ -271,8 +271,12 @@ const ja: typeof zhHant = {
   'spelling.otherBooks': '単語帳を変える',
   'quiz.roundOver': 'このラウンドは終了しています。集計する問題がありません',
   'quiz.noCardsTitle': '問題をつくれません',
-  'quiz.noCardsNote':
-    '単語帳にカードがないか、すべてのカードを合わせても違う意味が4つそろいません。カードを何枚か追加してから、もう一度どうぞ。',
+  'quiz.noCardsNote': '意味が書かれたカードがまだありません。カードを何枚か追加してから、もう一度どうぞ。',
+  'quiz.noKeyNote':
+    'すべてのカードを合わせても違う意味が4つそろいません。カードを何枚か追加するか、「データ」で Gemini API キーを設定すると、Gemini が間違いの選択肢をつくって補います。',
+  'quiz.fakesFailedNote':
+    'すべてのカードを合わせても違う意味が4つそろわず、今回は Gemini による選択肢の補充もうまくいきませんでした。しばらくしてからもう一度試すか、カードを何枚か追加してください。',
+  'quiz.preparing': 'Gemini に選択肢を頼んでいます…',
   'quiz.quit': '終了',
   'quiz.correctRatio': '{correct} / {total}',
   'quiz.correctLabel': '正解数',

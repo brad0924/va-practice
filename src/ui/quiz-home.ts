@@ -1,6 +1,8 @@
 import type { App } from '../app';
-import { t } from '@core/i18n';
-import { isRoundOver, startRound, type Round } from '@core/lib/quiz';
+import { t, type Key } from '@core/i18n';
+import { acceptFakes, askFakes } from '@core/lib/gemini-fakes';
+import { cardsNeedingFakes, isRoundOver, startRound, type FakeMeanings, type Round } from '@core/lib/quiz';
+import type { Card } from '@core/lib/types';
 import { el } from './dom';
 import { quizBar } from './quiz-bar';
 import { quizSummaryView } from './quiz-summary';
@@ -8,6 +10,7 @@ import { quizView } from './quiz-view';
 
 /**
  * 問答的入口，也是它幾頁之間的接線：答題 → 成績，出不了題時另有一頁。
+ * 釋義湊不到四個、要等 Gemini 補假釋義時，答題頁之前還有一頁「正在準備」（票 06）。
  * 形狀照抄 `spelling-home.ts`，三頁之間換頁同樣**不經過 `app.ts`**，
  * 換的手法同樣是把自己那一棵 `.screen` 原地換掉（`replaceWith`）。
  *
@@ -35,10 +38,54 @@ export function quizHome(app: App): HTMLElement {
    *
    * 每一次都重新讀 `app.data.cards`，不把上一輪的卡再洗一次——中途去卡片頁改過的東西，
    * 下一輪就吃得到。這一張票沒有挑書，挑到的就是全部，干擾同樣從全部抽。
+   *
+   * 整個 app 湊不到四個不同的釋義時，先請 Gemini 補假釋義（票 06）。夠四個的時候
+   * 走的仍是原本那一行，一個請求都不發。沒設金鑰就直接給出不了題那一頁。
    */
   function freshPage(): HTMLElement {
-    const round = startRound(app.data.cards, app.data.cards, app.random);
-    return isRoundOver(round) ? emptyPage() : answerPage(round);
+    const cards = app.data.cards;
+    const needing = cardsNeedingFakes(cards, cards);
+    if (needing.length === 0) {
+      const round = startRound(cards, cards, app.random);
+      return isRoundOver(round) ? emptyPage('quiz.noCardsNote') : answerPage(round);
+    }
+
+    const key = app.gemini.read();
+    if (key === null) return emptyPage('quiz.noKeyNote');
+
+    const waiting = preparingPage();
+    void fakesFor(key, needing).then((fakes) => {
+      // 等的這段時間使用者可能已經跳去別的畫面。那時這一頁已經不在文件裡，
+      // 回來的結果直接丟掉：換頁會搶走鍵盤，也會蓋掉別人的 `app.quizRound`。
+      if (!waiting.isConnected) return;
+      const round = fakes === null ? null : startRound(cards, cards, app.random, fakes);
+      show(round === null || isRoundOver(round) ? emptyPage('quiz.fakesFailedNote') : answerPage(round));
+    });
+    return waiting;
+  }
+
+  /**
+   * 向 Gemini 要這幾張卡的假釋義，一輪只問這一次。任何一種失敗——離線、逾時、額度用完、
+   * 回覆過不了 `acceptFakes()`——一律回 null，畫面照舊給出不了題那一頁（票 06）。
+   */
+  async function fakesFor(key: string, needing: readonly Card[]): Promise<FakeMeanings | null> {
+    try {
+      // bind 不可省：fetch 被拆下來單獨呼叫時瀏覽器會丟 Illegal invocation。
+      return acceptFakes(needing, await askFakes(key, needing, fetch.bind(window)));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 等 Gemini 回覆的那一頁。樣子比照出不了題那一頁，只換掉圖示與字。
+   *
+   * **碼表還沒開始跑**：答題頁要等回覆到了才建出來，碼表跟著它才開始。
+   * 同時放掉上一輪與鍵盤，理由與 `answerPage()` 開頭那一行相同——這時已經是新的一輪了。
+   */
+  function preparingPage(): HTMLElement {
+    app.quizRound = null;
+    return notePage('⏳', null, t('quiz.preparing'));
   }
 
   function answerPage(round: Round): HTMLElement {
@@ -63,22 +110,24 @@ export function quizHome(app: App): HTMLElement {
   }
 
   /**
-   * 一題都出不了（沒有可出的卡，或整個 app 湊不出四個不同的釋義）：整頁換成一段說明
-   * （票 02 實作時維護者選的）。樣子比照拼字零本那一頁。
+   * 一題都出不了：整頁換成一段說明（票 02 實作時維護者選的）。樣子比照拼字零本那一頁。
+   * 說明依原因分三種（票 06 待決 3）：沒有可出的卡、沒設金鑰、Gemini 沒補成。
    *
    * 沒有東西可封存，因此放掉上一輪——走到這裡只有兩條路：沒有上一輪直接進來，
    * 或在成績頁按了「再一輪」，後者等於已經不要那一份成績了。
    */
-  function emptyPage(): HTMLElement {
+  function emptyPage(note: Key): HTMLElement {
     app.quizRound = null;
+    return notePage('📚', t('quiz.noCardsTitle'), t(note));
+  }
 
+  /** 出不了題與正在準備共用的那個樣子：導覽列加一張置中的說明卡，鍵盤沒有事可做。 */
+  function notePage(mark: string, title: string | null, note: string): HTMLElement {
     const screen = el('div', 'screen');
     const main = el('main', 'card done');
-    main.append(
-      el('div', 'done-mark', '📚'),
-      el('h1', 'done-title', t('quiz.noCardsTitle')),
-      el('p', 'done-note', t('quiz.noCardsNote')),
-    );
+    main.append(el('div', 'done-mark', mark));
+    if (title !== null) main.append(el('h1', 'done-title', title));
+    main.append(el('p', 'done-note', note));
 
     app.keyHandler = null;
     screen.append(quizBar(app), main);

@@ -292,8 +292,12 @@ const en: typeof zhHant = {
   'spelling.otherBooks': 'Change books',
   'quiz.roundOver': 'This round is over; there is nothing left to settle',
   'quiz.noCardsTitle': 'No questions to ask',
-  'quiz.noCardsNote':
-    'Your vocabulary books hold no cards, or all your cards together do not have four different meanings. Add a few more cards and come back.',
+  'quiz.noCardsNote': 'None of your cards has a meaning yet. Add a few more cards and come back.',
+  'quiz.noKeyNote':
+    'All your cards together do not have four different meanings. Add a few more cards, or set your Gemini key under Data so Gemini can make up some wrong options to fill the gap.',
+  'quiz.fakesFailedNote':
+    'All your cards together do not have four different meanings, and Gemini could not fill in the options this time. Try again later, or add a few more cards.',
+  'quiz.preparing': 'Asking Gemini for options…',
   'quiz.quit': 'End round',
   'quiz.correctRatio': '{correct} / {total}',
   // 與拼字那一格同字。`Score` 同樣不能用，理由見 `spelling.pointsLabel`。

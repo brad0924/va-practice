@@ -80,35 +80,69 @@ function shuffle<T>(items: readonly T[], random: () => number): T[] {
 }
 
 /**
+ * 每張卡另外補進來的假釋義，以卡片的 `id` 為鍵（票 06）。
+ *
+ * 由畫面向 Gemini 要回來再遞進 `startRound()`，這支模組照樣一行網路都不碰。
+ * 只活在這一輪：不寫進 `AppData`、不進備份、不上雲端，比照一輪本身（`ADR-0021`）。
+ */
+export type FakeMeanings = ReadonlyMap<string, readonly string[]>;
+
+/**
  * 開一輪：濾掉出不了題的卡、洗牌，每一題各自把四個選項也洗好。
- * 同一組 `random` 種子跑兩次，卡序與選項順序完全一樣。
+ * 同一組 `random` 種子與同一份 `fakes` 跑兩次，卡序與選項順序完全一樣。
  *
  * `pickedCards` 是這一輪挑到的卡，`all` 是整個 app 的卡。**干擾從 `all` 抽**，
  * 不限挑到的那幾本：只挑一本兩張卡的小本時也練得起來。
  *
- * 出題資格（spec 實作決定四）：釋義去除頭尾空白後還有字就出題，**讀音不是條件**——
- * 問答拿釋義當正解，讀音只是答完的附贈。整個 app 湊不出四個不同的釋義時，一題都不出，
- * 開出來的一輪一開始就是結束的。
+ * **真的釋義優先，假釋義只拿來補缺**（票 06）：別張卡的釋義先上，湊不滿三個干擾時，
+ * 才從 `fakes` 裡這張卡的那幾個補。整個 app 有四個以上不同的釋義時，假釋義一個都用不到。
+ *
+ * 出題資格（spec 實作決定四，票 06 改過）：釋義去除頭尾空白後還有字、而且湊得滿三個
+ * 不同的干擾，就出題。**讀音不是條件**——問答拿釋義當正解，讀音只是答完的附贈。
+ * 一張卡都湊不滿時，開出來的一輪一開始就是結束的。
  */
 export function startRound(
   pickedCards: readonly Card[],
   all: readonly Card[],
   random: () => number,
+  fakes: FakeMeanings = new Map(),
 ): Round {
   // 相同的釋義只算一個：干擾不能與正解相同，三個干擾彼此也不能相同。
-  const pool = [...new Set(all.map(meaningOf).filter((meaning) => meaning !== ''))];
-  const eligible = pool.length < OPTION_COUNT ? [] : pickedCards.filter((card) => meaningOf(card) !== '');
+  const pool = distinctMeanings(all);
 
-  const questions = shuffle(eligible, random).map((card): Question => {
+  const questions: Question[] = [];
+  // 先濾掉沒釋義的卡再洗：洗牌吃亂數的次數跟著張數走，順序顛倒的話，有空白卡時同一組種子
+  // 排出來的卡序會跟票 06 之前不一樣。釋義夠四個時，這支的行為要與那時一模一樣。
+  const withMeaning = pickedCards.filter((card) => meaningOf(card) !== '');
+  for (const card of shuffle(withMeaning, random)) {
     const answer = meaningOf(card);
-    const decoys = shuffle(
-      pool.filter((meaning) => meaning !== answer),
-      random,
-    ).slice(0, OPTION_COUNT - 1);
+    const real = pool.filter((meaning) => meaning !== answer);
+    // 假釋義同樣去掉頭尾空白再比，撞到正解、撞到真的釋義、彼此重複的都丟掉。
+    const fake = [
+      ...new Set((fakes.get(card.id) ?? []).map((meaning) => meaning.trim())),
+    ].filter((meaning) => meaning !== '' && meaning !== answer && !real.includes(meaning));
+    const decoys = [...shuffle(real, random), ...shuffle(fake, random)].slice(0, OPTION_COUNT - 1);
+    if (decoys.length < OPTION_COUNT - 1) continue;
     const options = shuffle([answer, ...decoys], random);
-    return { card, options, answerIndex: options.indexOf(answer) };
-  });
+    questions.push({ card, options, answerIndex: options.indexOf(answer) });
+  }
   return { questions, index: 0, results: [] };
+}
+
+/**
+ * 這一輪要向 Gemini 要假釋義的那幾張卡：整個 app 不同的釋義還不到四個時，
+ * 挑到的卡裡有釋義的每一張。夠四個時回空陣列，畫面就一個請求都不發（票 06）。
+ *
+ * 一張卡也照補，不設下限（票 06 待決 4）。
+ */
+export function cardsNeedingFakes(pickedCards: readonly Card[], all: readonly Card[]): Card[] {
+  if (distinctMeanings(all).length >= OPTION_COUNT) return [];
+  return pickedCards.filter((card) => meaningOf(card) !== '');
+}
+
+/** 整個 app 不同的釋義，去除頭尾空白、丟掉空的之後。 */
+function distinctMeanings(all: readonly Card[]): string[] {
+  return [...new Set(all.map(meaningOf).filter((meaning) => meaning !== ''))];
 }
 
 export function currentQuestion(round: Round): Question | undefined {

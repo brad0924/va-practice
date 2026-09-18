@@ -11,8 +11,9 @@
  * `const en: typeof zhHant` 就會要求填一模一樣的中文，守門反而失效。
  * key 本身在物件字面值上本來就是字面型別，`Key` 不受影響。
  *
- * 沒有搬進來的中文只有三類，見票 03：註解、`gemini-reading.ts` 的 `INSTRUCTIONS`
- * （那是給 Gemini 讀的作業指示，翻了會改變它的行為），以及 `HOME_BOOK_NAME`
+ * 沒有搬進來的中文只有三類，見票 03：註解、給 Gemini 讀的作業指示——`gemini-reading.ts` 的
+ * `INSTRUCTIONS` 與問答票 06 加的 `gemini-fakes.ts` 的 `FAKE_INSTRUCTIONS`
+ * （翻了會改變它的行為），以及 `HOME_BOOK_NAME`
  * （那是寫進使用者資料的字串，只留著認舊資料用；新產生的那本走 `books.homeName`）。
  */
 export default {
@@ -369,10 +370,19 @@ export default {
   // ── 問答 ──────────────────────────────────────────────────────
   'quiz.roundOver': '這一輪已經結束，沒有可以結算的題目',
 
-  // 一題都出不了時整頁換成這兩行（票 02）。兩種原因共用一句，不另寫提示（spec 實作決定四）。
+  // 一題都出不了時整頁換成標題加一行說明（票 02）。
   // 不借拼字那句 `spelling.noCards`：那句講的是「沒標讀音」，而讀音不是問答的出題條件。
+  //
+  // 說明分三種（票 06 待決 3）：原本兩種原因共用一句，票 06 起「湊不出四個釋義」會先請
+  // Gemini 補假釋義，補不成才走到這一頁，因此要分開講——沒金鑰的人要知道有這條路，
+  // 有金鑰的人要知道不是自己卡不夠。Gemini 的錯誤原文刻意不印。
   'quiz.noCardsTitle': '出不了題',
-  'quiz.noCardsNote': '單字本裡沒有卡，或整個 app 的卡湊不出四個不同的釋義。多加幾張卡再來。',
+  'quiz.noCardsNote': '單字本裡還沒有寫了釋義的卡。多加幾張卡再來。',
+  'quiz.noKeyNote':
+    '整個 app 的卡湊不出四個不同的釋義。多加幾張卡，或到「資料」設好 Gemini 金鑰，讓 Gemini 編幾個錯誤的選項補上。',
+  'quiz.fakesFailedNote': '整個 app 的卡湊不出四個不同的釋義，這次請 Gemini 補選項沒有成功。稍後再試，或多加幾張卡。',
+  // 等 Gemini 補選項的那一頁（票 06）。碼表要等第一題出現才開始跑。
+  'quiz.preparing': '正在請 Gemini 補選項…',
 
   // 答題中途收工的那一顆，比照拼字。
   'quiz.quit': '結束',

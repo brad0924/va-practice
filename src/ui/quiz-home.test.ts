@@ -37,9 +37,15 @@ const CARDS: Card[] = [
   card('c4', 'たべる', '吃', 'b2'),
 ];
 
-/** 一個夠問答用的 app。亂數寫死成 0，卡序與選項順序因此每次都一樣。 */
-function makeApp(cards: readonly Card[] = CARDS): App {
+/**
+ * 一個夠問答用的 app。亂數寫死成 0，卡序與選項順序因此每次都一樣。
+ *
+ * 金鑰預設是 null：沒有金鑰時問答根本不會向 Gemini 發請求，測試不可能外送任何東西。
+ * 要測假釋義那一條路（票 06）才給金鑰，同時用 `vi.stubGlobal('fetch', …)` 攔下請求。
+ */
+function makeApp(cards: readonly Card[] = CARDS, geminiKey: string | null = null): App {
   return {
+    gemini: { read: () => geminiKey },
     data: { version: 3, books: BOOKS, cards: [...cards], scopes: { review: [], list: [], stats: [] }, updatedAt: 0 },
     quizRound: null,
     spellingRound: null,
@@ -65,10 +71,11 @@ function labels(root: HTMLElement): (string | null)[] {
  * 目前停在哪一頁。認人靠畫面上的字，不靠 class 名：答題頁有「結束」、成績頁有「再一輪」、
  * 出不了題那一頁有那一行標題。
  */
-function page(root: HTMLElement): 'answer' | 'summary' | 'empty' {
+function page(root: HTMLElement): 'answer' | 'summary' | 'empty' | 'preparing' {
   if (labels(root).includes(zhHant['quiz.quit'])) return 'answer';
   if (labels(root).includes(zhHant['quiz.again'])) return 'summary';
   if (root.textContent?.includes(zhHant['quiz.noCardsTitle'])) return 'empty';
+  if (root.textContent?.includes(zhHant['quiz.preparing'])) return 'preparing';
   throw new Error('認不出這一頁');
 }
 
@@ -97,6 +104,7 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.runOnlyPendingTimers();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('進問答時落在哪一頁', () => {
@@ -149,11 +157,17 @@ describe('出不了題', () => {
     expect(page(mount(makeApp([])))).toBe('empty');
   });
 
-  it('整個 app 湊不出四個不同的釋義時，同一頁', () => {
+  it('整個 app 湊不出四個不同的釋義、又沒設 Gemini 金鑰時，同一頁，說明改講「可以去設金鑰」', () => {
     // 三張卡，其中兩張釋義相同：只有兩個不同的釋義。
     const few = [card('c1', 'こがす', '燒焦', 'b1'), card('c2', 'やく', '燒焦', 'b1'), card('c3', 'あめ', '雨', 'b2')];
+    const doFetch = vi.fn();
+    vi.stubGlobal('fetch', doFetch);
 
-    expect(page(mount(makeApp(few)))).toBe('empty');
+    const root = mount(makeApp(few));
+
+    expect(page(root)).toBe('empty');
+    expect(root.textContent).toContain(zhHant['quiz.noKeyNote']);
+    expect(doFetch).not.toHaveBeenCalled();
   });
 
   it('出不了題那一頁不封存任何東西，加了卡再進來就開得了一輪', () => {
@@ -164,6 +178,88 @@ describe('出不了題', () => {
     app.data.cards.push(...CARDS);
 
     expect(page(mount(app))).toBe('answer');
+  });
+});
+
+describe('釋義湊不到四個時，請 Gemini 補假釋義（票 06）', () => {
+  /** 只有一張卡：整個 app 只有一個釋義，差三個。這張票的起點就是這個環境。 */
+  const ONE = [card('c1', 'こがす', '燒焦', 'b1')];
+
+  /** Gemini 成功時的回覆外殼，裡面那份是模型照 `FAKES_SCHEMA` 回的東西。 */
+  function geminiReply(value: unknown): Response {
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] }));
+  }
+
+  /** 攔下 fetch，回一份替 `ONE` 那張卡編好的假釋義。回傳的 mock 數得出被叫了幾次。 */
+  function geminiAnswers() {
+    const doFetch = vi.fn(async () => geminiReply({ cards: [{ term: 'こがす', fakes: ['洗乾淨', '曬乾', '冷凍'] }] }));
+    vi.stubGlobal('fetch', doFetch);
+    return doFetch;
+  }
+
+  /** 等 Gemini 那一趟回來：把排在後面的 promise 全部跑完。 */
+  const settleGemini = () => vi.advanceTimersByTimeAsync(0);
+
+  /** 答題頁上四個選項的字。 */
+  const options = (root: HTMLElement) => [...root.querySelectorAll('footer button')].map((node) => node.textContent);
+
+  it('有金鑰、Gemini 回得來：開得出一輪，四個選項是正解加三個假釋義', async () => {
+    geminiAnswers();
+    const root = mount(makeApp(ONE, 'key'));
+    await settleGemini();
+
+    expect(page(root)).toBe('answer');
+    expect(options(root).sort()).toEqual(['冷凍', '曬乾', '洗乾淨', '燒焦'].sort());
+  });
+
+  it('整個 app 有四個以上不同的釋義時，即使有金鑰也一個請求都不發', () => {
+    const doFetch = geminiAnswers();
+
+    expect(page(mount(makeApp(CARDS, 'key')))).toBe('answer');
+    expect(doFetch).not.toHaveBeenCalled();
+  });
+
+  it('等 Gemini 的期間給「正在準備」那一頁，答題頁（連同碼表）還沒出現', () => {
+    // 一個永遠不回的 fetch：停在等待的那一刻。
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+
+    const root = mount(makeApp(ONE, 'key'));
+
+    expect(page(root)).toBe('preparing');
+  });
+
+  it.each([
+    ['連不上', async () => Promise.reject(new TypeError('Failed to fetch'))],
+    ['金鑰不對', async () => new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 })],
+    ['回覆的形狀不對', async () => geminiReply({ cards: [] })],
+  ])('%s：給出不了題那一頁，說明講「這次沒補成」，不封存任何東西', async (_, respond) => {
+    vi.stubGlobal('fetch', vi.fn(respond));
+    const app = makeApp(ONE, 'key');
+
+    const root = mount(app);
+    await settleGemini();
+
+    expect(page(root)).toBe('empty');
+    expect(root.textContent).toContain(zhHant['quiz.fakesFailedNote']);
+    expect(app.quizRound).toBeNull();
+  });
+
+  it('等到一半跳去別的畫面：回覆晚到也不換頁、不搶鍵盤', async () => {
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    const app = makeApp(ONE, 'key');
+    mount(app);
+
+    // 整棵樹被丟掉，沒有人通知這一頁——這就是跳去別的畫面。那個畫面接手了鍵盤。
+    document.body.replaceChildren();
+    const otherScreen = () => {};
+    app.keyHandler = otherScreen;
+    answer(geminiReply({ cards: [{ term: 'こがす', fakes: ['洗乾淨', '曬乾', '冷凍'] }] }));
+    await settleGemini();
+
+    // 晚到的回覆若照樣建出答題頁，答題頁一出生就會把鍵盤清成 null。
+    expect(app.keyHandler).toBe(otherScreen);
+    expect(app.quizRound).toBeNull();
   });
 });
 

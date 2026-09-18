@@ -14,7 +14,7 @@
   不 import 任何東西、也不需要打包，原封複製進 dist 就是最後的樣子。
   樣式直接內嵌，色票抄自 src/styles.css，好讓它跟 app 看起來是同一家的。
 
-  內容改動請對照 core/lib/ 的 cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts，
+  內容改動請對照 core/lib/ 的 cloud-backup.ts、cloud-crypto.ts、gemini-key.ts、gemini-reading.ts、gemini-fakes.ts，
   以及 mobile/lib/ 的 keychain-native.ts 與 gemini-reading-native.ts——這頁寫的每一句都是那幾支
   程式實際的行為，不是宣示。最後那兩支只有 iOS 版載入，「Gemini 讀音預填」那一節因此按平台分岔
   （.scratch/fixed-gemini-key/spec.md 決定十八）。刻意不寫 localStorage 的鍵名之類的實作細節：
@@ -122,7 +122,7 @@
   <body>
     <main>
       <h1>隱私權政策</h1>
-      <p class="updated"><span data-app-name>Japanese Vocabulary Cards</span> · 最後更新：2026 年 8 月 21 日</p>
+      <p class="updated"><span data-app-name>Japanese Vocabulary Cards</span> · 最後更新：2026 年 9 月 18 日</p>
 
       <p>
         <span data-app-name>Japanese Vocabulary Cards</span>（以下稱「本 app」）不蒐集、不儲存、也不販售任何可以識別你身分的個人資料。
@@ -133,7 +133,7 @@
       <p>
         你建立的單字本、卡片、複習進度與各項設定，全部存在你這台裝置本機的瀏覽器儲存空間裡。
         本 app 沒有帳號系統，不要求你註冊，也不會向你索取電子郵件、電話或姓名。
-        除了下面兩節明確列出的情況、以及雲端備份那節提到的 iCloud 鑰匙圈以外，你的資料不會離開這台裝置。
+        除了下面幾節明確列出的情況、以及雲端備份那節提到的 iCloud 鑰匙圈以外，你的資料不會離開這台裝置。
       </p>
 
       <h2>雲端備份（選用，預設關閉）</h2>
@@ -200,7 +200,7 @@
         </li>
         <li>
           <strong>只送出那個詞條。</strong>啟用後，本 app 會把你正在編輯的那個日文詞條、連同一段固定的作答指示，
-          送給 Google 的 Gemini API 換取讀音。送出的內容僅止於此，不包含你的釋義、複習進度或其他卡片。
+          送給 Google 的 Gemini API 換取讀音。讀音預填送出的內容僅止於此，不包含你的釋義、複習進度或其他卡片。
         </li>
         <li>
           <strong>不經過任何第三方伺服器。</strong>請求由你的裝置直接送到 Google 的 Gemini API，
@@ -244,11 +244,32 @@
         </li>
       </ul>
 
+      <h2>Gemini 問答補選項</h2>
+      <p>
+        問答要你從四個釋義裡挑出對的那一個。整個 app 湊不到四個不同的釋義時，
+        本 app 可以請 Gemini 編幾個假的釋義，把選項補滿。這個功能目前只有網頁版。
+      </p>
+      <ul>
+        <li>
+          <strong>用的是同一把金鑰。</strong>就是上一節讀音預填那一把。沒設定金鑰時完全不發生。
+        </li>
+        <li>
+          <strong>卡片夠的時候不發生。</strong>整個 app 有四個以上不同的釋義時，問答不會向 Google 發出任何請求。
+        </li>
+        <li>
+          <strong>會送出詞條與釋義。</strong>卡片不夠時，本 app 會把這一輪要出題的每一張卡的詞條與釋義，
+          連同一段固定的作答指示，送給 Google 的 Gemini API。送出的內容僅止於此，不包含讀音、複習進度或其他卡片。
+        </li>
+        <li>
+          <strong>假釋義用完就丟。</strong>它們只用在這一輪，不存進你的資料、不進備份，也不上雲端。
+        </li>
+      </ul>
+
       <h2>不收集分析數據、不含第三方追蹤</h2>
       <p>
         本 app 不含任何分析工具、廣告 SDK（Software Development Kit，軟體開發套件）或追蹤程式碼。
         我們不記錄你打開了幾次、複習了幾張、按了哪個按鈕，也不使用 cookie 追蹤你，
-        更不會把任何資料分享或販售給第三方。除了上述那兩項功能之外，本 app 不會把你的任何資料送往別處。
+        更不會把任何資料分享或販售給第三方。除了上述那幾項功能之外，本 app 不會把你的任何資料送往別處。
         （網頁版由 GitHub Pages 托管，載入頁面這件事本身會如同你瀏覽任何網站一樣，讓該主機看到你的
         IP（Internet Protocol，網際網路協定）位址；我們不接觸、也不保留這類紀錄。）
       </p>

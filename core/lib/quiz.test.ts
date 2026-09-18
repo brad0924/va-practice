@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
+  cardsNeedingFakes,
   currentQuestion,
   isRoundOver,
   settle,
@@ -103,14 +104,14 @@ describe('開一輪', () => {
     expect(question.options[question.answerIndex]).toBe('燒焦');
   });
 
-  it('整個 app 湊不出四個不同的釋義時，一開始就是結束的', () => {
+  it('整個 app 湊不出四個不同的釋義、又沒有假釋義時，一開始就是結束的', () => {
     const three = [KOGASU, KUSHAMI, NEKO];
     const round = startRound(three, three, seeded(1));
     expect(round.questions).toHaveLength(0);
     expect(isRoundOver(round)).toBe(true);
   });
 
-  it('卡有五張，但釋義去掉重複與空白只剩三個，也一樣出不了題', () => {
+  it('卡有五張，但釋義去掉重複與空白只剩三個，沒有假釋義時也一樣出不了題', () => {
     const all = [KOGASU, KUSHAMI, NEKO, card('neko2', '猫[ねこ]ちゃん', ' 貓 '), BLANK];
     expect(isRoundOver(startRound(all, all, seeded(1)))).toBe(true);
   });
@@ -159,6 +160,72 @@ describe('選項', () => {
       slots.add(currentQuestion(startRound([KOGASU], ALL, seeded(seed)))!.answerIndex);
     }
     expect(slots.size).toBeGreaterThan(1);
+  });
+});
+
+describe('假釋義（票 06）', () => {
+  /** 這張卡的三個假釋義。畫面向 Gemini 要回來之後，照這個形狀遞進來。 */
+  const fakesFor = (target: Card, ...fakes: string[]) => new Map([[target.id, fakes]]);
+
+  it('只有一張卡，補了三個假釋義：開得出一題，四個選項互不相同，恰好一個是正解', () => {
+    const round = startRound([KOGASU], [KOGASU], seeded(1), fakesFor(KOGASU, '洗乾淨', '曬乾', '冷凍'));
+
+    expect(round.questions).toHaveLength(1);
+    const question = currentQuestion(round)!;
+    expect(new Set(question.options).size).toBe(OPTION_COUNT);
+    expect([...question.options].sort()).toEqual(['冷凍', '曬乾', '洗乾淨', '燒焦、烤焦'].sort());
+    expect(question.options[question.answerIndex]).toBe('燒焦、烤焦');
+  });
+
+  it('真的釋義優先：兩張卡時，另一張卡的釋義一定在選項裡，假釋義只補剩下的兩格', () => {
+    const two = [KOGASU, NEKO];
+    const fakes = new Map([
+      ['kogasu', ['洗乾淨', '曬乾', '冷凍']],
+      ['neko', ['狐狸', '老虎', '松鼠']],
+    ]);
+    for (let seed = 1; seed <= 30; seed += 1) {
+      for (const question of startRound(two, two, seeded(seed), fakes).questions) {
+        const other = question.card.id === 'kogasu' ? '貓' : '燒焦、烤焦';
+        expect(question.options).toContain(other);
+        expect(question.options).toHaveLength(OPTION_COUNT);
+      }
+    }
+  });
+
+  it('假釋義撞到正解或彼此重複（去除頭尾空白後比）就丟掉，丟完湊不滿三個就不出這一題', () => {
+    const round = startRound(
+      [KOGASU],
+      [KOGASU],
+      seeded(1),
+      fakesFor(KOGASU, ' 燒焦、烤焦', '曬乾', '曬乾 ', '   '),
+    );
+    expect(isRoundOver(round)).toBe(true);
+  });
+
+  it('同一組亂數種子與同一份假釋義，卡序與選項順序完全一樣', () => {
+    const two = [KOGASU, NEKO];
+    const fakes = new Map([
+      ['kogasu', ['洗乾淨', '曬乾', '冷凍']],
+      ['neko', ['狐狸', '老虎', '松鼠']],
+    ]);
+    const shape = (round: Round) =>
+      round.questions.map((question) => [question.card.id, ...question.options]);
+    expect(shape(startRound(two, two, seeded(7), fakes))).toEqual(shape(startRound(two, two, seeded(7), fakes)));
+  });
+});
+
+describe('哪幾張卡要補假釋義', () => {
+  it('整個 app 有四個以上不同的釋義時，一張都不用補', () => {
+    expect(cardsNeedingFakes([KOGASU, KUSHAMI], ALL)).toEqual([]);
+  });
+
+  it('不到四個時，挑到的卡裡有釋義的每一張都要補', () => {
+    const all = [KOGASU, NEKO, BLANK];
+    expect(cardsNeedingFakes([KOGASU, BLANK], all)).toEqual([KOGASU]);
+  });
+
+  it('一張卡也要補', () => {
+    expect(cardsNeedingFakes([NEKO], [NEKO])).toEqual([NEKO]);
   });
 });
 

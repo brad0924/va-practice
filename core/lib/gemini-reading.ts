@@ -1,6 +1,9 @@
 /**
  * 問 Gemini 一個詞條的讀音，回傳未經驗證的原始回覆。
  *
+ * 送請求的那一段 `askGemini()` 也住在這裡：問答票 06 的假釋義（`gemini-fakes.ts`）
+ * 跟讀音預填共用它，碼表、重試、錯誤訊息因此只有一套。
+ *
  * 這裡刻意不做任何判斷：回覆是否真的對應這個詞條，一律交給
  * `acceptPrefill`（`reading.ts`）那支純函式決定。本模組只負責把請求送出去、
  * 把 JSON（JavaScript Object Notation，JavaScript 物件表示法）挖出來。
@@ -266,6 +269,23 @@ export const TRANSIENT = new Set([500, 502, 503, 504]);
 
 /**
  * 問一個詞條。成功時回傳 AI 那份 JSON 解析後的值（型別是 `unknown`，還沒被信任）。
+ * 怎麼送、怎麼重試、失敗怎麼講，全在 `askGemini()`。
+ */
+export function askReading(
+  key: string,
+  term: string,
+  doFetch: typeof fetch,
+  onAttempt?: (attempt: number) => void,
+): Promise<unknown> {
+  return askGemini(key, promptFor(term, INSTRUCTIONS), RESPONSE_SCHEMA, doFetch, onAttempt);
+}
+
+/**
+ * 網頁版問 Gemini 的那一條路：送一句話、要一份照 `schema` 形狀的 JSON 回來。
+ * 成功時回傳解析後的值（型別是 `unknown`，還沒被信任）。
+ *
+ * 讀音預填與問答的假釋義（`gemini-fakes.ts`，問答票 06）共用這一支，
+ * 兩邊的碼表、重試、錯誤訊息因此是同一套，不會一邊認得 503、另一邊不認。
  *
  * 失敗一律拋出「可以直接顯示給使用者」的訊息——瀏覽器原生的
  * `Failed to fetch`、`AbortError` 對使用者沒有意義，在這裡就翻成人話。
@@ -278,9 +298,10 @@ export const TRANSIENT = new Set([500, 502, 503, 504]);
  * `doFetch` 必填，與 `storage` 同待遇：讓「這個模組會上網」在呼叫端就讀得到。
  * `onAttempt` 選填：開始第 N 次嘗試前叫一聲，N 從 2 起算，畫面靠它把次數顯示出來。
  */
-export async function askReading(
+export async function askGemini(
   key: string,
-  term: string,
+  prompt: string,
+  schema: ResponseSchema,
   doFetch: typeof fetch,
   onAttempt?: (attempt: number) => void,
 ): Promise<unknown> {
@@ -306,10 +327,10 @@ export async function askReading(
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: promptFor(term, INSTRUCTIONS) }] }],
+            contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
               responseMimeType: 'application/json',
-              responseSchema: RESPONSE_SCHEMA,
+              responseSchema: schema,
             },
           }),
           signal: controller.signal,
