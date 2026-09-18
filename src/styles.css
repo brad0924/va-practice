@@ -578,7 +578,8 @@ button,
 }
 
 /*
- * 手機橫著拿：上下疊改成左右兩欄，左邊題目、右邊磚（票 08）。
+ * 手機橫著拿：上下疊改成左右兩欄。拼字是左邊題目、右邊磚（拼字票 08）；
+ * 問答是左邊詞條、右邊選項（問答票 05）。
  *
  * 橫向缺的是高度、多的是寬度。一直排的話 375px 高要塞下標題列、13rem 的上半與整片磚，
  * 磚會縮到 24.5px，手指點不準（票 03 實機量的）。切成兩欄之後磚回到 46px。
@@ -590,32 +591,42 @@ button,
  *
  * `:has(> .kana-field)` 只挑到拼字答題那一頁。`.screen` 是五個畫面共用的 class，
  * 不加限定會把複習、卡片、資料、統計一起改掉。
+ *
+ * 問答答題頁吃同一條門檻（問答票 05，問答 spec 實作決定十）：左邊詞條、碼表與答完那一行，
+ * 右邊四個選項。
+ * 用 `:has(> .quiz-options)` 挑它。門檻不另訂——31rem 是拼字的磚算出來的，
+ * 問答借用它是為了兩個練法在同一台裝置上同時切、同時不切，平板橫著拿兩邊都不切。
  */
 @media (max-height: 31rem) {
-  .screen:has(> .kana-field) {
+  .screen:has(> .kana-field),
+  .screen:has(> .quiz-options) {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto minmax(0, 1fr);
     column-gap: 0.75rem;
   }
 
-  /* 標題列橫跨上方。橫向的高度本來就緊，但這 3rem 照現況留著（票 08 決定 7）。 */
-  .screen:has(> .kana-field) > .bar {
+  /* 標題列橫跨上方。橫向的高度本來就緊，但這 3rem 照現況留著（拼字票 08 決定 7）。 */
+  .screen:has(> .kana-field) > .bar,
+  .screen:has(> .quiz-options) > .bar {
     grid-column: 1 / -1;
   }
 
   /*
    * 兩欄各自撐滿那一列。
    *
-   * `.prompt` 那條 `flex: 0 0 13rem` 在 grid 裡自動失效——決定 2 要的「橫向時不再寫死
+   * `.prompt` 那條 `flex: 0 0 13rem` 在 grid 裡自動失效——拼字票 08 決定 2 要的「橫向時不再寫死
    * 13rem」因此不必寫任何覆蓋。防抽動改由左欄寬度來擋：`1fr 1fr` 的左欄永遠是一半，
    * 不跟著題目三個假名還是六個假名跑。兩種版面各守同一件事，用的是不同的邊。
    *
    * `min-height: 0` 不能省。grid 的項目預設不肯縮到內容以下，少了它 `.kana-field`
    * 會被自己那條 `min-height: 7rem` 頂出格線外，磚就跑到畫面下方看不見的地方。
+   * 問答的 `.quiz-options` 本來就寫了 `min-height: 0`，它排進這一條是為了吃同一個上緣 margin。
    */
   .screen:has(> .kana-field) > .prompt,
-  .screen:has(> .kana-field) > .kana-field {
+  .screen:has(> .kana-field) > .kana-field,
+  .screen:has(> .quiz-options) > .prompt,
+  .screen:has(> .quiz-options) > .quiz-options {
     min-height: 0;
     margin: 0.25rem 0 0;
   }
