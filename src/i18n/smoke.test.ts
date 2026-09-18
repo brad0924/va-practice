@@ -6,7 +6,7 @@
  *
  * 拼字算三個畫面，不是一個：挑單字本、答題、成績各自查自己那一批字，
  * 漏走一個狀態就等於漏掉一整頁（票 `spelling-practice/07` 決定 5——與開頭那個「票 07」
- * 不是同一張，那是 `i18n/07`）。問答比照走答題與成績兩頁（票 `quiz/02`）。
+ * 不是同一張，那是 `i18n/07`）。問答比照走挑單字本、答題、成績三頁（票 `quiz/02`、`quiz/04`）。
  *
  * 它抓的是**「程式某處拿顯示文字去做判斷」**：那種寫法在中文下會過，切到英文靜默失效，
  * TypeScript 型別擋不到，其餘測試也碰不到（它們固定跑繁體中文，見 `test-setup.ts`）。
@@ -170,8 +170,13 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     expect(buttonLabels(root)).toContain(table['spelling.again']);
     expect(leakedKeys(root)).toEqual([]); // 拼字：成績
 
-    // 拼字標題列右邊那一顆是「問答」。進來沒有上一輪，直接開一輪（票 `quiz/02`）。
+    // 拼字標題列右邊那一顆是「問答」。進來沒有上一輪，先落在挑書頁（票 `quiz/04`）。
     click(root, table['nav.quiz']);
+    expect(buttonLabels(root)).toContain(table['quiz.start']);
+    expect(root.textContent).toContain(table['quiz.pickHint']);
+    expect(leakedKeys(root)).toEqual([]); // 問答：挑單字本
+
+    click(root, table['quiz.start']);
     expect(buttonLabels(root)).toContain(table['quiz.quit']);
     expect(leakedKeys(root)).toEqual([]); // 問答：答題
 
@@ -206,13 +211,14 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     expect(leakedKeys(root)).toEqual([]); // 統計
   });
 
-  it('問答出不了題的那一頁也畫得出來，沒有原始 key', () => {
-    // 這一頁的兩句是票 `quiz/02` 實作時才加的，其餘測試只用繁體中文走過它。
+  it('問答出不了題時挑書頁上那一句也畫得出來，沒有原始 key', () => {
+    // 這一句票 `quiz/04` 起印在挑書頁上（票 `quiz/02` 時是整頁），其餘測試只用繁體中文走過它。
     const root = boot(lang, { ...SEED, cards: [] });
 
     click(root, table['nav.quiz']);
+    click(root, table['quiz.start']);
 
-    expect(root.textContent).toContain(table['quiz.noCardsTitle']);
+    expect(root.textContent).toContain(table['quiz.noCardsNote']);
     expect(leakedKeys(root)).toEqual([]); // 問答：出不了題
   });
 });

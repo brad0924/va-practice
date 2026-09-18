@@ -282,7 +282,7 @@ function reachable(entry: string): string[] {
  */
 describe.each([
   ['拼字', 'spelling-home', ['spelling-home', 'spelling-summary', 'spelling-view']],
-  ['問答', 'quiz-home', ['quiz-home', 'quiz-summary', 'quiz-view']],
+  ['問答', 'quiz-home', ['quiz-home', 'quiz-books', 'quiz-summary', 'quiz-view']],
 ])('%s這一條線碰不到的東西', (_, entry, pages) => {
   it('成績不落地：入口與它一路接得到的每一支畫面，都不 import storage.ts', () => {
     // spec 決定 26 與 `ADR-0021`。幾頁互相認得，只要有一頁破例，整條線就等於碰了排程。
@@ -296,7 +296,8 @@ describe.each([
 
   it('那一輪不寫進本機任何一格，重整之後就沒了', () => {
     // spec 決定 26。拼字這條線只有「挑了哪幾本」那一格會落地，而那一格走注入的
-    // `app.spellingBooks`（票 04）；畫面自己一行都不該直接碰瀏覽器的儲存空間。
+    // `app.spellingBooks`（票 04）；問答那一格同理走 `app.quizBooks`（問答票 04）。
+    // 畫面自己一行都不該直接碰瀏覽器的儲存空間。
     for (const name of pages) {
       expect(readFileSync(`src/ui/${name}.ts`, 'utf8'), name).not.toMatch(/localStorage|sessionStorage/);
     }

@@ -271,8 +271,13 @@ const ja: typeof zhHant = {
   'spelling.again': 'もう1ラウンド',
   'spelling.otherBooks': '単語帳を変える',
   'quiz.roundOver': 'このラウンドは終了しています。集計する問題がありません',
-  'quiz.noCardsTitle': '問題をつくれません',
-  'quiz.noCardsNote': '意味が書かれたカードがまだありません。カードを何枚か追加してから、もう一度どうぞ。',
+  'quiz.pickHint':
+    '練習する単語帳を選んでから始めてください。この選択はこの端末だけに残り、スペルで選んだものとも別なので、スマホとパソコンで違っていてもかまいません。',
+  'quiz.start': '始める',
+  'quiz.noBooksTitle': '単語帳がまだありません',
+  'quiz.noBooksNote': '1冊つくってカードを何枚か追加すれば、クイズを始められます。',
+  'quiz.noCardsNote':
+    '選んだ単語帳では問題をつくれません。意味が書かれたカードが1枚もありません。別の単語帳を選ぶか、カードを何枚か追加してから始めてください。',
   'quiz.noKeyNote':
     'すべてのカードを合わせても違う意味が4つそろいません。カードを何枚か追加するか、「データ」で Gemini API キーを設定すると、Gemini が間違いの選択肢をつくって補います。',
   'quiz.fakesFailedNote':
@@ -288,6 +293,7 @@ const ja: typeof zhHant = {
   'quiz.noMistakes': 'このラウンドは全問正解です。覚え直すものはありません。',
   'quiz.nothingAnswered': 'このラウンドはまだ1問も答えていません。',
   'quiz.again': 'もう1ラウンド',
+  'quiz.otherBooks': '単語帳を変える',
   'reminder.title': '復習の時間です',
   'reminder.body': '今日は{count}枚が期日です',
   'toast.close': '閉じる',

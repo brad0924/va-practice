@@ -51,7 +51,7 @@ function mount(round: Round): HTMLElement {
     now: () => new Date(),
     keyHandler: null,
   } as unknown as App;
-  const screen = quizSummaryView(app, round, () => {});
+  const screen = quizSummaryView(app, round, () => {}, () => {});
   document.body.replaceChildren(screen);
   return screen;
 }

@@ -1,7 +1,7 @@
 import { cardsInBooks, createStore, type ImportResult } from '@core/lib/storage';
 import { createCloudBackup, type CloudBackup } from '@core/lib/cloud-backup';
 import { createGeminiKey, type GeminiKey } from '@core/lib/gemini-key';
-import { createSpellingBooks, type SpellingBooks } from '@core/lib/spelling-books';
+import { createBookPicks, createSpellingBooks, QUIZ_BOOKS_KEY, type BookPicks } from '@core/lib/spelling-books';
 import type { Round } from '@core/lib/spelling';
 import type { Round as QuizRound } from '@core/lib/quiz';
 import { currentCard, rebuildQueue, rate as rateCard, toDateKey, type Queue } from '@core/lib/review';
@@ -30,7 +30,9 @@ export interface App {
   /** 使用者自備的 Gemini 金鑰。只留在這台裝置，不上雲也不進匯出檔。 */
   readonly gemini: GeminiKey;
   /** 拼字挑了哪幾本。同樣只留在這台裝置，不進 `AppData`、不上雲（`ADR-0021`）。 */
-  readonly spellingBooks: SpellingBooks;
+  readonly spellingBooks: BookPicks;
+  /** 問答挑了哪幾本。與拼字那一格分開存，立場相同：只留在這台裝置（問答 spec 決定六）。 */
+  readonly quizBooks: BookPicks;
   /**
    * 上一輪拼字，沒有就是 null。
    *
@@ -174,6 +176,7 @@ export function start(root: HTMLElement): void {
     cloud,
     gemini: createGeminiKey(localStorage),
     spellingBooks: createSpellingBooks(localStorage),
+    quizBooks: createBookPicks(localStorage, QUIZ_BOOKS_KEY),
     spellingRound: null,
     quizRound: null,
     now,

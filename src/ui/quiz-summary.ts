@@ -62,12 +62,17 @@ function tile(num: string, label: string): HTMLElement {
 /**
  * 一輪問答的成績（spec 實作決定八）。
  *
- * 頂上三格，底下只列沒答對的卡（票 03），最後是「再一輪」。「換單字本」是票 04 的事。
+ * 頂上三格，底下只列沒答對的卡（票 03），最後是「再一輪」與「換單字本」（票 04）。
  *
  * 數字一律問 `summary()`，這一頁自己不算——平均除的是已經結算過的題數，那條規則住在
  * `quiz.ts`，抄過來就會有兩份。這一頁不落地：不寫 `AppData`、不進備份，重整頁面就沒了。
  */
-export function quizSummaryView(app: App, round: Round, onAgain: () => void): HTMLElement {
+export function quizSummaryView(
+  app: App,
+  round: Round,
+  onAgain: () => void,
+  onPickBooks: () => void,
+): HTMLElement {
   const screen = el('div', 'screen');
 
   const header = quizBar(app);
@@ -100,7 +105,13 @@ export function quizSummaryView(app: App, round: Round, onAgain: () => void): HT
         : el('div', 'missed-list', ...totals.missed.map(missedRow)),
   );
 
-  const footer = el('footer', 'actions', button('primary', t('quiz.again'), onAgain));
+  // 兩顆的排法照抄拼字成績頁：「再一輪」在前、是主要那顆。
+  const footer = el(
+    'footer',
+    'actions',
+    button('primary', t('quiz.again'), onAgain),
+    button('secondary', t('quiz.otherBooks'), onPickBooks),
+  );
 
   // 問答整條線都不做鍵盤操作。明寫成 null 而不是留白：留白會讓上一個畫面的處理器活到這一頁來。
   app.keyHandler = null;

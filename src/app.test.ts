@@ -395,9 +395,9 @@ type Where =
   | 'spelling-books'
   | 'spelling-answer'
   | 'spelling-summary'
+  | 'quiz-books'
   | 'quiz-answer'
   | 'quiz-summary'
-  | 'quiz-empty'
   | 'cards'
   | 'data'
   | 'stats';
@@ -414,7 +414,7 @@ function where(root: HTMLElement): Where {
       const labels = [...root.querySelectorAll('button')].map((node) => node.textContent);
       if (labels.includes(zhHant['quiz.quit'])) return 'quiz-answer';
       if (labels.includes(zhHant['quiz.again'])) return 'quiz-summary';
-      return 'quiz-empty';
+      return 'quiz-books';
     }
     case zhHant['nav.cards']:
       return 'cards';
@@ -461,7 +461,7 @@ describe('導覽', () => {
 
     click(root, zhHant['nav.review']);
     click(root, zhHant['nav.quiz']);
-    expect(where(root)).toBe('quiz-answer');
+    expect(where(root)).toBe('quiz-books');
 
     click(root, zhHant['nav.spelling']);
     click(root, zhHant['nav.review']);
@@ -478,7 +478,7 @@ describe('導覽', () => {
 
     click(root, zhHant['nav.spelling']);
     click(root, zhHant['nav.quiz']);
-    expect(where(root)).toBe('quiz-answer');
+    expect(where(root)).toBe('quiz-books');
   });
 
   it('問答畫面左邊回拼字、右邊去卡片', () => {
@@ -493,9 +493,13 @@ describe('導覽', () => {
     expect(where(root)).toBe('cards');
   });
 
-  it('問答的答題頁與成績頁，標題列中央都印著「問答」', () => {
+  it('問答三頁的標題列中央都印著「問答」', () => {
     const root = boot();
     click(root, zhHant['nav.quiz']);
+    expect(where(root)).toBe('quiz-books');
+    expect(barTitle(root)).toBe(zhHant['nav.quiz']);
+
+    click(root, zhHant['quiz.start']);
     expect(where(root)).toBe('quiz-answer');
     expect(barTitle(root)).toBe(zhHant['nav.quiz']);
 
@@ -524,7 +528,7 @@ describe('導覽', () => {
 
     click(root, zhHant['nav.quiz']);
 
-    expect(where(root)).toBe('quiz-answer');
+    expect(where(root)).toBe('quiz-books');
   });
 
   it('資料與統計兩個畫面的按鈕一個字都沒動', () => {
@@ -573,7 +577,7 @@ describe('導覽', () => {
 
     // 拼字標題列右邊那一顆現在是「問答」。從那裡用左上角回來，也是整頁被丟掉再重建。
     click(root, zhHant['nav.quiz']);
-    expect(where(root)).toBe('quiz-answer');
+    expect(where(root)).toBe('quiz-books');
 
     click(root, zhHant['nav.spelling']);
 
@@ -603,6 +607,7 @@ describe('導覽：問答', () => {
   it('答題途中跳去卡片再回問答，看到的是那一輪的成績頁', () => {
     const root = boot();
     click(root, zhHant['nav.quiz']);
+    click(root, zhHant['quiz.start']);
 
     // 先答完第一題，它才會被結算、被封存。四張卡四題，因此這時還停在答題頁。
     root.querySelector<HTMLButtonElement>('footer button')!.click();
@@ -624,6 +629,7 @@ describe('導覽：問答', () => {
     expect(where(root)).toBe('spelling-summary');
 
     click(root, zhHant['nav.quiz']);
+    click(root, zhHant['quiz.start']);
     click(root, zhHant['quiz.quit']);
     expect(where(root)).toBe('quiz-summary');
 
@@ -634,7 +640,7 @@ describe('導覽：問答', () => {
     expect(where(root)).toBe('quiz-summary');
   });
 
-  it('一本單字本都沒有時，複習畫面右側仍然按得到「問答」，進去看到出不了題那一頁', () => {
+  it('一本單字本都沒有時，複習畫面右側仍然按得到「問答」，進去看到零本那一頁', () => {
     localStorage.setItem(
       'va-practice:data',
       JSON.stringify({
@@ -649,7 +655,8 @@ describe('導覽：問答', () => {
 
     click(root, zhHant['nav.quiz']);
 
-    expect(where(root)).toBe('quiz-empty');
-    expect(root.textContent).toContain(zhHant['quiz.noCardsTitle']);
+    // 比照拼字的零本畫面：標題仍然在，主體換成那一句指路。
+    expect(where(root)).toBe('quiz-books');
+    expect(root.textContent).toContain(zhHant['quiz.noBooksTitle']);
   });
 });

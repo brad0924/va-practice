@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createSpellingBooks, SPELLING_BOOKS_KEY } from './spelling-books';
+import { createBookPicks, QUIZ_BOOKS_KEY } from './spelling-books';
 import { STORAGE_KEY } from './storage';
 import type { StorageLike } from './storage';
 import type { Book } from './types';
@@ -86,5 +87,53 @@ describe('存回去', () => {
 
   it('用的 key 與資料那一格不同', () => {
     expect(SPELLING_BOOKS_KEY).not.toBe(STORAGE_KEY);
+  });
+});
+
+/**
+ * 問答票 04：同一支存放收「存在哪一格」當參數，問答傳自己那一格。
+ * 上面那幾條是拼字原有的測試，一行都沒改——它們照樣綠，就是「拼字那一格行為沒變」。
+ */
+describe('問答那一格', () => {
+  it('拼字那一格的名字沒有變：使用者已經存著的選擇讀得回來', () => {
+    const storage = fakeStorage({ 'va-practice:spelling-books': '["b"]' });
+
+    expect(createSpellingBooks(storage).read(BOOKS)).toEqual(['b']);
+  });
+
+  it('在拼字挑了，問答讀到的仍是自己上次挑的', () => {
+    const storage = fakeStorage();
+    const quiz = createBookPicks(storage, QUIZ_BOOKS_KEY);
+    quiz.write(['c']);
+
+    createSpellingBooks(storage).write(['a']);
+
+    expect(quiz.read(BOOKS)).toEqual(['c']);
+  });
+
+  it('在問答挑了，拼字讀到的仍是自己上次挑的', () => {
+    const storage = fakeStorage();
+    const spelling = createSpellingBooks(storage);
+    spelling.write(['a']);
+
+    createBookPicks(storage, QUIZ_BOOKS_KEY).write(['b', 'c']);
+
+    expect(spelling.read(BOOKS)).toEqual(['a']);
+  });
+
+  it('問答沒挑過時預設全選，不借拼字挑的那幾本', () => {
+    const storage = fakeStorage({ [SPELLING_BOOKS_KEY]: '["a"]' });
+
+    expect(createBookPicks(storage, QUIZ_BOOKS_KEY).read(BOOKS)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('問答那一格讀壞了也不當機，退回全選', () => {
+    const storage = fakeStorage({ [QUIZ_BOOKS_KEY]: '{壞掉的' });
+
+    expect(createBookPicks(storage, QUIZ_BOOKS_KEY).read(BOOKS)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('三格的名字各不相同：資料、拼字、問答', () => {
+    expect(new Set([STORAGE_KEY, SPELLING_BOOKS_KEY, QUIZ_BOOKS_KEY]).size).toBe(3);
   });
 });

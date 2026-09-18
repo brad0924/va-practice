@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 
 /**
- * 問答的入口與頁間接線（票 02）。
+ * 問答的入口與頁間接線（票 02、票 04）。
  *
- * 這一支釘的是**一輪什麼時候封存**，以及進問答時該落在哪一頁。答題頁自己的行為由
- * `quiz-view.test.ts` 顧，這裡只看它與成績頁、出不了題那一頁接起來對不對。
- * 形狀照抄 `spelling-home.test.ts`。
+ * 這一支釘的是**一輪什麼時候封存**、進問答時該落在哪一頁，以及挑到的那幾本怎麼變成一輪。
+ * 答題頁自己的行為由 `quiz-view.test.ts` 顧，挑書頁自己的勾選與存放由 `quiz-books.test.ts` 顧，
+ * 這裡只看幾頁之間接起來對不對。形狀照抄 `spelling-home.test.ts`。
  *
  * 刻意不測的：
- * - **挑單字本**。這張票點進來直接拿全部單字本出題，挑書頁是票 04 的事。
  * - **重整頁面之後成績消失**。那是「不寫 localStorage」的另一種說法，由
  *   `spelling-home.test.ts` 那一道守門一起釘住（問答那幾支也在它的名單上）。
  */
@@ -17,6 +16,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { App } from '../app';
 import { quizHome } from './quiz-home';
 import { SETTLE_PAUSE_MS } from './quiz-view';
+import { createBookPicks, QUIZ_BOOKS_KEY } from '@core/lib/spelling-books';
 import type { Book, Card } from '@core/lib/types';
 import zhHant from '@core/i18n/zh-Hant';
 
@@ -44,8 +44,18 @@ const CARDS: Card[] = [
  * 要測假釋義那一條路（票 06）才給金鑰，同時用 `vi.stubGlobal('fetch', …)` 攔下請求。
  */
 function makeApp(cards: readonly Card[] = CARDS, geminiKey: string | null = null): App {
+  // 挑書那一格用一格記憶體假儲存。一開始沒挑過，讀出來就是全選。
+  const cells = new Map<string, string>();
   return {
     gemini: { read: () => geminiKey },
+    quizBooks: createBookPicks(
+      {
+        getItem: (key) => cells.get(key) ?? null,
+        setItem: (key, value) => void cells.set(key, value),
+        removeItem: (key) => void cells.delete(key),
+      },
+      QUIZ_BOOKS_KEY,
+    ),
     data: { version: 3, books: BOOKS, cards: [...cards], scopes: { review: [], list: [], stats: [] }, updatedAt: 0 },
     quizRound: null,
     spellingRound: null,
@@ -68,15 +78,31 @@ function labels(root: HTMLElement): (string | null)[] {
 }
 
 /**
- * 目前停在哪一頁。認人靠畫面上的字，不靠 class 名：答題頁有「結束」、成績頁有「再一輪」、
- * 出不了題那一頁有那一行標題。
+ * 目前停在哪一頁。認人靠畫面上的字，不靠 class 名：挑書頁有「開始」、答題頁有「結束」、
+ * 成績頁有「再一輪」、等 Gemini 那一頁有那一句話。
  */
-function page(root: HTMLElement): 'answer' | 'summary' | 'empty' | 'preparing' {
+function page(root: HTMLElement): 'books' | 'answer' | 'summary' | 'preparing' {
+  if (labels(root).includes(zhHant['quiz.start'])) return 'books';
   if (labels(root).includes(zhHant['quiz.quit'])) return 'answer';
   if (labels(root).includes(zhHant['quiz.again'])) return 'summary';
-  if (root.textContent?.includes(zhHant['quiz.noCardsTitle'])) return 'empty';
   if (root.textContent?.includes(zhHant['quiz.preparing'])) return 'preparing';
   throw new Error('認不出這一頁');
+}
+
+/** 挑書頁上那一句紅字。沒有就是空字串。 */
+const notice = (root: HTMLElement) => root.querySelector('.error')?.textContent ?? '';
+
+/** 進問答、在挑書頁按「開始」。挑的是本機存的那幾本，沒挑過就是全部。 */
+function enter(app: App): HTMLElement {
+  const root = mount(app);
+  press(root, zhHant['quiz.start']);
+  return root;
+}
+
+/** 勾或取消挑書頁上第 index 本。第 0 顆是「全部」，單字本從第 1 顆起。 */
+function toggleBook(root: HTMLElement, index: number): void {
+  const checks = root.querySelectorAll<HTMLInputElement>('.book-filter-check');
+  checks[index + 1]!.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 function press(root: HTMLElement, label: string): void {
@@ -108,15 +134,21 @@ afterEach(() => {
 });
 
 describe('進問答時落在哪一頁', () => {
-  it('沒有上一輪時直接用全部單字本開一輪', () => {
-    const root = mount(makeApp());
+  it('沒有上一輪時給挑書頁，不直接開一輪', () => {
+    const app = makeApp();
+    const root = mount(app);
 
-    expect(page(root)).toBe('answer');
+    expect(page(root)).toBe('books');
+    expect(app.quizRound).toBeNull();
+  });
+
+  it('在挑書頁按「開始」就開一輪', () => {
+    expect(page(enter(makeApp()))).toBe('answer');
   });
 
   it('上一輪還封存著時直接看到成績頁', () => {
     const app = makeApp();
-    const first = mount(app);
+    const first = enter(app);
     press(first, zhHant['quiz.quit']);
     expect(page(first)).toBe('summary');
 
@@ -126,7 +158,7 @@ describe('進問答時落在哪一頁', () => {
 
   it('答題途中跳走，回來看到的是那一輪的成績頁，答完的那一題在裡面', () => {
     const app = makeApp();
-    const first = mount(app);
+    const first = enter(app);
     answerOnce(first);
     expect(page(first)).toBe('answer');
 
@@ -144,7 +176,7 @@ describe('進問答時落在哪一頁', () => {
     const spelling = { questions: [], index: 0, slots: [], results: [] };
     app.spellingRound = spelling;
 
-    const root = mount(app);
+    const root = enter(app);
     press(root, zhHant['quiz.quit']);
 
     expect(app.spellingRound).toBe(spelling);
@@ -152,32 +184,75 @@ describe('進問答時落在哪一頁', () => {
   });
 });
 
-describe('出不了題', () => {
-  it('一張卡都沒有時，給出不了題的那一頁', () => {
-    expect(page(mount(makeApp([])))).toBe('empty');
+describe('挑到的那幾本', () => {
+  it('一輪只出挑到的那幾本的卡', () => {
+    const app = makeApp();
+    const root = mount(app);
+    toggleBook(root, 1); // 取消「工作用日文」，只剩「N2 動詞」的兩張
+
+    press(root, zhHant['quiz.start']);
+    answerOnce(root);
+    answerOnce(root);
+
+    // 兩題就結算。四張全出的話，這時還停在答題頁。
+    expect(page(root)).toBe('summary');
+    expect(ratio(root)).toMatch(/\/ 2$/);
   });
 
-  it('整個 app 湊不出四個不同的釋義、又沒設 Gemini 金鑰時，同一頁，說明改講「可以去設金鑰」', () => {
+  it('干擾照樣從全部卡片抽：只挑一本兩張卡也出得了題', () => {
+    const root = mount(makeApp());
+    toggleBook(root, 1);
+
+    press(root, zhHant['quiz.start']);
+
+    expect(page(root)).toBe('answer');
+    expect(root.querySelectorAll('footer button')).toHaveLength(4); // 選項排在 footer，「結束」不在這裡
+  });
+});
+
+describe('出不了題：留在挑書頁印一句紅字', () => {
+  it('挑到的本裡沒有寫了釋義的卡：印「換幾本」那一句，不開一輪', () => {
+    // 「工作用日文」只有一張沒寫釋義的卡；整個 app 的釋義仍然湊得滿四個。
+    const app = makeApp([...CARDS.filter((one) => one.bookId === 'b1'), card('c3', 'あめ', '  ', 'b2'), card('c5', 'みず', '水', 'b1'), card('c6', 'ひ', '火', 'b1')]);
+    const root = mount(app);
+    toggleBook(root, 0); // 只留「工作用日文」
+
+    press(root, zhHant['quiz.start']);
+
+    expect(page(root)).toBe('books');
+    expect(notice(root)).toBe(zhHant['quiz.noCardsNote']);
+    expect(app.quizRound).toBeNull();
+  });
+
+  it('一張卡都沒有時也是同一句', () => {
+    const root = enter(makeApp([]));
+
+    expect(page(root)).toBe('books');
+    expect(notice(root)).toBe(zhHant['quiz.noCardsNote']);
+  });
+
+  it('整個 app 湊不出四個不同的釋義、又沒設 Gemini 金鑰時，那一句改講「可以去設金鑰」', () => {
     // 三張卡，其中兩張釋義相同：只有兩個不同的釋義。
     const few = [card('c1', 'こがす', '燒焦', 'b1'), card('c2', 'やく', '燒焦', 'b1'), card('c3', 'あめ', '雨', 'b2')];
     const doFetch = vi.fn();
     vi.stubGlobal('fetch', doFetch);
 
-    const root = mount(makeApp(few));
+    const root = enter(makeApp(few));
 
-    expect(page(root)).toBe('empty');
-    expect(root.textContent).toContain(zhHant['quiz.noKeyNote']);
+    expect(page(root)).toBe('books');
+    expect(notice(root)).toBe(zhHant['quiz.noKeyNote']);
     expect(doFetch).not.toHaveBeenCalled();
   });
 
-  it('出不了題那一頁不封存任何東西，加了卡再進來就開得了一輪', () => {
+  it('不封存任何東西：加了卡再按「開始」就開得了一輪', () => {
     const app = makeApp([]);
-    mount(app);
+    const root = enter(app);
     expect(app.quizRound).toBeNull();
 
     app.data.cards.push(...CARDS);
+    press(root, zhHant['quiz.start']);
 
-    expect(page(mount(app))).toBe('answer');
+    expect(page(root)).toBe('answer');
   });
 });
 
@@ -205,7 +280,7 @@ describe('釋義湊不到四個時，請 Gemini 補假釋義（票 06）', () =>
 
   it('有金鑰、Gemini 回得來：開得出一輪，四個選項是正解加三個假釋義', async () => {
     geminiAnswers();
-    const root = mount(makeApp(ONE, 'key'));
+    const root = enter(makeApp(ONE, 'key'));
     await settleGemini();
 
     expect(page(root)).toBe('answer');
@@ -215,7 +290,7 @@ describe('釋義湊不到四個時，請 Gemini 補假釋義（票 06）', () =>
   it('整個 app 有四個以上不同的釋義時，即使有金鑰也一個請求都不發', () => {
     const doFetch = geminiAnswers();
 
-    expect(page(mount(makeApp(CARDS, 'key')))).toBe('answer');
+    expect(page(enter(makeApp(CARDS, 'key')))).toBe('answer');
     expect(doFetch).not.toHaveBeenCalled();
   });
 
@@ -223,24 +298,39 @@ describe('釋義湊不到四個時，請 Gemini 補假釋義（票 06）', () =>
     // 一個永遠不回的 fetch：停在等待的那一刻。
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
 
-    const root = mount(makeApp(ONE, 'key'));
+    const root = enter(makeApp(ONE, 'key'));
 
     expect(page(root)).toBe('preparing');
+  });
+
+  it('挑到的那幾本才送去補：沒挑到的卡不出題，也不送出去', async () => {
+    // 兩本各一張卡，整個 app 只有兩個釋義。只挑「N2 動詞」時，只有こがす那張要補。
+    const doFetch = geminiAnswers();
+    const root = mount(makeApp([...ONE, card('c3', 'あめ', '雨', 'b2')], 'key'));
+    toggleBook(root, 1);
+
+    press(root, zhHant['quiz.start']);
+    await settleGemini();
+
+    const sent = JSON.stringify(doFetch.mock.calls[0]);
+    expect(sent).toContain('こがす');
+    expect(sent).not.toContain('あめ');
+    expect(page(root)).toBe('answer');
   });
 
   it.each([
     ['連不上', async () => Promise.reject(new TypeError('Failed to fetch'))],
     ['金鑰不對', async () => new Response(JSON.stringify({ error: { message: 'API key not valid' } }), { status: 400 })],
     ['回覆的形狀不對', async () => geminiReply({ cards: [] })],
-  ])('%s：給出不了題那一頁，說明講「這次沒補成」，不封存任何東西', async (_, respond) => {
+  ])('%s：退回挑書頁，那一句講「這次沒補成」，不封存任何東西', async (_, respond) => {
     vi.stubGlobal('fetch', vi.fn(respond));
     const app = makeApp(ONE, 'key');
 
-    const root = mount(app);
+    const root = enter(app);
     await settleGemini();
 
-    expect(page(root)).toBe('empty');
-    expect(root.textContent).toContain(zhHant['quiz.fakesFailedNote']);
+    expect(page(root)).toBe('books');
+    expect(notice(root)).toBe(zhHant['quiz.fakesFailedNote']);
     expect(app.quizRound).toBeNull();
   });
 
@@ -248,7 +338,7 @@ describe('釋義湊不到四個時，請 Gemini 補假釋義（票 06）', () =>
     let answer: (response: Response) => void = () => {};
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
     const app = makeApp(ONE, 'key');
-    mount(app);
+    enter(app);
 
     // 整棵樹被丟掉，沒有人通知這一頁——這就是跳去別的畫面。那個畫面接手了鍵盤。
     document.body.replaceChildren();
@@ -265,7 +355,7 @@ describe('釋義湊不到四個時，請 Gemini 補假釋義（票 06）', () =>
 
 describe('一輪怎麼跑完', () => {
   it('每一張卡都出過一次之後自動跳出成績', () => {
-    const root = mount(makeApp());
+    const root = enter(makeApp());
 
     for (let asked = 0; asked < CARDS.length - 1; asked += 1) answerOnce(root);
     expect(page(root)).toBe('answer');
@@ -277,7 +367,7 @@ describe('一輪怎麼跑完', () => {
   });
 
   it('中途按「結束」也跳出成績，正在答的那一題不算進去', () => {
-    const root = mount(makeApp());
+    const root = enter(makeApp());
 
     press(root, zhHant['quiz.quit']);
 
@@ -287,8 +377,8 @@ describe('一輪怎麼跑完', () => {
 });
 
 describe('成績頁的「再一輪」', () => {
-  it('直接回答題頁', () => {
-    const root = mount(makeApp());
+  it('直接回答題頁，不經過挑書頁', () => {
+    const root = enter(makeApp());
     press(root, zhHant['quiz.quit']);
 
     press(root, zhHant['quiz.again']);
@@ -296,9 +386,23 @@ describe('成績頁的「再一輪」', () => {
     expect(page(root)).toBe('answer');
   });
 
-  it('重新讀一次全部單字本：中途加的卡，下一輪吃得到', () => {
+  it('用同一批單字本重來', () => {
+    const root = mount(makeApp());
+    toggleBook(root, 1); // 只留「N2 動詞」的兩張
+    press(root, zhHant['quiz.start']);
+    press(root, zhHant['quiz.quit']);
+
+    press(root, zhHant['quiz.again']);
+    answerOnce(root);
+    answerOnce(root);
+
+    expect(page(root)).toBe('summary');
+    expect(ratio(root)).toMatch(/\/ 2$/);
+  });
+
+  it('重新讀一次卡片：中途加的卡，下一輪吃得到', () => {
     const app = makeApp();
-    const root = mount(app);
+    const root = enter(app);
     press(root, zhHant['quiz.quit']);
 
     app.data.cards.push(card('c5', 'みず', '水', 'b1'));
@@ -309,26 +413,52 @@ describe('成績頁的「再一輪」', () => {
     expect(page(root)).toBe('answer');
   });
 
-  it('那時卡已經刪到出不了題，就給出不了題的那一頁', () => {
+  it('那時卡已經刪到出不了題，就退回挑書頁印那一句', () => {
     const app = makeApp();
-    const root = mount(app);
+    const root = enter(app);
     press(root, zhHant['quiz.quit']);
 
     app.data.cards.length = 0;
     press(root, zhHant['quiz.again']);
 
-    expect(page(root)).toBe('empty');
+    expect(page(root)).toBe('books');
+    expect(notice(root)).toBe(zhHant['quiz.noCardsNote']);
   });
 
   it('按下去之後一題都還沒答就跳走，不會拿上一輪的成績冒充這一輪', () => {
     const app = makeApp();
-    const root = mount(app);
+    const root = enter(app);
     answerOnce(root);
     press(root, zhHant['quiz.quit']);
     press(root, zhHant['quiz.again']);
 
     document.body.replaceChildren();
 
-    expect(page(mount(app))).toBe('answer');
+    expect(page(mount(app))).toBe('books');
+  });
+});
+
+describe('成績頁的「換單字本」', () => {
+  it('回挑書頁，沒有那一句紅字', () => {
+    const root = enter(makeApp());
+    press(root, zhHant['quiz.quit']);
+
+    press(root, zhHant['quiz.otherBooks']);
+
+    expect(page(root)).toBe('books');
+    expect(notice(root)).toBe('');
+  });
+
+  it('回到挑書頁就放掉上一輪：跳走再回來也是挑書頁', () => {
+    const app = makeApp();
+    const root = enter(app);
+    answerOnce(root);
+    press(root, zhHant['quiz.quit']);
+
+    press(root, zhHant['quiz.otherBooks']);
+
+    expect(app.quizRound).toBeNull();
+    document.body.replaceChildren();
+    expect(page(mount(app))).toBe('books');
   });
 });

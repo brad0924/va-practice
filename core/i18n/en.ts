@@ -292,8 +292,14 @@ const en: typeof zhHant = {
   'spelling.again': 'Another round',
   'spelling.otherBooks': 'Change books',
   'quiz.roundOver': 'This round is over; there is nothing left to settle',
-  'quiz.noCardsTitle': 'No questions to ask',
-  'quiz.noCardsNote': 'None of your cards has a meaning yet. Add a few more cards and come back.',
+  'quiz.pickHint':
+    'Pick the vocabulary books to practise, then start. This choice stays on this device only and is kept apart from the one for Spelling, so your phone and your computer can differ too.',
+  'quiz.start': 'Start',
+  'quiz.noBooksTitle': 'No vocabulary books yet',
+  'quiz.noBooksNote': 'Create one, add a few cards, and you can start a quiz.',
+  // 不寫 `cannot make any questions`：`Question` 是卡片的避用詞（glossary）。
+  'quiz.noCardsNote':
+    'None of the cards in the books you picked has a meaning. Pick different ones, or add a few more cards, and start again.',
   'quiz.noKeyNote':
     'All your cards together do not have four different meanings. Add a few more cards, or set your Gemini key under Data so Gemini can make up some wrong options to fill the gap.',
   'quiz.fakesFailedNote':
@@ -311,6 +317,7 @@ const en: typeof zhHant = {
   'quiz.noMistakes': 'You answered every card in this round correctly; there is nothing to go back over.',
   'quiz.nothingAnswered': 'You ended this round before answering any cards.',
   'quiz.again': 'Another round',
+  'quiz.otherBooks': 'Change books',
   'reminder.title': 'Time to review',
   'reminder.body': 'Due today: {count}',
   'toast.close': 'Close',
