@@ -66,24 +66,28 @@ function Shell() {
            * 四個 tab 的字都查表（`ADR-0013`），`nav.*` 那四條三份翻譯檔本來就有。
            * 每一條都是一個詞（`N-06`）。
            *
-           * 圖示是填滿版的系統符號（`N-07`），四個都經維護者目測選定（2026-08-26）：
+           * 圖示是系統符號，四個都經維護者目測選定（2026-08-26）：
            * 「複習」是在做的事，用學士帽；「卡片」是一批東西，用一疊卡。這兩個 tab 天生會
            * 搶同一個圖案，拆法就在這裡——一個是動作，一個是收藏。
+           *
+           * **平常是線條版，選中那格才換實心版**，與網頁版一致（票 `ios-app/23`）。
+           * 這是刻意不照 `N-07`（優先填滿版）：iOS 系統的 app 多半四格全實心、只靠顏色分，
+           * 維護者選了跟網頁版長一樣（2026-09-22）。
            */}
           <NativeTabs.Trigger name="index">
-            <NativeTabs.Trigger.Icon sf="graduationcap.fill" />
+            <NativeTabs.Trigger.Icon sf={{ default: 'graduationcap', selected: 'graduationcap.fill' }} />
             <NativeTabs.Trigger.Label>{t('nav.review')}</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
           <NativeTabs.Trigger name="cards">
-            <NativeTabs.Trigger.Icon sf="rectangle.stack.fill" />
+            <NativeTabs.Trigger.Icon sf={{ default: 'rectangle.stack', selected: 'rectangle.stack.fill' }} />
             <NativeTabs.Trigger.Label>{t('nav.cards')}</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
           <NativeTabs.Trigger name="data">
-            <NativeTabs.Trigger.Icon sf="gearshape.fill" />
+            <NativeTabs.Trigger.Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />
             <NativeTabs.Trigger.Label>{t('nav.data')}</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
           <NativeTabs.Trigger name="stats">
-            <NativeTabs.Trigger.Icon sf="chart.bar.fill" />
+            <NativeTabs.Trigger.Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
             <NativeTabs.Trigger.Label>{t('nav.stats')}</NativeTabs.Trigger.Label>
           </NativeTabs.Trigger>
         </NativeTabs>
