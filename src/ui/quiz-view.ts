@@ -158,6 +158,10 @@ export function quizView(
         return node;
       }),
     );
+    fitOptions();
+    // 第一題是在畫面接上文件**之前**畫的，那一下量到的都是 0，補量一次。
+    // 與 `spelling-view.ts` 鋪磚那一段同一個理由，也同樣只在還沒接上時才補。
+    if (!screen.isConnected) queueMicrotask(fitOptions);
 
     // 收尾那一下到進下一題之間也按不動。那一段裡剛判好的結果還在 `finishQuestion()` 手上，
     // 沒有換進 `current`；此時交出去會把那一題弄丟。與拼字答題頁同一個理由。
@@ -223,6 +227,46 @@ export function quizView(
     paintRing(TIME_LIMIT, TIME_LIMIT);
     ticker = window.setInterval(tick, TICK_MS);
   }
+
+  /**
+   * 橫著拿時四個選項平分右欄的高度，一個都不捲（`web-tab-bar/01` 驗收 9 的實機回報）。
+   *
+   * 平分高度是 CSS 做的（`styles.css` 的 `max-height` 那一段）。這支只管一件事：
+   * 長的釋義塞不進自己那一格時，**四個一起**縮字，一次 1px，最小 0.7rem。縮到底還是
+   * 塞不下，就只剩那一格自己捲。四個一起縮而不是各縮各的：同一題的選項字級不一樣，
+   * 看起來像是在暗示哪一個特別。
+   *
+   * 每次都先把字級歸回 CSS 那一份再量：轉回直握之後選項照內容長高，縮過的字要回來。
+   * 直握時選項不會溢出，迴圈一次都不跑。
+   *
+   * 量的是排版結果，jsdom 沒有排版，量到的都是 0，這支在測試裡什麼都不做；
+   * 對不對只能實機看（`ADR-0014`）。
+   */
+  function fitOptions(): void {
+    const options = [...footer.querySelectorAll<HTMLElement>('.quiz-option')];
+    for (const node of options) node.style.fontSize = '';
+    if (options.length === 0) return;
+    const overflows = () => options.some((node) => node.scrollHeight > node.clientHeight + 1);
+    const floor = 0.7 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+    let size = parseFloat(getComputedStyle(options[0]!).fontSize);
+    while (size > floor && overflows()) {
+      size = Math.max(floor, size - 1);
+      for (const node of options) node.style.fontSize = `${size}px`;
+    }
+  }
+
+  /**
+   * 轉螢幕之後重量一次。掛在 `window` 上，走成對註冊加 `isConnected` 自癒（`ADR-0011`），
+   * 與 `spelling-view.ts` 的 `relayoutOnResize()` 同一種寫法、同一個理由。
+   */
+  function refitOnResize(): void {
+    if (!screen.isConnected) {
+      window.removeEventListener('resize', refitOnResize);
+      return;
+    }
+    fitOptions();
+  }
+  window.addEventListener('resize', refitOnResize);
 
   // 明寫成 null 而不是留白：留白會讓上一個畫面的處理器活到這一頁來。
   app.keyHandler = null;
