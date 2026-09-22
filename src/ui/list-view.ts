@@ -12,20 +12,12 @@ export function listView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
   const header = el('header', 'bar');
+  // 往隔壁畫面的鈕由底部導覽列接手（`web-tab-bar/01`），標題列只留這一頁自己的「新增」。
   header.append(
-    // 導覽順序是 `複習 → 拼字 → 問答 → 卡片 → 資料 → 統計`，因此左邊接的是問答而不是複習。
-    // 已知代價：從複習直接按「卡片」跳過來、再按這一顆，會落在剛剛沒經過的問答畫面
-    // （拼字票 06 決定 4，維護者看過圖之後選的；問答 spec 實作決定九沿用）。
-    button('bar-action', t('nav.quiz'), () => app.showQuiz()),
     el('span', 'bar-title', t('nav.cards')),
-    el(
-      'div',
-      'bar-side',
-      button('bar-action', t('nav.data'), () => app.showData()),
-      // 零本時開出來的編輯器沒有單字本可選，那張卡沒有地方放，先去建一本。
-      button('bar-action', t('nav.add'), () =>
-        app.data.books.length === 0 ? app.showData() : app.showEditor(null, () => app.showList()),
-      ),
+    // 零本時開出來的編輯器沒有單字本可選，那張卡沒有地方放，先去建一本。
+    button('bar-action', t('nav.add'), () =>
+      app.data.books.length === 0 ? app.showData() : app.showEditor(null, () => app.showList()),
     ),
   );
 

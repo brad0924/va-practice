@@ -98,6 +98,18 @@ function click(root: HTMLElement, label: string): void {
 }
 
 /**
+ * 底部導覽列與分段切換。兩排都有「複習」，按之前先圈定是哪一排——找的是元素的語義
+ * （`<nav>`、`role="group"`），不是 class 名（`ADR-0014`）。與 `app.test.ts` 同一套。
+ */
+function tabBar(root: HTMLElement): HTMLElement {
+  return root.querySelector('nav')!;
+}
+
+function practiceSwitch(root: HTMLElement): HTMLElement {
+  return root.querySelector<HTMLElement>('[role="group"]')!;
+}
+
+/**
  * 這一頁上每一顆鈕的字。拿它認人用——走錯頁時底下的 `fillSlots()` 會靜靜地什麼都不做，
  * 畫面上當然也就抓不到 key，整段等於白走一趟卻照樣是綠的。
  */
@@ -152,7 +164,7 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     click(root, table['review.showAnswer']);
     expect(leakedKeys(root)).toEqual([]); // 複習：已掀答案
 
-    click(root, table['nav.spelling']);
+    click(practiceSwitch(root), table['nav.spelling']);
     expect(leakedKeys(root)).toEqual([]); // 拼字：挑單字本
 
     click(root, table['spelling.start']);
@@ -170,8 +182,8 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     expect(buttonLabels(root)).toContain(table['spelling.again']);
     expect(leakedKeys(root)).toEqual([]); // 拼字：成績
 
-    // 拼字標題列右邊那一顆是「問答」。進來沒有上一輪，先落在挑書頁（票 `quiz/04`）。
-    click(root, table['nav.quiz']);
+    // 從拼字成績頁點分段切換的「問答」。進來沒有上一輪，先落在挑書頁（票 `quiz/04`）。
+    click(practiceSwitch(root), table['nav.quiz']);
     expect(buttonLabels(root)).toContain(table['quiz.start']);
     expect(root.textContent).toContain(table['quiz.pickHint']);
     expect(leakedKeys(root)).toEqual([]); // 問答：挑單字本
@@ -197,17 +209,17 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     expect(root.textContent).toContain(table['quiz.timedOut']);
     expect(leakedKeys(root)).toEqual([]); // 問答：成績
 
-    click(root, table['nav.cards']);
+    click(tabBar(root), table['nav.cards']);
     expect(leakedKeys(root)).toEqual([]); // 卡片列表
 
     click(root, table['nav.add']);
     expect(leakedKeys(root)).toEqual([]); // 編輯
 
     click(root, table['editor.cancel']);
-    click(root, table['nav.data']);
+    click(tabBar(root), table['nav.data']);
     expect(leakedKeys(root)).toEqual([]); // 資料
 
-    click(root, table['nav.stats']);
+    click(tabBar(root), table['nav.stats']);
     expect(leakedKeys(root)).toEqual([]); // 統計
   });
 
@@ -215,7 +227,7 @@ describe.each(LANGUAGES)('%s', (lang, table) => {
     // 這一句票 `quiz/04` 起印在挑書頁上（票 `quiz/02` 時是整頁），其餘測試只用繁體中文走過它。
     const root = boot(lang, { ...SEED, cards: [] });
 
-    click(root, table['nav.quiz']);
+    click(practiceSwitch(root), table['nav.quiz']);
     click(root, table['quiz.start']);
 
     expect(root.textContent).toContain(table['quiz.noCardsNote']);

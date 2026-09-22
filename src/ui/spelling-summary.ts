@@ -94,7 +94,7 @@ function tile(num: string, label: string): HTMLElement {
  *
  * 這一頁不落地（spec 決定 26）：不寫 `AppData`、不進備份，重整頁面就沒了。整輪的內容
  * 由呼叫端遞進來，因此它連 `app.data` 都不必讀——`app` 只被拿來解除上一個畫面的鍵盤處理器，
- * 以及交給標題列上那兩顆導覽鈕（票 06）。
+ * 以及交給標題列底下的分段切換（`web-tab-bar/01`）。
  * 與拼字另外兩頁同一個立場（`ADR-0021`）。
  */
 export function spellingSummaryView(
@@ -140,8 +140,8 @@ export function spellingSummaryView(
     'footer',
     'actions',
     button('primary', t('spelling.again'), onAgain),
-    // 左上角的返回鍵本來就回得去，這一顆因此是可以拿掉的；維護者未表示要拿掉，先留著
-    // （票 05 決定 8）。
+    // 票 05 決定 8 留下這一顆。維護者後來決定拿掉，換成標題列上的單字本膠囊，
+    // 那一步在 `web-tab-bar/02`，還沒做。
     button('secondary', t('spelling.otherBooks'), onPickBooks),
   );
 

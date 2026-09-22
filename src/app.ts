@@ -17,6 +17,7 @@ import { listView } from './ui/list-view';
 import { dataView } from './ui/data-view';
 import { statsView } from './ui/stats-view';
 import { editorView } from './ui/editor-view';
+import { tabBar, type Tab } from './ui/tab-bar';
 
 /**
  * 畫面層的共用狀態與導覽。
@@ -86,10 +87,12 @@ export interface App {
   showSpelling(): void;
   /** 問答。與 `showSpelling()` 同一種門：落在哪一頁由 `ui/quiz-home.ts` 自己判斷。 */
   showQuiz(): void;
+  /**
+   * 卡片、資料、統計三個畫面，與 `showReview()` 一起是底部導覽列的四格（`web-tab-bar/01`）。
+   * 頂層畫面之間不分來回，隨時從導覽列跳得到，因此都不必傳 back。
+   */
   showList(): void;
-  /** 只有卡片頁能進來，回去的目的地固定，不必傳 back。 */
   showData(): void;
-  /** 只有資料頁能進來，回去的目的地固定，不必傳 back。 */
   showStats(): void;
   showEditor(card: Card | null, back: () => void): void;
   /**
@@ -266,31 +269,31 @@ export function start(root: HTMLElement): void {
     },
 
     showReview() {
-      render = () => mount(() => reviewView(app));
+      render = () => mount(() => reviewView(app), 'review');
       render();
     },
     showSpelling() {
-      render = () => mount(() => spellingHome(app));
+      render = () => mount(() => spellingHome(app), 'review');
       render();
     },
     showQuiz() {
-      render = () => mount(() => quizHome(app));
+      render = () => mount(() => quizHome(app), 'review');
       render();
     },
     showList() {
-      render = () => mount(() => listView(app));
+      render = () => mount(() => listView(app), 'cards');
       render();
     },
     showData() {
-      render = () => mount(() => dataView(app));
+      render = () => mount(() => dataView(app), 'data');
       render();
     },
     showStats() {
-      render = () => mount(() => statsView(app));
+      render = () => mount(() => statsView(app), 'stats');
       render();
     },
     showEditor(card, back) {
-      render = () => mount(() => editorView(app, card, back));
+      render = () => mount(() => editorView(app, card, back), 'cards');
       render();
     },
 
@@ -362,9 +365,12 @@ export function start(root: HTMLElement): void {
 
   // 先解除上一個畫面的鍵盤處理器，再建立新畫面——順序反過來的話，
   // 新畫面剛註冊的處理器會立刻被清掉。
-  function mount(build: () => HTMLElement): void {
+  //
+  // 導覽列跟著畫面一起重建，`tab` 是這個畫面要亮哪一格。拼字與問答亮「複習」、
+  // 編輯頁亮「卡片」——它們是從那裡進去的（`web-tab-bar/01`）。
+  function mount(build: () => HTMLElement, tab: Tab): void {
     app.keyHandler = null;
-    root.replaceChildren(build());
+    root.replaceChildren(build(), tabBar(app, tab));
   }
 
   document.addEventListener('keydown', (event) => {

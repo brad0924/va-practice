@@ -27,11 +27,8 @@ export function dataView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
   const header = el('header', 'bar');
-  header.append(
-    button('bar-action', t('nav.cards'), () => app.showList()),
-    el('span', 'bar-title', t('nav.data')),
-    button('bar-action', t('nav.stats'), () => app.showStats()),
-  );
+  // 往隔壁畫面的鈕由底部導覽列接手（`web-tab-bar/01`），標題列只剩標題。
+  header.append(el('span', 'bar-title', t('nav.data')));
 
   const main = el('main', 'panel');
   // 單字本擺最上面：它是這一頁的主角，其餘幾區都是設定好就很久不再碰的東西。

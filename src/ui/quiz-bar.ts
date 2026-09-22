@@ -1,22 +1,20 @@
 import type { App } from '../app';
 import { t } from '@core/i18n';
-import { el, button } from './dom';
+import { el } from './dom';
+import { practiceSwitch } from './practice-switch';
 
 /**
- * 問答每一頁共用的標題列：左邊回拼字、中央印「問答」、右邊去卡片（spec 實作決定九）。
+ * 問答每一頁頂上的那兩樣：標題列中央印「問答」，底下一排分段切換（複習｜拼字｜問答）。
  *
- * 導覽順序是「複習 → 拼字 → 問答 → 卡片」，因此左邊接的是拼字而不是複習。
- * 形狀照抄 `spelling-bar.ts`，理由也一樣：答題、成績、出不了題那一頁要的是**同一條**。
+ * 形狀照抄 `spelling-bar.ts`，理由也一樣：答題、成績、出不了題那一頁要的是**同一組**，
+ * 回傳 fragment 的理由也寫在那一支。標題列上原本往拼字、往卡片那兩顆鈕
+ * （問答 spec 實作決定九），底部導覽列接手之後拿掉了（`web-tab-bar/01`）。
  *
- * 右邊那顆「卡片」在答題途中也按得到，跳走時那一輪照樣封存，回來看得到成績
+ * 分段切換在答題途中也按得到，跳走時那一輪照樣封存，回來看得到成績
  * （封存的規則在 `quiz-home.ts`，不在這裡）。
  */
-export function quizBar(app: App): HTMLElement {
-  return el(
-    'header',
-    'bar',
-    button('bar-action', t('nav.spelling'), () => app.showSpelling()),
-    el('span', 'bar-title', t('nav.quiz')),
-    button('bar-action', t('nav.cards'), () => app.showList()),
-  );
+export function quizBar(app: App): DocumentFragment {
+  const top = document.createDocumentFragment();
+  top.append(el('header', 'bar', el('span', 'bar-title', t('nav.quiz'))), practiceSwitch(app, 'quiz'));
+  return top;
 }

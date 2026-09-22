@@ -108,11 +108,11 @@ export function spellingBooksView(app: App, onStart: (round: Round) => void): HT
 function noBooksView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
-  // 與有本的版本同一條標題列：複習畫面右側那顆「拼字」在零本時也按得到，
-  // 進來看到的這一頁若少一排鈕，同一個位置的東西就會忽有忽無。
+  // 與有本的版本同一條標題列與分段切換：複習畫面的分段切換在零本時也按得到「拼字」，
+  // 進來看到的這一頁若少了那一排，同一個位置的東西就會忽有忽無。
   //
   // 票 06 只講了有本的那個版本，零本這一版是實作時端給維護者選的，他選「兩個狀態長一樣」。
-  // 反面的選法是零本時複習畫面右邊只留「卡片」，代價是這一頁從此走不到（等於死路）。
+  // 反面的選法是零本時複習畫面不給拼字的入口，代價是這一頁從此走不到（等於死路）。
   const header = spellingBar(app);
 
   const main = el('main', 'card done');

@@ -77,10 +77,8 @@ export function statsView(app: App): HTMLElement {
   const screen = el('div', 'screen');
 
   const header = el('header', 'bar');
-  header.append(
-    button('bar-action', t('nav.data'), () => app.showData()),
-    el('span', 'bar-title', t('nav.stats')),
-  );
+  // 往隔壁畫面的鈕由底部導覽列接手（`web-tab-bar/01`），標題列只剩標題。
+  header.append(el('span', 'bar-title', t('nav.stats')));
 
   const main = el('main', 'panel');
 

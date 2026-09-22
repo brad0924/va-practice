@@ -6,6 +6,7 @@ import type { Rating } from '@core/lib/types';
 import { bookFilter } from './book-filter';
 import { bookLabel } from './book-label';
 import { el, button } from './dom';
+import { practiceSwitch } from './practice-switch';
 import { renderTerm } from './reading-html';
 import { hasJapaneseVoice, speak } from './speech';
 
@@ -20,28 +21,6 @@ const RATING_BUTTONS: { rating: Rating; label: Key; key: string }[] = [
   { rating: 'good', label: 'review.ratingGood', key: '3' },
   { rating: 'easy', label: 'review.ratingEasy', key: '4' },
 ];
-
-/**
- * 複習畫面標題列右側那三顆：往拼字、往問答、往卡片。
- *
- * 導覽本來是一條線、每個畫面左右各一顆接到隔壁，但拼字排進「複習 → 拼字 → 卡片」之後，
- * 複習右邊要接的就有兩個去處（票 06 決定 2）；問答接在拼字後面，又多一個
- * （問答 spec 實作決定九）。三顆用 `.bar-side` 併成一格塞進最右欄，
- * `.bar-centered` 的 `1fr auto 1fr` 因此一行都不必改。
- *
- * 已知代價：右欄變寬，左欄跟著等寬變寬，中央那顆複習範圍膠囊被壓窄，名字長一點就
- * 收成省略號（票 06 決定 5；問答再壓一次，維護者同樣知情接受）。按鈕被壓到拆字或
- * 標題列換行才算壞。零本那個版本共用這一支，兩個狀態才長一樣。
- */
-function navRight(app: App): HTMLElement {
-  return el(
-    'div',
-    'bar-side',
-    button('bar-action', t('nav.spelling'), () => app.showSpelling()),
-    button('bar-action', t('nav.quiz'), () => app.showQuiz()),
-    button('bar-action', t('nav.cards'), () => app.showList()),
-  );
-}
 
 /**
  * 複習畫面。標題列中央有一顆單字本開關，改的是複習範圍那一組；資料頁單字本區
@@ -79,7 +58,7 @@ export function reviewView(app: App): HTMLElement {
   });
 
   const header = el('header', 'bar bar-centered');
-  header.append(remaining, books, navRight(app));
+  header.append(remaining, books);
 
   const main = el('main', 'card');
   const footer = el('footer', 'actions');
@@ -184,14 +163,14 @@ export function reviewView(app: App): HTMLElement {
   };
 
   refresh();
-  screen.append(header, main, footer);
+  screen.append(header, practiceSwitch(app, 'review'), main, footer);
   return screen;
 }
 
 function noBooksView(app: App): HTMLElement {
   const screen = el('div', 'screen');
   const header = el('header', 'bar');
-  header.append(el('span', 'remaining', t('review.remaining', { count: 0 })), navRight(app));
+  header.append(el('span', 'remaining', t('review.remaining', { count: 0 })));
 
   const main = el('main', 'card done');
   main.append(
@@ -204,6 +183,6 @@ function noBooksView(app: App): HTMLElement {
   footer.append(button('primary', t('books.goCreate'), () => app.showData()));
 
   app.keyHandler = null;
-  screen.append(header, main, footer);
+  screen.append(header, practiceSwitch(app, 'review'), main, footer);
   return screen;
 }

@@ -12,7 +12,8 @@ import { spellingView } from './spelling-view';
  *
  * 三頁之間換頁**不經過 `app.ts`**：拼字是一座小島，島內的三頁互相認得，島外只有一道門。
  * 換的手法是把自己那一棵 `.screen` 原地換掉（`replaceWith`），因此不必多包一層容器，
- * 每一頁仍然是 `#app` 的直接子節點，`.screen` 那條 `height: 100%` 照樣算得出高度。
+ * 每一頁仍然是 `#app` 的直接子節點，`.screen` 那條 `flex: 1 1 auto` 照樣撐得出高度，
+ * 旁邊的導覽列也不會跟著被換掉。
  *
  * 一輪存在 `app.spellingRound`：畫面被 `root.replaceChildren()` 丟掉時沒有人通知它，
  * 記在這一頁裡的東西會跟著消失，而「中途跳去別的畫面，那一輪照樣封存」要求它活得比畫面久。

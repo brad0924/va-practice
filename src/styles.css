@@ -16,10 +16,14 @@
   --new: #9a7fe0;
   --danger: #e0574f;
   --tap: 3.25rem;
-  /* 每個畫面底部的留白。固定值，不疊 env(safe-area-inset-bottom)：真機實測那條公式
-     在 iPhone standalone 下算出 46px，底下會空一大截。固定值讓 standalone 與瀏覽器
-     分頁（safe-area 恆為 0）留白一致。 */
+  /* 畫面最底下的留白，現在墊在導覽列膠囊底下（web-tab-bar/01）。固定值，不疊
+     env(safe-area-inset-bottom)：真機實測那條公式在 iPhone standalone 下算出 46px，
+     底下會空一大截。固定值讓 standalone 與瀏覽器分頁（safe-area 恆為 0）留白一致。
+     導覽列貼底之後這個值要在實機上重看一次（票 01 驗收最後一條）。 */
   --screen-pad-bottom: 16px;
+  /* 導覽列膠囊的外高：一格 var(--tap) 加上下各 0.25rem 內距。寫成固定值是因為
+     .sync-status 要照它把自己抬到底部按鈕上方。 */
+  --tab-bar-height: calc(var(--tap) + 0.5rem);
 }
 
 * {
@@ -50,17 +54,97 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 上面是畫面，底下是導覽列（web-tab-bar/01）。畫面吃掉導覽列以外的全部高度。 */
 #app {
-  height: 100%;
-}
-
-.screen {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* `width: 100%` 不可省：flex 容器裡的 `margin: auto` 會蓋掉拉伸，少了它畫面會縮到內容寬。
+   `min-height: 0` 讓內部的捲動容器縮得下來，否則長清單會把導覽列推出畫面。 */
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   max-width: 30rem;
   margin: 0 auto;
-  padding: env(safe-area-inset-top) 0.75rem var(--screen-pad-bottom);
+  padding: env(safe-area-inset-top) 0.75rem 0.5rem;
+}
+
+/* ---------- 底部導覽列 ---------- */
+
+/* 浮著的膠囊，左右內縮、圓角到底，與手機版 iOS 26 的樣子一致（票 01 決定 6）。
+   外面這一層只負責留白，膠囊本身是 .tab-bar 的背景。 */
+.tab-bar {
+  flex: 0 0 auto;
+  display: flex;
+  width: calc(100% - 2rem);
+  max-width: 26rem;
+  height: var(--tab-bar-height);
+  margin: 0 auto var(--screen-pad-bottom);
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.tab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 0;
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+/* 目前那一格：換強調色、墊一塊淡色底。圖示同時從線條換成實心，那一步在 tab-bar.ts。 */
+.tab[aria-current='page'] {
+  color: var(--accent);
+  background: rgba(110, 168, 255, 0.16);
+}
+
+.tab:active {
+  background: var(--line);
+}
+
+.tab-label {
+  font-size: 0.7rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* ---------- 分段切換（複習｜拼字｜問答） ---------- */
+
+.practice-switch {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  margin: 0 0 0.35rem;
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+
+.practice-switch-item {
+  flex: 1 1 0;
+  min-height: 2.25rem;
+  border-radius: 0.45rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.practice-switch-item[aria-current='page'] {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
 }
 
 button {
@@ -97,7 +181,7 @@ button,
   flex: 0 0 auto;
 }
 
-/* 有標題的頂部列改成三欄，左右兩欄寬度永遠相等，中間那塊才會不論左右按鈕多寡都精準置中。
+/* 有標題的頂部列改成三欄，左右兩欄寬度永遠相等，中間那塊才會不論左右有沒有按鈕都精準置中。
    複習頁中間放的是單字本開關而不是標題文字，沒有 .bar-title，另掛 .bar-centered 吃同一條。 */
 .bar:has(.bar-title),
 .bar.bar-centered {
@@ -111,34 +195,23 @@ button,
   justify-self: center;
 }
 
-/* 最右欄的內容（不管是單顆按鈕還是 .bar-side 容器）都靠右貼齊，
-   跟最左欄靠左貼齊對稱，標題才會落在正中間。 */
+/* 最右欄的內容都靠右貼齊，跟最左欄靠左貼齊對稱，標題才會落在正中間。 */
 .bar > *:last-child:not(.bar-title) {
   justify-self: end;
 }
 
+/* 標題釘在中欄。導覽鈕拿掉之後（web-tab-bar/01）資料、統計、拼字、問答的標題列左邊空著，
+   不釘的話標題會自動排進最左那一欄。 */
 .bar-title {
+  grid-column: 2;
   font-weight: 600;
   text-align: center;
   justify-self: center;
 }
 
-/* 同一邊擺兩顆鈕時的容器（複習頁的「拼字」＋「卡片」、卡片頁的「資料」＋「新增」）。
-   `flex-wrap: wrap` 是給最大字級用的：那時兩顆整個排不下，要能整顆換到下一行、
-   把標題列撐高，而不是推出畫面右邊（票 06 驗收 8）。正常字級下永遠排得下，不會換行。
-   `justify-content` 只在換行之後才看得出來：容器那時被拉到整欄寬，少了它第二行那顆會
-   靠左，與這一欄靠右貼齊的規矩對不上。沒換行時容器縮到內容寬，這一條沒有東西可分配。 */
-.bar-side {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
 /* `white-space: nowrap` 不可省。少了它，375px 下三欄搶不到位子時瀏覽器會挑好欺負的下手：
    旁邊那顆膠囊自己帶著 nowrap，於是被壓的是這兩顆鈕，兩個中文字被拆成上下兩行。
-   票 06 決定 5 算的是「鈕守住 116px、膠囊退到 103px」，這一行才是那個前提成立的原因。 */
+   現在標題列上剩的是各畫面自己的鈕（「新增」「取消」），同一條理由照樣成立。 */
 .bar-action {
   min-height: 2.5rem;
   padding: 0 0.75rem;
@@ -150,30 +223,6 @@ button,
 
 .bar-action:active {
   background: var(--surface-2);
-}
-
-/*
- * 窄螢幕的標題列：複習頁那一條擠不下，這裡讓兩邊各退一步（票 06 實測）。
- *
- * 擠的原因不是總寬不夠，是**分不到**。三欄 `1fr auto 1fr` 裡，中間那顆膠囊是 `auto`，
- * 會先照內容拿滿 `max-width` 的 144px；左右兩個 `1fr` 分剩下的，375px 下每邊只剩約 95px，
- * 而兩顆 `.bar-action` 要 117px。膠囊自己帶著 `white-space: nowrap`，沒有變窄的機制，
- * 只有變短（切字加省略號）的機制，而切字是在它拿到 144px 之後才發生——因此讓不出來。
- *
- * 兩邊各退一步而不是只砍膠囊：內距 12px → 8px 幾乎看不出來，兩顆省下的 16px 全部還給
- * 膠囊，本名因此還看得到約 5 個字（只砍膠囊的話得砍到 80px，只剩 3 個字）。
- *
- * 界線取 27rem：再寬一點就分得夠了，144px 的膠囊配 117px 的鈕仍然排得下一行。
- * 電腦上 `.screen` 封頂 30rem，永遠落在這條界線之外，這一段碰不到它。
- */
-@media (max-width: 27rem) {
-  .bar-action {
-    padding: 0 0.5rem;
-  }
-
-  .bar .book-filter-toggle.pill {
-    max-width: 7rem;
-  }
 }
 
 .remaining {
@@ -584,8 +633,10 @@ button,
  * 橫向缺的是高度、多的是寬度。一直排的話 375px 高要塞下標題列、13rem 的上半與整片磚，
  * 磚會縮到 24.5px，手指點不準（票 03 實機量的）。切成兩欄之後磚回到 46px。
  *
- * **門檻看高度不看方向。** 31rem 是從磚的大小公式反推的：磚封頂 2.9rem，三列要撐得住
- * 就得有 `2.9 × 1.5 × 3` 的場地，加上標題列與上半，視窗矮於 31rem 磚才會開始縮。
+ * **門檻看高度不看方向。** 門檻是「磚開始縮」的那個視窗高度：磚封頂 2.9rem，三列要撐得住
+ * 就得有 `2.9 × 1.5 × 3` 的場地，再加上頂上與底下的東西。原本只有標題列與上半，算出 31rem。
+ * 底部導覽列與分段切換接進來之後（`web-tab-bar/01`），在 375px 寬的畫面上逐一量磚的高度：
+ * 548px（34.25rem）以上磚是封頂的 46.4px，544px 起開始縮。門檻因此改成 34.25rem。
  * 寫成 `orientation: landscape` 的話平板橫著拿也會被切成兩欄，那邊高度其實夠，
  * 切了反而讓磚變小。電腦把視窗壓扁也吃得到這一條，那是對的——它跟橫握是同一個處境。
  *
@@ -594,21 +645,23 @@ button,
  *
  * 問答答題頁吃同一條門檻（問答票 05，問答 spec 實作決定十）：左邊詞條、碼表與答完那一行，
  * 右邊四個選項。
- * 用 `:has(> .quiz-options)` 挑它。門檻不另訂——31rem 是拼字的磚算出來的，
+ * 用 `:has(> .quiz-options)` 挑它。門檻不另訂——那個值是拼字的磚算出來的，
  * 問答借用它是為了兩個練法在同一台裝置上同時切、同時不切，平板橫著拿兩邊都不切。
  */
-@media (max-height: 31rem) {
+@media (max-height: 34.25rem) {
   .screen:has(> .kana-field),
   .screen:has(> .quiz-options) {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     column-gap: 0.75rem;
   }
 
   /* 標題列橫跨上方。橫向的高度本來就緊，但這 3rem 照現況留著（拼字票 08 決定 7）。 */
   .screen:has(> .kana-field) > .bar,
-  .screen:has(> .quiz-options) > .bar {
+  .screen:has(> .quiz-options) > .bar,
+  .screen:has(> .kana-field) > .practice-switch,
+  .screen:has(> .quiz-options) > .practice-switch {
     grid-column: 1 / -1;
   }
 
@@ -1672,9 +1725,10 @@ button,
   left: 0;
   right: 0;
   /* 抬到底部那排按鈕上方，才不會蓋住「顯示答案」與四個評分鍵。
-     按鍵上緣距螢幕底部 = 畫面底部留白 + 按鍵最小高 var(--tap)，再加 0.5rem
-     讓出一點空隙。文字換行讓按鍵長高時這顆會略偏低，可接受。 */
-  bottom: calc(var(--tap) + var(--screen-pad-bottom) + 0.5rem);
+     按鍵上緣距螢幕底部 = 最底下的留白 + 導覽列 + 畫面與導覽列之間的 0.5rem
+     + 按鍵最小高 var(--tap)，再加 0.5rem 讓出一點空隙。
+     文字換行讓按鍵長高時這顆會略偏低，可接受。 */
+  bottom: calc(var(--screen-pad-bottom) + var(--tab-bar-height) + 0.5rem + var(--tap) + 0.5rem);
   margin: 0 auto;
   width: fit-content;
   max-width: calc(100% - 1.5rem);

@@ -67,7 +67,7 @@ export function quizBooksView(
 
 /**
  * 一本單字本都沒有：整頁換成指路，比照拼字零本那一頁（`spelling-books.ts` 的 `noBooksView()`）。
- * 標題列照樣是同一條，同一個位置的東西才不會忽有忽無。
+ * 標題列與分段切換照樣是同一組，同一個位置的東西才不會忽有忽無。
  */
 function noBooksView(app: App): HTMLElement {
   const screen = el('div', 'screen');
